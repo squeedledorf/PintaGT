@@ -130,6 +130,9 @@ internal sealed class MainWindow
 		DockNotebook notebook = canvas_pad.Notebook;
 		notebook.TabClosed += DockNotebook_TabClosed;
 		notebook.ActiveTabChanged += DockNotebook_ActiveTabChanged;
+		// Keep OpenDocuments in tab order, which Ctrl+Tab and Ctrl+1..9 follow.
+		notebook.TabReordered += (_, e) => PintaCore.Workspace.MoveDocument (
+			PintaCore.Workspace.OpenDocuments.IndexOf (((DocumentViewContent) e.Item).Document), e.Position);
 	}
 
 	private void Workspace_DocumentClosed (object? sender, DocumentEventArgs e)
@@ -177,7 +180,6 @@ internal sealed class MainWindow
 		var doc = e.Document;
 
 		var notebook = canvas_pad.Notebook;
-		int selected_index = notebook.ActiveItemIndex;
 
 		CanvasWindow canvas = CanvasWindow.New (
 			PintaCore.Chrome,
@@ -190,8 +192,7 @@ internal sealed class MainWindow
 
 		DocumentViewContent my_content = new (doc, canvas);
 
-		// Insert our tab to the right of the currently selected tab
-		notebook.InsertTab (my_content, selected_index + 1);
+		notebook.AppendTab (my_content);
 
 		// Zoom to window only on first show (if we do it always, it will be called on every resize)
 		// Note: this does seem to allow a small flicker where large images are shown at 100% zoom before

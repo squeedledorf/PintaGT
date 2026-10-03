@@ -41,6 +41,12 @@ public sealed class TabEventArgs (IDockNotebookItem? item) : EventArgs
 	public IDockNotebookItem? Item { get; } = item;
 }
 
+public sealed class TabReorderedEventArgs (IDockNotebookItem item, int position) : EventArgs
+{
+	public IDockNotebookItem Item { get; } = item;
+	public int Position { get; } = position;
+}
+
 [GObject.Subclass<Gtk.Box>]
 public sealed partial class DockNotebook
 {
@@ -64,6 +70,7 @@ public sealed partial class DockNotebook
 		tabView.Valign = Gtk.Align.Fill;
 		tabView.OnClosePage += TabView_OnClosePage;
 		tabView.OnSetupMenu += TabView_OnSetupMenu;
+		tabView.OnPageReordered += (_, args) => TabReordered?.Invoke (this, new TabReorderedEventArgs (FindItemForPage (args.Page)!, args.Position));
 
 		// Like Paint.NET's image list, the strip stays visible with a single image.
 		// (Interim until a thumbnail image list replaces the text tabs.)
@@ -253,6 +260,11 @@ public sealed partial class DockNotebook
 	public event EventHandler<TabClosedEventArgs>? TabClosed;
 
 	/// <summary>
+	/// Emitted when a tab is moved to a new position (dragged, or Ctrl+Shift+PgUp/PgDn).
+	/// </summary>
+	public event EventHandler<TabReorderedEventArgs>? TabReordered;
+
+	/// <summary>
 	/// Emitted when switching to a different tab.
 	/// </summary>
 	public event EventHandler<TabEventArgs>? ActiveTabChanged;
@@ -290,6 +302,11 @@ public sealed partial class DockNotebook
 		null => -1,
 		var page => tab_view.GetPagePosition (page)
 	};
+
+	/// <summary>
+	/// Adds a tab at the end of the strip, as Paint.NET adds new images.
+	/// </summary>
+	public void AppendTab (IDockNotebookItem item) => InsertTab (item, tab_view.NPages);
 
 	public void InsertTab (IDockNotebookItem item, int position)
 	{
