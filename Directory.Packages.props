@@ -15,7 +15,7 @@
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
     <!-- Libraries that Paint.NET plugins expect the host to provide -->
     <PackageVersion Include="System.Configuration.ConfigurationManager" Version="10.0.8" />
-    <PackageVersion Include="System.Resources.Extensions" Version="10.0.8" />
+    <PackageVersion Include="System.Resources.Extensions" Version="10.0.12" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.95.1" />
     <PackageVersion Include="Tmds.DBus.Generator" Version="0.95.1" />
 
