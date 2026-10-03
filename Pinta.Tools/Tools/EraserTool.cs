@@ -42,6 +42,10 @@ public sealed class EraserTool : BaseBrushTool
 	private PointI? last_point = null;
 	private EraserType eraser_type = EraserType.Normal;
 
+	// Coverage of the current stroke. The layer is recomputed from the undo surface
+	// and this mask, so overlapping segments never erase a pixel more than once.
+	private ImageSurface? stroke_mask;
+
 	private const int LUT_Resolution = 256;
 	private readonly Lazy<byte[,]> lazy_lut_factor = new (CreateLookupTable);
 	private readonly IWorkspaceService workspace;
@@ -65,7 +69,7 @@ public sealed class EraserTool : BaseBrushTool
 		=> Pinta.Resources.Icons.ToolEraser;
 
 	public override string StatusBarText
-		=> Translations.GetString ("Left click to erase to transparent, right click to erase to secondary color. ");
+		=> Translations.GetString ("Left click to erase using the primary color's transparency, right click to erase using the secondary color's transparency.");
 
 	public override Gdk.Key ShortcutKey
 		=> new (Gdk.Constants.KEY_E);
@@ -97,12 +101,31 @@ public sealed class EraserTool : BaseBrushTool
 		tb.Append (TypeComboBox);
 	}
 
+	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
+	{
+		if (mouse_button == MouseButton.None) {
+			stroke_mask?.Dispose ();
+			RectangleI bounds = new (PointI.Zero, document.ImageSize);
+			stroke_mask = CairoExtensions.CreateImageSurface (Format.Argb32, bounds.Width, bounds.Height);
+		}
+
+		base.OnMouseDown (document, e);
+	}
+
+	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
+	{
+		base.OnMouseUp (document, e);
+
+		stroke_mask?.Dispose ();
+		stroke_mask = null;
+	}
+
 	protected override void OnMouseMove (Document document, ToolMouseEventArgs e)
 	{
 		PointI newPoint = e.Point;
 		PointD newPointD = e.PointDouble;
 
-		if (mouse_button == MouseButton.None) {
+		if (mouse_button == MouseButton.None || stroke_mask is null || undo_surface is null) {
 			last_point = null;
 			return;
 		}
@@ -113,29 +136,16 @@ public sealed class EraserTool : BaseBrushTool
 		if (document.Workspace.PointInCanvas (newPointD))
 			surface_modified = true;
 
-		using Context g = document.CreateClippedContext ();
-
 		PointD lastPointD = (PointD) last_point.Value;
 
 		switch (eraser_type) {
 
 			case EraserType.Normal:
-
-				EraseNormal (
-					g,
-					lastPointD,
-					newPointD);
-
+				MaskNormal (stroke_mask, lastPointD, newPointD);
 				break;
 
 			case EraserType.Smooth:
-
-				EraseSmooth (
-					document.Layers.CurrentUserLayer.Surface,
-					g,
-					lastPointD,
-					newPointD);
-
+				MaskSmooth (stroke_mask, lastPointD, newPointD);
 				break;
 		}
 
@@ -148,6 +158,23 @@ public sealed class EraserTool : BaseBrushTool
 			.Inflated (
 				dirtyPadding,
 				dirtyPadding);
+
+		// Left click erases by the primary color's alpha, right click by the secondary's.
+		// The eraser never paints color.
+		double eraseAlpha = (mouse_button == MouseButton.Right ? Palette.SecondaryColor : Palette.PrimaryColor).A;
+
+		using (Context g = document.CreateClippedContext ()) {
+			g.Rectangle (document.ClampToImageSize (dirty).ToDouble ());
+			g.Clip ();
+
+			g.Operator = Operator.Source;
+			g.SetSourceSurface (undo_surface, 0, 0);
+			g.Paint ();
+
+			g.Operator = Operator.DestOut;
+			g.SetSourceSurface (stroke_mask, 0, 0);
+			g.PaintWithAlpha (eraseAlpha);
+		}
 
 		if (document.Workspace.IsPartiallyOffscreen (dirty))
 			document.Workspace.Invalidate ();
@@ -181,56 +208,10 @@ public sealed class EraserTool : BaseBrushTool
 		return result;
 	}
 
-	private static ImageSurface CopySurfacePart (ImageSurface surface, RectangleI destinationBounds)
+	private void MaskNormal (ImageSurface mask, PointD start, PointD end)
 	{
-		ImageSurface temporarySurface = CairoExtensions.CreateImageSurface (
-			Format.Argb32,
-			destinationBounds.Width,
-			destinationBounds.Height);
+		using Context g = new (mask);
 
-		using Context g = new (temporarySurface) { Operator = Operator.Source };
-
-		g.SetSourceSurface (
-			surface,
-			-destinationBounds.Left,
-			-destinationBounds.Top);
-
-		g.Rectangle (
-			new RectangleD (
-				0,
-				0,
-				destinationBounds.Width,
-				destinationBounds.Height));
-
-		g.Fill ();
-
-		//Flush to make sure all drawing operations are finished
-		temporarySurface.Flush ();
-
-		return temporarySurface;
-	}
-
-	private static void PasteSurfacePart (Context g, ImageSurface temporarySurface, RectangleI destinationBounds)
-	{
-		g.Operator = Operator.Source;
-
-		g.SetSourceSurface (
-			temporarySurface,
-			destinationBounds.Left,
-			destinationBounds.Top);
-
-		g.Rectangle (
-			new RectangleD (
-				destinationBounds.Left,
-				destinationBounds.Top,
-				destinationBounds.Width,
-				destinationBounds.Height));
-
-		g.Fill ();
-	}
-
-	private void EraseNormal (Context g, PointD start, PointD end)
-	{
 		g.Antialias = UseAntialiasing ? Antialias.Subpixel : Antialias.None;
 
 		// Adding 0.5 forces cairo into the correct square:
@@ -238,13 +219,7 @@ public sealed class EraserTool : BaseBrushTool
 		g.MoveTo (start.X + 0.5, start.Y + 0.5);
 		g.LineTo (end.X + 0.5, end.Y + 0.5);
 
-		// Right-click is erase to background color, left-click is transparent
-		if (mouse_button == MouseButton.Right) {
-			g.Operator = Operator.Source;
-			g.SetSourceColor (Palette.SecondaryColor);
-		} else
-			g.Operator = Operator.Clear;
-
+		g.SetSourceColor (new Color (0, 0, 0, 1));
 		g.LineWidth = BrushWidth;
 		g.LineJoin = LineJoin.Round;
 		g.LineCap = LineCap.Round;
@@ -252,20 +227,18 @@ public sealed class EraserTool : BaseBrushTool
 		g.Stroke ();
 	}
 
-	private void EraseSmooth (ImageSurface surf, Context g, PointD start, PointD end)
+	private void MaskSmooth (ImageSurface mask, PointD start, PointD end)
 	{
 		int rad = (int) (BrushWidth / 2.0) + 1;
-
-		// Premultiply with alpha value
-		byte backgroundA = (byte) (Palette.SecondaryColor.A * 255.0);
-		byte backgroundR = (byte) (Palette.SecondaryColor.R * backgroundA);
-		byte backgroundG = (byte) (Palette.SecondaryColor.G * backgroundA);
-		byte backgroundB = (byte) (Palette.SecondaryColor.B * backgroundA);
 
 		int numberOfSteps = (int) start.Distance (end) / rad + 1;
 
 		// Initialize lookup table when first used (to prevent slower startup of the application)
 		byte[,] lut_factor = lazy_lut_factor.Value;
+
+		mask.Flush ();
+		Span<ColorBgra> maskData = mask.GetPixelData ();
+		RectangleI surfaceBounds = new (0, 0, mask.Width, mask.Height);
 
 		for (var step = 0; step < numberOfSteps; step++) {
 
@@ -277,53 +250,31 @@ public sealed class EraserTool : BaseBrushTool
 			int x = (int) pt.X;
 			int y = (int) pt.Y;
 
-			RectangleI surfaceBounds = new (0, 0, surf.Width, surf.Height);
 			RectangleI brushBounds = new (x - rad, y - rad, 2 * rad, 2 * rad);
 			RectangleI destinationBounds = RectangleI.Intersect (surfaceBounds, brushBounds);
 
 			if (destinationBounds.Width <= 0 || destinationBounds.Height <= 0)
 				continue;
 
-			// Allow Clipping through a temporary surface
-			ImageSurface temporarySurface = CopySurfacePart (surf, destinationBounds);
-			Span<ColorBgra> temporaryData = temporarySurface.GetPixelData ();
-
 			for (int iy = destinationBounds.Top; iy < destinationBounds.Bottom; iy++) {
 
-				var srcRow = temporaryData[(temporarySurface.Width * (iy - destinationBounds.Top))..];
+				var row = maskData[(mask.Width * iy)..];
 				int dy = Math.Abs ((iy - y) * LUT_Resolution / rad);
 
 				for (var ix = destinationBounds.Left; ix < destinationBounds.Right; ix++) {
 
 					int dx = Math.Abs ((ix - x) * LUT_Resolution / rad);
 
-					byte force = lut_factor[dy, dx];
+					// The table holds how much of the pixel is kept, so coverage is its inverse.
+					byte coverage = (byte) (255 - lut_factor[dy, dx]);
 
-					// Note: premultiplied alpha is used!
-					int idx = ix - destinationBounds.Left;
-
-					ColorBgra original = srcRow[idx];
-
-					srcRow[idx] = mouse_button switch {
-
-						MouseButton.Right => ColorBgra.FromBgra (
-							b: (byte) ((original.B * force + backgroundB * (255 - force)) / 255),
-							g: (byte) ((original.G * force + backgroundG * (255 - force)) / 255),
-							r: (byte) ((original.R * force + backgroundR * (255 - force)) / 255),
-							a: (byte) ((original.A * force + backgroundA * (255 - force)) / 255)),
-
-						_ => ColorBgra.FromBgra (
-							b: (byte) (original.B * force / 255),
-							g: (byte) (original.G * force / 255),
-							r: (byte) (original.R * force / 255),
-							a: (byte) (original.A * force / 255)),
-					};
+					if (coverage > row[ix].A)
+						row[ix] = ColorBgra.FromBgra (0, 0, 0, coverage);
 				}
 			}
-
-			// Draw the final result on the surface
-			PasteSurfacePart (g, temporarySurface, destinationBounds);
 		}
+
+		mask.MarkDirty ();
 	}
 
 	private Label? type_label;
