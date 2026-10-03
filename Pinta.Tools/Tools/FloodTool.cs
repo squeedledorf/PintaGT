@@ -96,6 +96,7 @@ public abstract class FloodTool : BaseTool
 	// point is dragged or an option changes, without adding more history items.
 	private Document? live_document;
 	private UserLayer? live_layer;
+	private BaseHistoryItem? live_item;
 	private PointI live_point;
 	private bool live_shift;
 	private bool dragging_nub;
@@ -123,6 +124,8 @@ public abstract class FloodTool : BaseTool
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
+		FinishIfStale ();
+
 		if (live_document == document && Nub.ContainsPoint (e.WindowPoint)) {
 			dragging_nub = true;
 			drag_offset = new PointD (live_point.X - e.PointDouble.X, live_point.Y - e.PointDouble.Y);
@@ -153,6 +156,7 @@ public abstract class FloodTool : BaseTool
 		live_layer = document.Layers.CurrentUserLayer;
 		live_point = pos;
 		live_shift = e.IsShiftPressed;
+		live_item = history;
 
 		Flood (document);
 		document.History.PushNewItem (history);
@@ -231,24 +235,39 @@ public abstract class FloodTool : BaseTool
 		dragging_nub = false;
 		live_document = null;
 		live_layer = null;
+		live_item = null;
 		EndLiveFill ();
 	}
 
 	/// <summary>Redoes the live fill with the current options. Called when the tolerance, mode or a colour changes.</summary>
 	protected void Reflood ()
 	{
-		if (live_document is null)
+		if (FinishIfStale ())
 			return;
-
-		// The fill belongs to one layer of one image; once either changes, it's finished.
-		if (!Workspace.HasOpenDocuments || Workspace.ActiveDocument != live_document || live_document.Layers.CurrentUserLayer != live_layer) {
-			FinishLiveFill ();
-			return;
-		}
 
 		RestoreBeforeFill (live_document);
 		Flood (live_document);
 		live_document.Workspace.Invalidate ();
+	}
+
+	/// <summary>
+	/// The fill belongs to one layer of one image and to the newest history item; once any of them changes
+	/// (another layer or image, or an edit such as Erase Selection or Select All), it's finished.
+	/// Returns whether there is no live fill left.
+	/// </summary>
+	[System.Diagnostics.CodeAnalysis.MemberNotNullWhen (false, nameof (live_document))]
+	private bool FinishIfStale ()
+	{
+		if (live_document is null)
+			return true;
+
+		if (!Workspace.HasOpenDocuments || Workspace.ActiveDocument != live_document
+			|| live_document.Layers.CurrentUserLayer != live_layer || live_document.History.Current != live_item) {
+			FinishLiveFill ();
+			return true;
+		}
+
+		return false;
 	}
 
 	private void Flood (Document document)
