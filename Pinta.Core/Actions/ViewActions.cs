@@ -285,6 +285,20 @@ public sealed class ViewActions
 		focus_controller.OnLeave += Entry_FocusOutEvent;
 		ZoomComboBox.ComboBox.GetEntry ().AddController (focus_controller);
 
+		// Enter applies the typed zoom and Escape restores the old one; both hand focus back
+		// to the canvas so tool letters don't get typed into the box.
+		Gtk.Entry zoom_entry = ZoomComboBox.ComboBox.GetEntry ();
+		zoom_entry.OnActivate += (_, _) => FinishZoomEntry (cancel: false);
+		Gtk.EventControllerKey zoom_keys = Gtk.EventControllerKey.New ();
+		zoom_keys.OnKeyPressed += (_, args) => {
+			if (args.Keyval != Gdk.Constants.KEY_Escape)
+				return false;
+			FinishZoomEntry (cancel: true);
+			return true;
+		};
+		// The main window forwards key presses to the focused widget, which is the entry's inner text widget.
+		((zoom_entry.GetDelegate () as Gtk.Widget) ?? zoom_entry).AddController (zoom_keys);
+
 		ActualSize.Activated += HandlePintaCoreActionsViewActualSizeActivated;
 
 		bool isFullscreen = false;
@@ -305,6 +319,24 @@ public sealed class ViewActions
 	private void Entry_FocusInEvent (object o, EventArgs args)
 	{
 		temp_zoom = ZoomComboBox.ComboBox.GetActiveText ()!;
+	}
+
+	private void FinishZoomEntry (bool cancel)
+	{
+		if (cancel && temp_zoom is not null)
+			ZoomComboBox.ComboBox.GetEntry ().SetText (temp_zoom);
+
+		if (!workspace.HasOpenDocuments)
+			return;
+
+		// Show the zoom that was actually applied, e.g. "150%" for "150" or "3,600%" for "9000".
+		if (!cancel && ZoomComboBox.ComboBox.GetActiveText () != Translations.GetString ("Window")) {
+			SuspendZoomUpdate ();
+			ZoomComboBox.ComboBox.GetEntry ().SetText (ToPercent (workspace.Scale));
+			ResumeZoomUpdate ();
+		}
+
+		workspace.ActiveWorkspace.GrabFocusToCanvas ();
 	}
 
 	private void Entry_FocusOutEvent (object o, EventArgs args)
