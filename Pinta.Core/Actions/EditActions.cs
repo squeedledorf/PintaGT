@@ -775,6 +775,9 @@ public sealed class EditActions
 		doc.PreviousSelection.HandleBounds = RectangleD.Zero;
 
 		SelectionModeHandler.PerformSelectionMode (doc, mode, polygons);
+		// Exclude/Intersect can leave nothing; as in Paint.NET that is "nothing selected", not an empty visible selection.
+		if (doc.Selection.SelectionPolygons.Count == 0)
+			doc.ResetSelectionPaths ();
 
 		doc.History.PushNewItem (hist);
 		doc.Workspace.Invalidate ();
