@@ -516,14 +516,7 @@ internal sealed class MainWindow
 				Gtk.WindowHandle titleHandle = Gtk.WindowHandle.New ();
 				titleHandle.SetChild (title);
 				top.Attach (titleHandle, 0, 0, 1, 1);
-
-				// Paint.NET's minimize / maximize / close at the right end of the title row. Drawn here
-				// rather than by Gtk.WindowControls, which follows the desktop's button layout and the
-				// compositor's capabilities and may show only a close button.
-				Gtk.WindowHandle controlsHandle = Gtk.WindowHandle.New ();
-				controlsHandle.SetChild (CreateCaptionButtons ());
-				controlsHandle.Halign = Gtk.Align.End;
-				top.Attach (controlsHandle, 2, 0, 1, 1);
+				// No window buttons: on Hyprland the compositor manages windows.
 
 				// The menus sit in a tab-shaped box; a rule runs from its bottom-right corner to the
 				// window's right edge, behind the image list and the window toggles. The row spans every
@@ -692,49 +685,6 @@ internal sealed class MainWindow
 				});
 			};
 		}
-	}
-
-	private Gtk.Box CreateCaptionButtons ()
-	{
-		Gtk.Window window = window_shell.Window;
-
-		Gtk.Button Caption (string icon, string tooltip, Action clicked)
-		{
-			Gtk.Button button = Gtk.Button.NewFromIconName (icon);
-			button.TooltipText = tooltip;
-			button.FocusOnClick = false;
-			button.CanFocus = false;
-			button.OnClicked += (_, _) => clicked ();
-			return button;
-		}
-
-		Gtk.Button maximize = Caption ("pinta-caption-maximize-symbolic", Translations.GetString ("Maximize"), () => {
-			if (window.IsMaximized ())
-				window.Unmaximize ();
-			else
-				window.Maximize ();
-		});
-		void UpdateMaximize ()
-		{
-			bool maximized = window.IsMaximized ();
-			maximize.IconName = maximized ? "pinta-caption-restore-symbolic" : "pinta-caption-maximize-symbolic";
-			maximize.TooltipText = maximized ? Translations.GetString ("Restore Down") : Translations.GetString ("Maximize");
-		}
-		window.OnNotify += (_, e) => {
-			if (e.Pspec.GetName () == "maximized")
-				UpdateMaximize ();
-		};
-		UpdateMaximize ();
-
-		Gtk.Button close = Caption ("pinta-caption-close-symbolic", Translations.GetString ("Close"), window.Close);
-		close.AddCssClass ("close");
-
-		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
-		box.AddCssClass ("pdn-caption");
-		box.Append (Caption ("pinta-caption-minimize-symbolic", Translations.GetString ("Minimize"), window.Minimize));
-		box.Append (maximize);
-		box.Append (close);
-		return box;
 	}
 
 	// A flat icon button that is pressed while its window is shown.
