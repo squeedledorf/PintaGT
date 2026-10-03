@@ -46,7 +46,18 @@ public sealed class CloudsEffect : BaseEffect
 	}
 
 	public override Task<bool> LaunchConfiguration ()
-		=> chrome.LaunchSimpleEffectDialog (this, workspace);
+	{
+		// Like Paint.NET, the colours are loaded from the palette the first time the
+		// dialog opens and are then kept (until restart) however the palette changes.
+		CloudsData data = Data;
+		if (!data.ColorsLoaded) {
+			data.Color1 = palette.PrimaryColor;
+			data.Color2 = palette.SecondaryColor;
+			data.ColorsLoaded = true;
+		}
+
+		return chrome.LaunchSimpleEffectDialog (this, workspace);
+	}
 
 	private readonly record struct CloudsSettings (
 		int Scale,
@@ -61,12 +72,13 @@ public sealed class CloudsEffect : BaseEffect
 		CloudsData data = Data;
 
 		var baseGradient =
-			GradientHelper
-			.CreateBaseGradientForEffect (
-				palette,
-				data.ColorSchemeSource,
-				data.ColorScheme,
-				data.ColorSchemeSeed)
+			(data.ColorSchemeSource == ColorSchemeSource.SelectedColors && data.ColorsLoaded
+				? ColorGradient.Create (data.Color1.ToColorBgra (), data.Color2.ToColorBgra (), NumberRange.Create<double> (0, 1))
+				: GradientHelper.CreateBaseGradientForEffect (
+					palette,
+					data.ColorSchemeSource,
+					data.ColorScheme,
+					data.ColorSchemeSeed))
 			.Resized (NumberRange.Create<double> (0, 1));
 
 		return new (
@@ -135,7 +147,7 @@ public sealed class CloudsEffect : BaseEffect
 		[MinimumValue (2), MaximumValue (1000)]
 		public int Scale { get; set; } = 250;
 
-		[Caption ("Power")]
+		[Caption ("Roughness")]
 		[MinimumValue (0), MaximumValue (100)]
 		public int Power { get; set; } = 50;
 
@@ -144,6 +156,17 @@ public sealed class CloudsEffect : BaseEffect
 
 		[Caption ("Color Scheme Source")]
 		public ColorSchemeSource ColorSchemeSource { get; set; } = ColorSchemeSource.SelectedColors;
+
+		[Caption ("Color 1")]
+		[VisibleWhen (nameof (ShowColors))]
+		public Color Color1 { get; set; } = Color.Black;
+
+		[Caption ("Color 2")]
+		[VisibleWhen (nameof (ShowColors))]
+		public Color Color2 { get; set; } = Color.White;
+
+		[Skip]
+		public bool ColorsLoaded { get; set; } = false;
 
 		[Caption ("Color Scheme")]
 		[VisibleWhen (nameof (ShowColorScheme))]
@@ -155,6 +178,9 @@ public sealed class CloudsEffect : BaseEffect
 
 		[Caption ("Reverse Color Scheme")]
 		public bool ReverseColorScheme { get; set; } = false;
+
+		[Skip]
+		public bool ShowColors => ColorSchemeSource == ColorSchemeSource.SelectedColors;
 
 		[Skip]
 		public bool ShowColorScheme => ColorSchemeSource == ColorSchemeSource.PresetGradient;
