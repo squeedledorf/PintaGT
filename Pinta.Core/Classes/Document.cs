@@ -25,6 +25,8 @@
 // THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Cairo;
 
@@ -56,8 +58,6 @@ public sealed class Document
 	}
 
 	public DocumentSelection PreviousSelection { get; set; }
-
-	private static int name_counter = 1;
 
 	public Document (ActionManager actions, ToolManager tools, WorkspaceManager workspace, Size size)
 		: this (actions, tools, workspace, size, null, null)
@@ -99,7 +99,7 @@ public sealed class Document
 			File = file;
 			FileType = fileType;
 		} else
-			DisplayName = Translations.GetString ("Unsaved Image {0}", name_counter++);
+			DisplayName = CreateUntitledName (workspace);
 
 		Workspace.ViewSize = size;
 
@@ -107,8 +107,27 @@ public sealed class Document
 	}
 
 	/// <summary>
+	/// Paint.NET names new images "Untitled", appending " 2", " 3", ... only
+	/// when an open image already uses the name.
+	/// </summary>
+	private static string CreateUntitledName (WorkspaceManager workspace)
+	{
+		string untitled = Translations.GetString ("Untitled");
+		HashSet<string> taken = workspace.OpenDocuments.Where (d => !d.HasFile).Select (d => d.DisplayName).ToHashSet ();
+
+		if (!taken.Contains (untitled))
+			return untitled;
+
+		int n = 2;
+		while (taken.Contains ($"{untitled} {n}"))
+			n++;
+
+		return $"{untitled} {n}";
+	}
+
+	/// <summary>
 	/// Just the file name, like "dog.jpg".
-	/// If HasFile is false, this may be something like "Unsaved image 1".
+	/// If HasFile is false, this may be something like "Untitled 2".
 	/// </summary>
 	public string DisplayName {
 		get => display_name;

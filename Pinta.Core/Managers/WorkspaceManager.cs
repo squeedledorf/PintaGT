@@ -272,6 +272,10 @@ public sealed class WorkspaceManager : IWorkspaceService
 			OnActiveDocumentChanged (EventArgs.Empty);
 		} else {
 			open_documents.Remove (document);
+
+			// Keep the active document the same when one before it is removed.
+			if (index < active_document_index)
+				active_document_index--;
 		}
 
 		document.Layers.LayerAdded -= Document_LayerAdded;
@@ -313,6 +317,13 @@ public sealed class WorkspaceManager : IWorkspaceService
 	{
 		parent ??= chrome_manager.MainWindow;
 
+		// Like Paint.NET, opening a file replaces an untouched startup image.
+		// It is closed only once the new image has opened successfully.
+		Document? pristine =
+			open_documents.Count == 1 && IsPristine (open_documents[0])
+			? open_documents[0]
+			: null;
+
 		try {
 			// Open the image and add it to the layers
 			IImageImporter? importer = image_formats.GetImporterByFile (file.GetDisplayName ());
@@ -351,6 +362,12 @@ public sealed class WorkspaceManager : IWorkspaceService
 			ActiveWorkspace.History.PushNewItem (new BaseHistoryItem (Resources.StandardIcons.DocumentOpen, Translations.GetString ("Open Image")));
 			ActiveDocument.History.SetClean ();
 
+			if (pristine is not null && open_documents.Contains (pristine) && IsPristine (pristine)) {
+				CloseDocument (pristine);
+				// The active document's index shifted, so refresh index-based state (e.g. the Window menu).
+				OnActiveDocumentChanged (EventArgs.Empty);
+			}
+
 			return true;
 
 		} catch (UnauthorizedAccessException) {
@@ -362,13 +379,22 @@ public sealed class WorkspaceManager : IWorkspaceService
 		return false;
 	}
 
+	/// <summary>
+	/// A new image that was never saved or edited (only its initial history item).
+	/// </summary>
+	private static bool IsPristine (Document document)
+		=> !document.HasFile
+		&& !document.IsDirty
+		&& document.History.Pointer == 0
+		&& !document.History.CanRedo;
+
 	public bool ImageFitsInWindow
 		=> ActiveWorkspace.ImageFitsInWindow;
 
 	internal void ResetTitle ()
 	{
 		if (HasOpenDocuments)
-			chrome_manager.MainWindow.Title = $"{ActiveDocument.DisplayName}{(ActiveDocument.IsDirty ? "*" : "")} - Pinta";
+			chrome_manager.MainWindow.Title = $"{(ActiveDocument.IsDirty ? "*" : "")}{ActiveDocument.DisplayName} - Pinta";
 		else
 			chrome_manager.MainWindow.Title = "Pinta";
 	}

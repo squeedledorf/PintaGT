@@ -131,7 +131,7 @@ public sealed class ImageConverterManager
 	/// </summary>
 	public FormatDescriptor GetDefaultSaveFormat ()
 	{
-		string extension = settings_manager.GetSetting<string> (SettingNames.DEFAULT_IMAGE_TYPE, "jpeg");
+		string extension = settings_manager.GetSetting<string> (SettingNames.DEFAULT_IMAGE_TYPE, "png");
 
 		FormatDescriptor? fd = GetFormatByExtension (extension);
 
