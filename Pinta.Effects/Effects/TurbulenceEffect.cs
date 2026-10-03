@@ -89,6 +89,10 @@ public sealed class TurbulenceEffect : BaseEffect
 			// Large offset keeps the lattice coordinates positive
 			double px = 65536 + x * frequency;
 			double py = 65536 + y * frequency;
+
+			// Turn each octave's lattice (about 27°) so the octaves' grid lines
+			// don't coincide; otherwise |noise| shows straight horizontal/vertical streaks.
+			(x, y) = (x * 0.89 - y * 0.456, x * 0.456 + y * 0.89);
 			int ix = (int) px;
 			int iy = (int) py;
 			double n = PerlinNoise.Compute (
