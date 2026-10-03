@@ -64,6 +64,7 @@ public sealed partial class SaveConfigurationDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		ImageSizeFields.PressOkOnEnter (this);
 	}
 
 	private void Configure (SaveConfigurationEventArgs e)

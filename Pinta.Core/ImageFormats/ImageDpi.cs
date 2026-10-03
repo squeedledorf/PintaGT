@@ -20,7 +20,7 @@ public static class ImageDpi
 			while (at + 8 <= data.Length) {
 				int length = BinaryPrimitives.ReadInt32BigEndian (data[at..]);
 				ReadOnlySpan<byte> type = data.Slice (at + 4, 4);
-				if (type.SequenceEqual ("IDAT"u8) || length < 0)
+				if (type.SequenceEqual ("IDAT"u8) || length < 0 || length > data.Length)
 					return null;
 				if (type.SequenceEqual ("pHYs"u8) && length >= 9 && at + 17 <= data.Length) {
 					uint pixelsPerUnit = BinaryPrimitives.ReadUInt32BigEndian (data[(at + 8)..]);

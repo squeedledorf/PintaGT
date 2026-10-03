@@ -145,9 +145,9 @@ public sealed partial class ResizeCanvasDialog
 		anchorGrid.Attach (sButton, 1, 2, 1, 1);
 		anchorGrid.Attach (seButton, 2, 2, 1, 1);
 
-		Gtk.Label anchorLabel = Gtk.Label.NewWithMnemonic (Translations.GetString ("_Anchor:"));
+		// No mnemonic: Alt+A belongs to "By absolute size", as in Paint.NET.
+		Gtk.Label anchorLabel = Gtk.Label.New (Translations.GetString ("Anchor:"));
 		anchorLabel.Xalign = 0;
-		anchorLabel.MnemonicWidget = anchorDropdown;
 
 		Gtk.Label fillLabel = Gtk.Label.NewWithMnemonic (Translations.GetString ("_Fill:"));
 		fillLabel.Xalign = 0;

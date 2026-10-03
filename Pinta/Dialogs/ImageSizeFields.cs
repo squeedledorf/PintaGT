@@ -138,7 +138,14 @@ internal sealed class ImageSizeFields
 		aspect_checkbox.OnToggled += (_, _) => aspect_size = PixelSize;
 
 		if (percentage_radio is not null && absolute_radio is not null && percentage_spinner is not null) {
-			absolute_radio.OnToggled += (_, _) => UpdateSensitivity ();
+			absolute_radio.OnToggled += (_, _) => {
+				UpdateSensitivity ();
+				// Back in percentage mode, the size follows the percentage again, replacing any half-typed width.
+				if (!updating && !absolute_radio.Active)
+					SetPixelSize (new Size (
+						Math.Max (1, (int) Math.Round (original_size.Width * percentage_spinner.Value / 100)),
+						Math.Max (1, (int) Math.Round (original_size.Height * percentage_spinner.Value / 100))));
+			};
 			absolute_radio.Active = true;
 			UpdateSensitivity ();
 		}

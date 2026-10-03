@@ -133,4 +133,12 @@ internal sealed class SaveConfigurationTests
 		Assert.That (ImageDpi.Read (ImageDpi.Write (png, 150)), Is.EqualTo (150).Within (0.01));
 		Assert.That (ImageDpi.Read (ImageDpi.Write (jpeg, 150)), Is.EqualTo (150));
 	}
+
+	[Test]
+	public void DpiReadIgnoresAChunkLengthPastTheData ()
+	{
+		// A chunk claiming 2 GB must not overflow the scan.
+		byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x7F, 0xFF, 0xFF, 0xFF, (byte) 'i', (byte) 'C', (byte) 'C', (byte) 'P', 0, 0, 0, 0];
+		Assert.That (ImageDpi.Read (png), Is.Null);
+	}
 }
