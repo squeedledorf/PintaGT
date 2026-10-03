@@ -53,6 +53,7 @@ public sealed partial class HScaleSpinButtonWidget
 
 		Gtk.Box labelAndLine = Gtk.Box.New (Gtk.Orientation.Horizontal, SPACING);
 		labelAndLine.Append (titleLabel);
+		labelAndLine.Visible = false; // Shown once the widget has a title.
 
 		Gtk.Scale hScale = Gtk.Scale.NewWithRange (Gtk.Orientation.Horizontal, 2, 64, 1);
 		hScale.CanFocus = true;
@@ -123,8 +124,17 @@ public sealed partial class HScaleSpinButtonWidget
 
 	public string Label {
 		get => title_label.GetText ();
-		set => title_label.SetText (value);
+		set {
+			title_label.SetText (value);
+			title_label.Parent!.Visible = value.Length > 0;
+		}
 	}
+
+	/// <summary>
+	/// Adds a CSS class to the slider, e.g. one from style.css that paints a gradient on its track.
+	/// </summary>
+	public void AddTrackCssClass (string cssClass)
+		=> h_scale.AddCssClass (cssClass);
 
 	public int MaximumValue {
 		get => max_value;

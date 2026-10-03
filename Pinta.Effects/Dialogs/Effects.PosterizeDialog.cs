@@ -25,107 +25,120 @@
 // THE SOFTWARE.
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using Pinta.Core;
 using Pinta.Gui.Widgets;
 
 namespace Pinta.Effects;
 
+/// <summary>
+/// Paint.NET's Posterize window: a tick box above each of the Red, Green, Blue and
+/// Alpha sliders turns that channel on or off, and Linked keeps the sliders equal.
+/// </summary>
 [GObject.Subclass<Gtk.Dialog>]
 public sealed partial class PosterizeDialog
 {
-	private HScaleSpinButtonWidget red_spinbox;
-	private HScaleSpinButtonWidget green_spinbox;
-	private HScaleSpinButtonWidget blue_spinbox;
-	private Gtk.CheckButton link_button;
+	private PosterizeData effect_data = new ();
+	private HScaleSpinButtonWidget[] sliders = [];
+	private Gtk.CheckButton[] channel_checks = [];
+	private Gtk.CheckButton? link_button;
+	private bool syncing;
 
-	public int Red => red_spinbox.ValueAsInt;
-	public int Green => green_spinbox.ValueAsInt;
-	public int Blue => blue_spinbox.ValueAsInt;
-
-	public PosterizeData? EffectData { get; set; }
-
-	[MemberNotNull (nameof (red_spinbox), nameof (green_spinbox), nameof (blue_spinbox), nameof (link_button))]
 	partial void Initialize ()
 	{
-		DefaultWidth = 400;
-		DefaultHeight = 300;
-
 		Title = Translations.GetString ("Posterize");
 		Modal = true;
-
 		Resizable = false;
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
-
-		HScaleSpinButtonWidget redSpinbox = CreateChannelSpinBox (Translations.GetString ("Red"));
-		HScaleSpinButtonWidget greenSpinbox = CreateChannelSpinBox (Translations.GetString ("Green"));
-		HScaleSpinButtonWidget blueSpinbox = CreateChannelSpinBox (Translations.GetString ("Blue"));
-		Gtk.CheckButton linkButton = CreateLinkButton ();
-
-		red_spinbox = redSpinbox;
-		green_spinbox = greenSpinbox;
-		blue_spinbox = blueSpinbox;
-		link_button = linkButton;
-
-		Gtk.Box content_area = this.GetContentAreaBox ();
-		content_area.WidthRequest = 400;
-		content_area.SetAllMargins (6);
-		content_area.Spacing = 6;
-		content_area.AppendMultiple ([
-			redSpinbox,
-			greenSpinbox,
-			blueSpinbox,
-			linkButton]);
 	}
 
-	public static PosterizeDialog New (IChromeService chrome)
+	public static PosterizeDialog New (IChromeService chrome, PosterizeData data)
 	{
 		PosterizeDialog dialog = NewWithProperties ([]);
 		dialog.TransientFor = chrome.MainWindow;
+		dialog.effect_data = data;
+		dialog.BuildChannels ();
 		return dialog;
 	}
 
-	private static Gtk.CheckButton CreateLinkButton ()
+	private void BuildChannels ()
 	{
-		var result = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Linked"));
-		result.Active = true;
-		return result;
-	}
+		PosterizeData d = effect_data;
+		(string label, int value, bool enabled)[] channels = [
+			(Translations.GetString ("Red"), d.Red, d.RedEnabled),
+			(Translations.GetString ("Green"), d.Green, d.GreenEnabled),
+			(Translations.GetString ("Blue"), d.Blue, d.BlueEnabled),
+			(Translations.GetString ("Alpha"), d.Alpha, d.AlphaEnabled),
+		];
 
-	private HScaleSpinButtonWidget CreateChannelSpinBox (string label)
-	{
-		const int initial_channel_value = 16;
-		HScaleSpinButtonWidget spinner = HScaleSpinButtonWidget.New (initial_channel_value);
-		spinner.Label = label;
-		spinner.MaximumValue = 64;
-		spinner.MinimumValue = 2;
-		spinner.ValueChanged += HandleValueChanged;
-		return spinner;
+		Gtk.Box content_area = this.GetContentAreaBox ();
+		content_area.WidthRequest = 340;
+		content_area.SetAllMargins (6);
+		content_area.Spacing = 2;
+
+		sliders = new HScaleSpinButtonWidget[channels.Length];
+		channel_checks = new Gtk.CheckButton[channels.Length];
+
+		for (int i = 0; i < channels.Length; i++) {
+			HScaleSpinButtonWidget slider = HScaleSpinButtonWidget.New (channels[i].value);
+			slider.MaximumValue = 64;
+			slider.MinimumValue = 2;
+			slider.Sensitive = channels[i].enabled;
+			slider.ValueChanged += HandleValueChanged;
+
+			Gtk.CheckButton check = Gtk.CheckButton.NewWithLabel (channels[i].label);
+			check.Active = channels[i].enabled;
+			check.OnToggled += (_, _) => {
+				slider.Sensitive = check.Active;
+				UpdateEffectData ();
+			};
+
+			sliders[i] = slider;
+			channel_checks[i] = check;
+			content_area.Append (check);
+			content_area.Append (slider);
+		}
+
+		link_button = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Linked"));
+		link_button.Active = d.Linked;
+		link_button.MarginTop = 4;
+		link_button.OnToggled += (_, _) => UpdateEffectData ();
+		content_area.Append (link_button);
 	}
 
 	private void HandleValueChanged (object? sender, EventArgs e)
 	{
-		if (sender is not HScaleSpinButtonWidget widget)
+		if (syncing || sender is not HScaleSpinButtonWidget widget)
 			return;
 
-		if (link_button.Active)
-			green_spinbox.Value = blue_spinbox.Value = red_spinbox.Value = widget.Value;
+		if (link_button?.Active == true) {
+			syncing = true;
+			foreach (HScaleSpinButtonWidget slider in sliders)
+				slider.Value = widget.Value;
+			syncing = false;
+		}
 
 		UpdateEffectData ();
 	}
 
 	private void UpdateEffectData ()
 	{
-		if (EffectData == null)
+		if (link_button is null)
 			return;
 
-		EffectData.Red = red_spinbox.ValueAsInt;
-		EffectData.Green = green_spinbox.ValueAsInt;
-		EffectData.Blue = blue_spinbox.ValueAsInt;
+		PosterizeData d = effect_data;
+		d.Red = sliders[0].ValueAsInt;
+		d.Green = sliders[1].ValueAsInt;
+		d.Blue = sliders[2].ValueAsInt;
+		d.Alpha = sliders[3].ValueAsInt;
+		d.RedEnabled = channel_checks[0].Active;
+		d.GreenEnabled = channel_checks[1].Active;
+		d.BlueEnabled = channel_checks[2].Active;
+		d.AlphaEnabled = channel_checks[3].Active;
+		d.Linked = link_button.Active;
 
 		// Only fire event once, even if all properties have changed.
-		EffectData.FirePropertyChanged ("_all_");
+		d.FirePropertyChanged ("_all_");
 	}
 }
