@@ -142,9 +142,8 @@ partial class GtkExtensions
 
 	public static Gtk.Separator CreateToolBarSeparator ()
 	{
-		Gtk.Separator sep = Gtk.Separator.New (Gtk.Orientation.Horizontal);
-		sep.AddCssClass (AdwaitaStyles.Spacer);
-		return sep;
+		// A thin vertical line between groups, as in Paint.NET's toolbars.
+		return Gtk.Separator.New (Gtk.Orientation.Vertical);
 	}
 
 	public static Gtk.SpinButton CreateToolBarSpinButton (

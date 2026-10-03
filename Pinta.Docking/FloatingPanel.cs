@@ -13,9 +13,14 @@ namespace Pinta.Docking;
 [GObject.Subclass<Gtk.Box>]
 public sealed partial class FloatingPanel
 {
+	private const double FADED_OPACITY = 0.75;
+
 	private Gtk.Box title_bar;
 	private Gtk.Label title_label;
+	private Gtk.Widget? content;
 	private Gtk.Box? footer;
+	private Gtk.Box? footer_row;
+	private bool faded;
 
 	/// <summary>Key used for the panel's settings, e.g. "history".</summary>
 	public string Id { get; private set; } = string.Empty;
@@ -25,6 +30,34 @@ public sealed partial class FloatingPanel
 
 	/// <summary>The resize grip, for panels that can be resized.</summary>
 	public Gtk.Widget? Grip { get; private set; }
+
+	/// <summary>
+	/// Whether <see cref="Faded"/> also fades the content. The Colors window turns this off so its
+	/// swatches keep their true colours while only its frame goes translucent.
+	/// </summary>
+	public bool FadeContent { get; set; } = true;
+
+	/// <summary>
+	/// Paint.NET's translucent windows: while the pointer is elsewhere the background turns
+	/// translucent and the footer and (see <see cref="FadeContent"/>) content fade.
+	/// </summary>
+	public bool Faded {
+		get => faded;
+		set {
+			faded = value;
+			if (value)
+				AddCssClass ("faded");
+			else
+				RemoveCssClass ("faded");
+
+			// The title and the red close button stay solid, as in Paint.NET.
+			double opacity = value ? FADED_OPACITY : 1;
+			if (footer_row is not null)
+				footer_row.Opacity = opacity;
+			if (content is not null)
+				content.Opacity = FadeContent ? opacity : 1;
+		}
+	}
 
 	/// <summary>Raised when the close button is clicked.</summary>
 	public event EventHandler? CloseClicked;
@@ -37,9 +70,11 @@ public sealed partial class FloatingPanel
 		titleLabel.Xalign = 0;
 		titleLabel.Hexpand = true;
 		titleLabel.Ellipsize = Pango.EllipsizeMode.End;
-		titleLabel.WidthChars = 1; // Narrow panels (Tools) show "To..." like Paint.NET.
+		// Narrow panels (Tools) show "To..." like Paint.NET; wider ones expand the title to fit.
+		titleLabel.WidthChars = 1;
+		titleLabel.MaxWidthChars = 3;
 
-		Gtk.Button closeButton = Gtk.Button.NewFromIconName (StandardIcons.WindowClose);
+		Gtk.Button closeButton = Gtk.Button.NewFromIconName ("pinta-panel-close-symbolic");
 		closeButton.AddCssClass (Styles.PdnPanelClose);
 		closeButton.FocusOnClick = false;
 		closeButton.Valign = Gtk.Align.Center;
@@ -74,6 +109,7 @@ public sealed partial class FloatingPanel
 		content.Vexpand = resizable;
 		content.Valign = Gtk.Align.Fill;
 		panel.Append (content);
+		panel.content = content;
 
 		if (resizable)
 			panel.Grip = panel.CreateGrip ();
@@ -94,19 +130,22 @@ public sealed partial class FloatingPanel
 			footer.Hexpand = true;
 
 			Gtk.Box row = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+			row.AddCssClass (Styles.PdnPanelFooter + "-row");
 			row.Append (footer);
 			if (Grip is not null) {
 				Remove (Grip);
 				row.Append (Grip);
 			}
 			Append (row);
+			footer_row = row;
 			return footer;
 		}
 	}
 
 	private Gtk.DrawingArea CreateGrip ()
 	{
-		// Paint.NET's size grip: a triangle of dots in the bottom-right corner.
+		// An invisible size grip in the bottom-right corner: Paint.NET draws none, but the
+		// corner (like the edges) still resizes and shows the resize cursor.
 		const int SIZE = 12;
 		Gtk.DrawingArea grip = Gtk.DrawingArea.New ();
 		grip.SetSizeRequest (SIZE, SIZE);
@@ -114,14 +153,6 @@ public sealed partial class FloatingPanel
 		grip.Valign = Gtk.Align.End;
 		grip.Cursor = Gdk.Cursor.NewFromName (StandardCursors.ResizeSE, null);
 		grip.TooltipText = Translations.GetString ("Resize");
-		grip.SetDrawFunc ((area, g, width, height) => {
-			area.GetColor (out Gdk.RGBA fg);
-			g.SetSourceRgba (fg.Red, fg.Green, fg.Blue, 0.45);
-			for (int row = 0; row < 3; row++)
-				for (int col = 2 - row; col < 3; col++)
-					g.Rectangle (width - 4 * (3 - col) + 1, height - 4 * (3 - row) + 1, 2, 2);
-			g.Fill ();
-		});
 		Append (grip);
 		return grip;
 	}

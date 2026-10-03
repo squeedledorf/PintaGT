@@ -97,12 +97,13 @@ public sealed class ActionManager
 			header.PackStart (item);
 	}
 
-	// Paint.NET order: New, Open, Save | Cut, Copy, Paste, Crop, Deselect | Undo, Redo | Pixel Grid, Rulers
+	// Paint.NET order: New, Open, Save | Print | Cut, Copy, Paste, Crop, Deselect | Undo, Redo | Pixel Grid, Rulers
 	private Gtk.Widget[] CreateToolBarItems () => [
 		File.New.CreateToolBarItem (),
 		File.Open.CreateToolBarItem (),
 		File.Save.CreateToolBarItem (),
-		// Printing is disabled for now until it is fully functional.
+		GtkExtensions.CreateToolBarSeparator (),
+		File.Print.CreateToolBarItem (),
 		GtkExtensions.CreateToolBarSeparator (),
 		Edit.Cut.CreateToolBarItem (),
 		Edit.Copy.CreateToolBarItem (),

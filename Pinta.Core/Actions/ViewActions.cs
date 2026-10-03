@@ -308,6 +308,9 @@ public sealed class ViewActions
 		// "3,600%", as narrow as Paint.NET's box.
 		ZoomComboBox.ComboBox.GetEntry ().WidthChars = 6;
 		ZoomComboBox.ComboBox.GetEntry ().MaxWidthChars = 6;
+		// Paint.NET shows the zoom as plain, editable text; the presets live in the zoom buttons and View menu.
+		if (ZoomComboBox.ComboBox.GetFirstChild ()?.GetLastChild () is Gtk.Button presets)
+			presets.Visible = false;
 		statusbar.Append (ZoomComboBox);
 		statusbar.Append (ZoomToWindow.CreateToolBarItem ());
 		statusbar.Append (ZoomOut.CreateToolBarItem ());

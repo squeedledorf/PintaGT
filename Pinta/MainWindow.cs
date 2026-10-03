@@ -448,7 +448,10 @@ internal sealed class MainWindow
 			menuBar.AppendSubmenu (Translations.GetString ("_Adjustments"), adjustmentsMenu);
 			menuBar.AppendSubmenu (Translations.GetString ("Effe_cts"), effectsMenu);
 		}
-		menuBar.AppendSubmenu (Translations.GetString ("_Help"), helpMenu);
+		// Paint.NET has no Help menu: help lives behind the ? button at the far right of the top row.
+		// The macOS application menu bar keeps it.
+		if (SystemManager.GetOperatingSystem () == OS.Mac)
+			menuBar.AppendSubmenu (Translations.GetString ("_Help"), helpMenu);
 
 		// --- Global initializations
 
@@ -482,37 +485,61 @@ internal sealed class MainWindow
 	}
 
 	/// <summary>
-	/// Paint.NET 5's top rows: the menu bar above the main toolbar on the left, the image list
-	/// beside both, and at the far right the Tools/History/Layers/Colors toggles, Settings and Help.
+	/// Paint.NET 5's top rows: the window title, the menu bar and the main toolbar on the left,
+	/// the image list beside all three, and at the far right the Tools/History/Layers/Colors
+	/// toggles, Settings and Help.
 	/// </summary>
 	private void CreateTopBar ()
 	{
 		Gtk.Grid top = Gtk.Grid.New ();
+		top.AddCssClass ("pdn-top");
+		int rows = 1;
 
 		if (window_shell.HeaderBar is null) {
-			if (SystemManager.GetOperatingSystem () != OS.Mac)
-				top.Attach (Gtk.PopoverMenuBar.NewFromModel (menu_bar), 0, 0, 1, 1);
+			if (SystemManager.GetOperatingSystem () != OS.Mac) {
+				// Paint.NET's title row ("*name - paint.net"). Tiling window managers draw no title bar,
+				// and the image list needs this row to reach Paint.NET's thumbnail height.
+				Gtk.Box title = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
+				title.AddCssClass ("pdn-title");
+				Gtk.Image icon = Gtk.Image.NewFromIconName ("com.github.PintaProject.Pinta");
+				icon.PixelSize = 16;
+				title.Append (icon);
+				Gtk.Label titleLabel = Gtk.Label.New (null);
+				titleLabel.Ellipsize = Pango.EllipsizeMode.End;
+				window_shell.Window.BindProperty (
+					Gtk.Window.TitlePropertyDefinition.UnmanagedName,
+					titleLabel,
+					"label",
+					GObject.BindingFlags.SyncCreate);
+				title.Append (titleLabel);
+				top.Attach (title, 0, 0, 1, 1);
+
+				Gtk.PopoverMenuBar menus = Gtk.PopoverMenuBar.NewFromModel (menu_bar);
+				menus.Halign = Gtk.Align.Start;
+				top.Attach (menus, 0, 1, 1, 1);
+			}
 
 			Gtk.Box main_toolbar = GtkExtensions.CreateToolBar ();
 			main_toolbar.Name = "main_toolbar";
 			PintaCore.Actions.CreateToolBar (main_toolbar);
-			top.Attach (main_toolbar, 0, 1, 1, 1);
+			top.Attach (main_toolbar, 0, 2, 1, 1);
+			rows = 3;
 		} else
 			CreateHeaderBarMenus (window_shell.HeaderBar);
 
 		image_list = ImageThumbnailStrip.New ();
 		image_list.Hexpand = true;
 		image_list.MarginStart = 6;
-		image_list.ThumbnailHeight = 46; // As tall as the menu and toolbar rows it sits beside.
+		image_list.ThumbnailHeight = rows == 3 ? 68 : 40; // Spans the rows beside it, as in Paint.NET.
 		PintaCore.Chrome.InitializeImageTabsNotebook (image_list);
-		top.Attach (image_list, 1, 0, 1, 2);
+		top.Attach (image_list, 1, 0, 1, rows);
 
 		ViewActions view = PintaCore.Actions.View;
 		panel_toggles = [view.ToolsWindow, view.HistoryWindow, view.LayersWindow, view.ColorsWindow];
 
 		Gtk.Box window_buttons = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 		window_buttons.Name = "window_buttons";
-		window_buttons.Valign = Gtk.Align.Start;
+		window_buttons.Valign = Gtk.Align.Center;
 		foreach (ToggleCommand toggle in panel_toggles)
 			window_buttons.Append (CreateWindowToggle (toggle));
 
@@ -522,13 +549,14 @@ internal sealed class MainWindow
 		settings.Label = null;
 		settings.IconName = PintaCore.Actions.App.Preferences.IconName;
 		settings.AddCssClass (AdwaitaStyles.Flat);
+		settings.TooltipText = PintaCore.Actions.App.Preferences.Label.Replace ("_", "");
 		window_buttons.Append (settings);
 
 		Gtk.MenuButton help = GtkExtensions.CreateMenuButton (help_menu, StandardIcons.HelpBrowser, Translations.GetString ("Help"));
 		help.AddCssClass (AdwaitaStyles.Flat);
 		window_buttons.Append (help);
 
-		top.Attach (window_buttons, 2, 0, 1, 1);
+		top.Attach (window_buttons, 2, rows == 3 ? 1 : 0, 1, 1);
 
 		window_shell.Append (top);
 	}
@@ -540,6 +568,7 @@ internal sealed class MainWindow
 		button.ActionName = command.FullName;
 		button.IconName = command.IconName;
 		button.TooltipText = $"{command.Label} ({command.Shortcuts[0]})"; // F5–F8
+		button.Valign = Gtk.Align.Center;
 		button.FocusOnClick = false;
 		button.AddCssClass (AdwaitaStyles.Flat);
 		return button;
@@ -629,13 +658,14 @@ internal sealed class MainWindow
 		FloatingPanel history = HistoryPad.Create (PintaCore.Actions.Edit);
 		FloatingPanel layers = LayersPad.Create (PintaCore.Actions.Layers);
 		FloatingPanel colors = FloatingPanel.New ("colors", Translations.GetString ("Colors"), colors_panel, resizable: false);
+		colors.FadeContent = false; // Swatches keep their true colours while the window is faded.
 
 		// Paint.NET 5's default places: Tools top-left, Colors bottom-left, History top-right, Layers bottom-right.
 		const int GAP = 6;
 		panel_area.AddPanel (tools, new PanelAnchor (Right: false, Bottom: false, GAP, GAP), Size.Empty);
 		panel_area.AddPanel (colors, new PanelAnchor (Right: false, Bottom: true, GAP, GAP), Size.Empty);
-		panel_area.AddPanel (history, new PanelAnchor (Right: true, Bottom: false, GAP, GAP), new Size (180, 240));
-		panel_area.AddPanel (layers, new PanelAnchor (Right: true, Bottom: true, GAP, GAP), new Size (180, 220));
+		panel_area.AddPanel (history, new PanelAnchor (Right: true, Bottom: false, GAP, GAP), new Size (180, 345));
+		panel_area.AddPanel (layers, new PanelAnchor (Right: true, Bottom: true, GAP, GAP), new Size (180, 300));
 
 		ViewActions view = PintaCore.Actions.View;
 		BindPanel (view.ToolsWindow, tools);

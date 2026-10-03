@@ -17,7 +17,6 @@ public sealed partial class PanelArea
 	/// <summary>Setting: whether panels turn translucent while the pointer is not over them.</summary>
 	public const string TRANSLUCENT_SETTING = "panels-translucent";
 
-	private const double TRANSLUCENT_OPACITY = 0.7;
 	private const int MIN_PANEL_SIZE = 80;
 
 	private sealed class Entry (FloatingPanel panel, PanelAnchor defaultAnchor, Size defaultSize)
@@ -101,10 +100,10 @@ public sealed partial class PanelArea
 
 		// Paint.NET's translucent windows: faded unless the pointer is over the panel.
 		Gtk.EventControllerMotion hover = Gtk.EventControllerMotion.New ();
-		hover.OnEnter += (_, _) => panel.Opacity = 1;
+		hover.OnEnter += (_, _) => panel.Faded = false;
 		hover.OnLeave += (_, _) => {
 			if (!interacting)
-				panel.Opacity = RestingOpacity;
+				panel.Faded = RestsFaded;
 		};
 		if (entry.Resizable)
 			hover.OnMotion += (_, args) => {
@@ -112,10 +111,10 @@ public sealed partial class PanelArea
 					panel.Cursor = ResizeCursor (EdgesAt (entry, args.X, args.Y));
 			};
 		panel.AddController (hover);
-		panel.Opacity = RestingOpacity;
+		panel.Faded = RestsFaded;
 	}
 
-	private double RestingOpacity => settings.GetSetting (TRANSLUCENT_SETTING, true) ? TRANSLUCENT_OPACITY : 1;
+	private bool RestsFaded => settings.GetSetting (TRANSLUCENT_SETTING, true);
 
 	// --- Placement
 
@@ -205,7 +204,7 @@ public sealed partial class PanelArea
 	private void BeginMove (Entry entry, double startX, double startY)
 	{
 		interacting = true;
-		entry.Panel.Opacity = 1;
+		entry.Panel.Faded = false;
 		entry.Panel.TitleBar.TranslateCoordinates (entry.Panel, startX, startY, out double x, out double y);
 		grab_offset = new PointD (x, y);
 	}
@@ -276,7 +275,7 @@ public sealed partial class PanelArea
 	{
 		interacting = true;
 		resize_edges = edges;
-		entry.Panel.Opacity = 1;
+		entry.Panel.Faded = false;
 		resize_start_bounds = Bounds (entry);
 		entry.Panel.TranslateCoordinates (this, startX, startY, out double x, out double y);
 		resize_start_pointer = new PointD (x, y);

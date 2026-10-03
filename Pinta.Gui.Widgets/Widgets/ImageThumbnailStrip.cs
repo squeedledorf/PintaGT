@@ -9,22 +9,24 @@ namespace Pinta.Gui.Widgets;
 /// <summary>
 /// Paint.NET's image list: a strip with a thumbnail for every open image.
 /// Click to switch images, middle-click or the red X to close, right-click for the image menu,
-/// drag to reorder. Thumbnails of unsaved images carry an orange asterisk.
+/// drag to reorder. Thumbnails of unsaved images carry an asterisk.
 /// </summary>
 [GObject.Subclass<Gtk.Box>]
 public sealed partial class ImageThumbnailStrip
 {
-	private const int PADDING = 3; // Between the highlight and the image.
+	private const int PADDING = 4; // Between the highlight and the image.
 	private const int CLOSE_RADIUS = 6;
 	private const uint REFRESH_DELAY_MS = 300; // Thumbnails are re-rendered at most this often while editing.
 	private const string DRAG_MARKER = "pinta-image-list";
 
-	private static readonly Color selected_fill = new (0.2, 0.5, 0.9, 0.25);
-	private static readonly Color selected_border = new (0.2, 0.5, 0.9);
-	private static readonly Color hover_fill = new (0.2, 0.5, 0.9, 0.12);
-	private static readonly Color image_border = new (0.5, 0.5, 0.5);
-	private static readonly Color unsaved_color = new (1.0, 0.55, 0.0);
-	private static readonly Color close_color = new (0.85, 0.2, 0.2);
+	// Paint.NET's selection: a light-blue tile with a blue border.
+	private static readonly Color selected_fill = new (0.0, 0.47, 0.84, 0.28);
+	private static readonly Color selected_border = new (0.0, 0.47, 0.84);
+	private static readonly Color hover_fill = new (0.0, 0.47, 0.84, 0.1);
+	private static readonly Color hover_border = new (0.0, 0.47, 0.84, 0.45);
+	private static readonly Color shadow_color = new (0, 0, 0, 0.12);
+	private static readonly Color unsaved_color = new (0.1, 0.1, 0.1);
+	private static readonly Color close_color = new (0.79, 0.31, 0.31);
 	private static readonly Pattern transparent_pattern = CairoExtensions.CreateTransparentBackgroundPattern (4);
 
 	private readonly Dictionary<Document, Thumbnail> thumbnails = [];
@@ -82,10 +84,11 @@ public sealed partial class ImageThumbnailStrip
 		// The "all images" dropdown lists the open images by name.
 		Gio.Menu listMenu = Gio.Menu.New ();
 		Gtk.MenuButton listButton = Gtk.MenuButton.New ();
-		listButton.IconName = "pan-down-symbolic";
+		listButton.IconName = "pinta-image-list-more";
 		listButton.TooltipText = Translations.GetString ("All Images");
 		listButton.Valign = Gtk.Align.Center;
 		listButton.AddCssClass (AdwaitaStyles.Flat);
+		listButton.AddCssClass ("pdn-flat-button");
 		listButton.MenuModel = listMenu;
 
 		// The image menu. The image is made active before the menu shows, so the
@@ -511,7 +514,7 @@ public sealed partial class ImageThumbnailStrip
 			Area.QueueDraw ();
 		}
 
-		private bool ShowsCloseButton => IsActive || hovered;
+		private bool ShowsCloseButton => hovered;
 
 		private bool IsOnCloseButton (double x, double y)
 		{
@@ -552,7 +555,7 @@ public sealed partial class ImageThumbnailStrip
 				g.SetSourceColor (IsActive ? selected_fill : hover_fill);
 				g.FillPreserve ();
 				g.LineWidth = 1;
-				g.SetSourceColor (IsActive ? selected_border : hover_fill);
+				g.SetSourceColor (IsActive ? selected_border : hover_border);
 				g.Stroke ();
 			}
 
@@ -567,6 +570,13 @@ public sealed partial class ImageThumbnailStrip
 				double x = PADDING + (boxWidth - drawWidth) / 2;
 				double y = PADDING + (boxHeight - drawHeight) / 2;
 
+				// A soft drop shadow instead of a frame.
+				for (int i = 1; i <= 2; i++) {
+					g.Rectangle (x + i, y + i, drawWidth, drawHeight);
+					g.SetSourceColor (shadow_color);
+					g.Fill ();
+				}
+
 				int scaleFactor = Area.GetScaleFactor ();
 				ImageSurface thumb = GetSurface (drawWidth * scaleFactor, drawHeight * scaleFactor);
 
@@ -576,11 +586,6 @@ public sealed partial class ImageThumbnailStrip
 				g.SetSourceSurface (thumb, 0, 0);
 				g.Paint ();
 				g.Restore ();
-
-				g.Rectangle (x + 0.5, y + 0.5, drawWidth - 1, drawHeight - 1);
-				g.SetSourceColor (image_border);
-				g.LineWidth = 1;
-				g.Stroke ();
 			}
 
 			if (Document.IsDirty)
@@ -624,8 +629,8 @@ public sealed partial class ImageThumbnailStrip
 			const double RADIUS = 4;
 			g.LineCap = LineCap.Round;
 
-			// A white outline keeps it visible on orange images.
-			foreach ((Color color, double lineWidth) in new[] { (new Color (1, 1, 1), 3.5), (unsaved_color, 1.75) }) {
+			// A white outline keeps it visible on dark images.
+			foreach ((Color color, double lineWidth) in new[] { (new Color (1, 1, 1), 3), (unsaved_color, 1.25) }) {
 				for (int i = 0; i < 3; i++) {
 					double angle = Math.PI / 2 + i * Math.PI / 3;
 					double dx = Math.Cos (angle) * RADIUS;

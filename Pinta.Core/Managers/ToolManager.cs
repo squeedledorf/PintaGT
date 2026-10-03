@@ -464,6 +464,7 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 			tool_menu_button.Child = content;
 			tool_menu_button.Popover = popover;
 			tool_menu_button.HasFrame = false;
+			tool_menu_button.AlwaysShowArrow = true;
 			label.MnemonicWidget = tool_menu_button;
 
 			return tool_menu_button;

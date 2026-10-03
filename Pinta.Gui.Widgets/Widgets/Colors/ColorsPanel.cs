@@ -7,7 +7,7 @@ namespace Pinta.Gui.Widgets;
 
 /// <summary>
 /// A compact Colors window in the style of Paint.NET 5: primary/secondary squares with an
-/// active-slot notch, a live colour wheel with a brightness bar, a "More >>" section with
+/// active-slot notch, a live colour wheel, a "More >>" section with
 /// RGB/hex/HSV/alpha sliders, and the palette strip with its menu.
 /// Left clicks on the wheel or palette set the active slot, right clicks the inactive one.
 /// </summary>
@@ -22,7 +22,6 @@ public sealed partial class ColorsPanel
 	private const int WHEEL_SIZE = 136;
 	private const int WHEEL_RADIUS = WHEEL_SIZE / 2 - 2;
 	private const int WHEEL_TOP = 30;
-	private const int VALUE_BAR_WIDTH = 12;
 	private const int SLIDER_WIDTH = 110;
 
 	private static readonly RectangleD primary_rect = new (2, 2, 32, 32);
@@ -38,7 +37,6 @@ public sealed partial class ColorsPanel
 
 	private Gtk.DrawingArea swatches = null!;
 	private Gtk.DrawingArea wheel = null!;
-	private Gtk.DrawingArea value_bar = null!;
 	private Gtk.DrawingArea palette_area = null!;
 	private Gtk.Button more_button = null!;
 	private Gtk.Box details = null!;
@@ -106,7 +104,7 @@ public sealed partial class ColorsPanel
 
 	private Gtk.Box BuildMainColumn ()
 	{
-		// Wheel and brightness bar, with the swatches and More button floating over its top corners.
+		// The wheel, with the swatches and More button floating over its top corners.
 		swatches = Gtk.DrawingArea.New ();
 		swatches.SetSizeRequest (54, 54);
 		swatches.Halign = Gtk.Align.Start;
@@ -122,6 +120,7 @@ public sealed partial class ColorsPanel
 		more_button.Halign = Gtk.Align.End;
 		more_button.Valign = Gtk.Align.Start;
 		more_button.FocusOnClick = false;
+		more_button.AddCssClass ("pdn-push-button");
 		more_button.OnClicked += (_, _) => {
 			expanded = !expanded;
 			settings.PutSetting (EXPANDED_SETTING, expanded);
@@ -134,19 +133,10 @@ public sealed partial class ColorsPanel
 		wheel.TooltipText = Translations.GetString ("Left click to set the active color, right click to set the other one. Ctrl: hue only. Alt: saturation only. Shift: snap the hue.");
 		AddDrag (wheel, PickFromWheel);
 
-		value_bar = Gtk.DrawingArea.New ();
-		// Starts a little lower so the More button floating above it does not cover it.
-		value_bar.SetSizeRequest (VALUE_BAR_WIDTH, WHEEL_SIZE - 8);
-		value_bar.Valign = Gtk.Align.End;
-		value_bar.SetDrawFunc ((_, g, w, h) => DrawValueBar (g, w, h));
-		value_bar.TooltipText = Translations.GetString ("Brightness");
-		AddDrag (value_bar, PickFromValueBar);
-
 		Gtk.Box wheelRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 4);
 		wheelRow.Halign = Gtk.Align.End;
 		wheelRow.MarginTop = WHEEL_TOP;
 		wheelRow.Append (wheel);
-		wheelRow.Append (value_bar);
 
 		Gtk.Overlay top = Gtk.Overlay.New ();
 		top.SetChild (wheelRow);
@@ -157,6 +147,7 @@ public sealed partial class ColorsPanel
 		add_color = Gtk.ToggleButton.New ();
 		add_color.SetChild (IconArea (DrawAddColorIcon));
 		add_color.AddCssClass (AdwaitaStyles.Flat);
+		add_color.AddCssClass ("pdn-flat-button");
 		add_color.FocusOnClick = false;
 		add_color.TooltipText = Translations.GetString ("Add Color: click a palette swatch to replace it with the active color");
 
@@ -171,6 +162,7 @@ public sealed partial class ColorsPanel
 		paletteButton.SetChild (IconArea (DrawPaletteIcon));
 		paletteButton.AlwaysShowArrow = true;
 		paletteButton.AddCssClass (AdwaitaStyles.Flat);
+		paletteButton.AddCssClass ("pdn-flat-button");
 		paletteButton.MenuModel = paletteMenu;
 		paletteButton.TooltipText = Translations.GetString ("Palettes");
 
@@ -304,12 +296,6 @@ public sealed partial class ColorsPanel
 		SetSlotColor (drag_targets_active, Color.FromHsv (hsv, current.A), released);
 	}
 
-	private void PickFromValueBar (PointD point, Gdk.ModifierType state, bool released)
-	{
-		double value = Math.Clamp (1 - point.Y / value_bar.GetHeight (), 0, 1);
-		SetSlotColor (drag_targets_active, DragTargetColor.CopyHsv (value: value), released);
-	}
-
 	private void ApplyExpanded ()
 	{
 		more_button.Label = expanded ? Translations.GetString ("<< Less") : Translations.GetString ("More >>");
@@ -343,7 +329,6 @@ public sealed partial class ColorsPanel
 
 		swatches.QueueDraw ();
 		wheel.QueueDraw ();
-		value_bar.QueueDraw ();
 	}
 
 	// --- Swatches
@@ -491,7 +476,7 @@ public sealed partial class ColorsPanel
 		g.Restore ();
 	}
 
-	// --- Wheel and brightness bar
+	// --- Wheel
 
 	private void DrawWheel (Context g)
 	{
@@ -534,27 +519,6 @@ public sealed partial class ColorsPanel
 
 		surface.MarkDirty ();
 		return surface;
-	}
-
-	private void DrawValueBar (Context g, int width, int height)
-	{
-		HsvColor hsv = ActiveColor.ToHsv ();
-		RectangleD r = new (0, 0, width, height);
-
-		using LinearGradient gradient = new (0, 0, 0, height);
-		gradient.AddColorStop (0, Color.FromHsv (hsv with { Val = 1 }));
-		gradient.AddColorStop (1, new Color (0, 0, 0));
-		g.Rectangle (r);
-		g.SetSource (gradient);
-		g.Fill ();
-		g.DrawRectangle (r, new Color (0.5, 0.5, 0.5), 1);
-
-		// Marker: a dark and a light line at the current brightness.
-		double y = Math.Round ((1 - hsv.Val) * (height - 3)) + 1;
-		g.FillRectangle (new RectangleD (0, y - 1, width, 3), new Color (0, 0, 0));
-		g.FillRectangle (new RectangleD (1, y, width - 2, 1), new Color (1, 1, 1));
-
-		g.Dispose ();
 	}
 
 	// --- Palette
