@@ -109,8 +109,7 @@ public sealed class ImageActions
 			"rotate180",
 			Translations.GetString ("Rotate 180°"),
 			null,
-			Resources.Icons.ImageRotate180,
-			shortcuts: ["<Primary>J"]);
+			Resources.Icons.ImageRotate180);
 
 		Flatten = new Command (
 			"flatten",

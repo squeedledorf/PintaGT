@@ -60,7 +60,8 @@ public sealed class AppActions
 			Translations.GetString ("Exit"),
 			null,
 			Resources.StandardIcons.ApplicationExit,
-			shortcuts: ["<Primary>Q"]);
+			// Paint.NET's File > Exit has no shortcut; keep the platform-standard Cmd+Q on macOS.
+			shortcuts: OperatingSystem.IsMacOS () ? ["<Primary>Q"] : null);
 	}
 
 	public void RegisterActions (Gtk.Application app)

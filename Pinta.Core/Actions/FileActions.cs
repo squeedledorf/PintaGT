@@ -100,7 +100,7 @@ public sealed class FileActions
 
 		Print = new Command (
 			"print",
-			Translations.GetString ("Print"),
+			Translations.GetString ("Print..."),
 			null,
 			Resources.StandardIcons.DocumentPrint,
 			shortcuts: ["<Primary>P"]);
@@ -114,7 +114,7 @@ public sealed class FileActions
 	{
 		bool isMac = system.OperatingSystem == OS.Mac;
 
-		// Paint.NET order: New, Open, Acquire | Save, Save As, Save All | Close | Exit
+		// Paint.NET order: New, Open, Acquire | Save, Save As, Save All | Print... | Close | Exit
 		Gio.Menu acquire_menu = Gio.Menu.New ();
 		acquire_menu.AppendItem (NewScreenshot.CreateMenuItem ());
 
@@ -128,16 +128,16 @@ public sealed class FileActions
 		save_section.AppendItem (SaveAs.CreateMenuItem ());
 		save_section.AppendItem (window.SaveAll.CreateMenuItem ());
 
+		Gio.Menu print_section = Gio.Menu.New ();
+		print_section.AppendItem (Print.CreateMenuItem ());
+
 		Gio.Menu close_section = Gio.Menu.New ();
 		close_section.AppendItem (Close.CreateMenuItem ());
 
 		menu.AppendSection (null, open_section);
 		menu.AppendSection (null, save_section);
-		menu.AppendSection (null, close_section);
-
-		Gio.Menu print_section = Gio.Menu.New ();
-		print_section.AppendItem (Print.CreateMenuItem ());
 		menu.AppendSection (null, print_section);
+		menu.AppendSection (null, close_section);
 
 		if (!isMac) { // This is part of the application menu on macOS
 			Gio.Menu exit_section = Gio.Menu.New ();
