@@ -77,9 +77,10 @@ public interface IToolService
 	bool SetCurrentTool (string tool);
 
 	/// <summary>
-	/// Sets the current tool to the next tool with the specified shortcut.
+	/// Sets the current tool to the next tool with the specified shortcut,
+	/// or the previous one if <paramref name="reverse"/> is set.
 	/// </summary>
-	bool SetCurrentTool (Gdk.Key shortcut);
+	bool SetCurrentTool (Gdk.Key shortcut, bool reverse = false);
 }
 
 public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
@@ -98,7 +99,8 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 	}
 
 	private bool is_panning;
-	private Gdk.Cursor? stored_cursor;
+	private bool space_held;
+	private MouseButton pan_button;
 
 	public event EventHandler<ToolEventArgs>? ToolAdded;
 	public event EventHandler<ToolEventArgs>? ToolRemoved;
@@ -178,8 +180,7 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 
 		ToolImage.SetFromIconName (tool.Icon);
 
-		chrome_manager.ToolToolBar.Append (ToolLabel);
-		chrome_manager.ToolToolBar.Append (ToolImage);
+		chrome_manager.ToolToolBar.Append (ToolMenuButton);
 		chrome_manager.ToolToolBar.Append (ToolSeparator);
 
 		chrome_manager.ToolToolBar.Append (ToolWidgetsScroll);
@@ -200,16 +201,16 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 		return true;
 	}
 
-	public bool SetCurrentTool (Gdk.Key shortcut)
+	public bool SetCurrentTool (Gdk.Key shortcut, bool reverse = false)
 	{
-		if (FindNextTool (shortcut) is not BaseTool tool)
+		if (FindNextTool (shortcut, reverse) is not BaseTool tool)
 			return false;
 
 		SetCurrentTool (tool);
 		return true;
 	}
 
-	private BaseTool? FindNextTool (Gdk.Key shortcut)
+	private BaseTool? FindNextTool (Gdk.Key shortcut, bool reverse)
 	{
 		// Find all tools with this shortcut
 		var shortcut_tools =
@@ -225,12 +226,13 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 		if (shortcut_tools.Length == 1 || CurrentTool is null)
 			return shortcut_tools.First ();
 
-		// Get the tool after the currently selected tool
-		int next_index = shortcut_tools.IndexOf (CurrentTool) + 1;
-
-		// Wrap if we're past the final tool
-		if (next_index >= shortcut_tools.Length)
-			next_index = 0;
+		// Get the tool after (or before) the currently selected tool, wrapping around.
+		// IndexOf is -1 when the current tool has another shortcut, so forward picks the first tool.
+		int current = shortcut_tools.IndexOf (CurrentTool);
+		int n = shortcut_tools.Length;
+		int next_index = reverse
+			? (current < 0 ? n - 1 : (current - 1 + n) % n)
+			: (current + 1) % n;
 
 		return shortcut_tools[next_index];
 	}
@@ -262,10 +264,75 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 	}
 
 	public bool DoKeyDown (Document document, ToolKeyEventArgs args)
-		=> CurrentTool?.DoKeyDown (document, args) ?? false;
+	{
+		bool is_space = args.Key.Value == Gdk.Constants.KEY_space;
+
+		// Swallow auto-repeat while Space is held for panning.
+		if (is_space && space_held)
+			return true;
+
+		// The tool gets the first shot, so e.g. the Text tool can still type a space
+		// and the shape tools can still add a control point.
+		if (CurrentTool?.DoKeyDown (document, args) == true)
+			return true;
+
+		if (!is_space || !TryGetPanTool (out BaseTool? pan))
+			return false;
+
+		// Hold Space to pan with the left mouse button, as in Paint.NET.
+		space_held = true;
+		WatchSpaceRelease ();
+
+		document.Workspace.Canvas.Cursor = pan.DefaultCursor;
+
+		return true;
+	}
 
 	public bool DoKeyUp (Document document, ToolKeyEventArgs args)
-		=> CurrentTool?.DoKeyUp (document, args) ?? false;
+	{
+		if (args.Key.Value == Gdk.Constants.KEY_space && space_held) {
+			ReleaseSpace (document);
+			return true;
+		}
+
+		return CurrentTool?.DoKeyUp (document, args) ?? false;
+	}
+
+	private void ReleaseSpace (Document? document)
+	{
+		space_held = false;
+
+		// If a Space-pan drag is still in progress, the cursor is restored on mouse up.
+		if (!is_panning && document is not null)
+			document.Workspace.Canvas.Cursor = CurrentTool?.CurrentCursor;
+	}
+
+	private bool watching_space;
+
+	// The canvas only gets key releases while the pointer is over it (and not when a toolbar
+	// widget has focus), and none at all while another window has focus. Watch the main
+	// window directly so the Space-pan state can't get stuck.
+	private void WatchSpaceRelease ()
+	{
+		if (watching_space)
+			return;
+
+		watching_space = true;
+		Gtk.Window window = chrome_manager.MainWindow;
+
+		window.OnNotify += (_, e) => {
+			if (e.Pspec.GetName () == "is-active" && !window.IsActive && space_held)
+				ReleaseSpace (workspace_manager.ActiveDocumentOrDefault);
+		};
+
+		Gtk.EventControllerKey key_controller = Gtk.EventControllerKey.New ();
+		key_controller.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+		key_controller.OnKeyReleased += (_, e) => {
+			if (e.Keyval == Gdk.Constants.KEY_space && space_held)
+				ReleaseSpace (workspace_manager.ActiveDocumentOrDefault);
+		};
+		window.AddController (key_controller);
+	}
 
 	public void DoAfterSave (Document document)
 		=> CurrentTool?.DoAfterSave (document);
@@ -284,11 +351,12 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 		if (is_panning)
 			return true;
 
-		if (args.MouseButton != MouseButton.Middle || !TryGetPanTool (out BaseTool? pan))
+		bool starts_pan = args.MouseButton == MouseButton.Middle || (space_held && args.MouseButton == MouseButton.Left);
+		if (!starts_pan || !TryGetPanTool (out BaseTool? pan))
 			return false;
 
 		is_panning = true;
-		stored_cursor = document.Workspace.Canvas.Cursor;
+		pan_button = args.MouseButton;
 		document.Workspace.Canvas.Cursor = pan.DefaultCursor;
 		pan.DoMouseDown (document, args);
 		return true;
@@ -296,10 +364,13 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 
 	private bool TryMouseMovePanOverride (Document document, ToolMouseEventArgs args)
 	{
-		if (!is_panning || !TryGetPanTool (out var pan))
+		// While Space is held the tool doesn't see mouse moves, so it can't replace the pan cursor.
+		if (!(is_panning || space_held) || !TryGetPanTool (out var pan))
 			return false;
 
-		pan.DoMouseMove (document, args);
+		if (is_panning)
+			pan.DoMouseMove (document, args);
+
 		return true;
 	}
 
@@ -308,13 +379,13 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 		if (!is_panning || !TryGetPanTool (out var pan))
 			return false;
 
-		// Ignore any mouse button releases that aren't Middle
-		if (args.MouseButton != MouseButton.Middle)
+		// Ignore releases of any button other than the one that started the pan
+		if (args.MouseButton != pan_button)
 			return true;
 
 		is_panning = false;
 		pan.DoMouseUp (document, args);
-		document.Workspace.Canvas.Cursor = stored_cursor;
+		document.Workspace.Canvas.Cursor = space_held ? pan.DefaultCursor : CurrentTool?.CurrentCursor;
 		return true;
 	}
 
@@ -342,14 +413,63 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 		}
 	}
 
-	private Gtk.Label? tool_label;
+	private Gtk.MenuButton? tool_menu_button;
 	private Gtk.Image? tool_image;
 	private Gtk.Separator? tool_sep;
 	private Gtk.Box? tool_widgets_box;
 	private Gtk.ScrolledWindow? tool_widgets_scroll;
 
-	private Gtk.Label ToolLabel => tool_label ??= Gtk.Label.New (string.Format (" {0}:  ", Translations.GetString ("Tool")));
 	private Gtk.Image ToolImage => tool_image ??= Gtk.Image.New ();
+
+	// Paint.NET's "Tool:" dropdown at the start of the tool bar. Alt+T opens it (label mnemonic).
+	private Gtk.MenuButton ToolMenuButton {
+		get {
+			if (tool_menu_button is not null)
+				return tool_menu_button;
+
+			Gtk.Label label = Gtk.Label.NewWithMnemonic (Translations.GetString ("_Tool:"));
+
+			Gtk.Box content = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
+			content.Append (label);
+			content.Append (ToolImage);
+
+			Gtk.Box list = Gtk.Box.New (Gtk.Orientation.Vertical, 0);
+
+			Gtk.Popover popover = Gtk.Popover.New ();
+			popover.Child = list;
+			// Rebuild on every show, since add-ins can add or remove tools.
+			popover.OnShow += (_, _) => {
+				list.RemoveAll ();
+				foreach (BaseTool tool in tools)
+					list.Append (CreateToolListItem (tool, popover));
+			};
+
+			tool_menu_button = Gtk.MenuButton.New ();
+			tool_menu_button.Child = content;
+			tool_menu_button.Popover = popover;
+			tool_menu_button.HasFrame = false;
+			label.MnemonicWidget = tool_menu_button;
+
+			return tool_menu_button;
+		}
+	}
+
+	private Gtk.Button CreateToolListItem (BaseTool tool, Gtk.Popover popover)
+	{
+		Gtk.Box row = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
+		row.Append (Gtk.Image.NewFromIconName (tool.Icon));
+		row.Append (Gtk.Label.New (tool.Name));
+
+		Gtk.Button item = Gtk.Button.New ();
+		item.Child = row;
+		item.HasFrame = false;
+		item.OnClicked += (_, _) => {
+			popover.Popdown ();
+			SetCurrentTool (tool);
+		};
+
+		return item;
+	}
 	private Gtk.Separator ToolSeparator => tool_sep ??= GtkExtensions.CreateToolBarSeparator ();
 	private Gtk.Box ToolWidgetsBox => tool_widgets_box ??= Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 	// Scroll the toolbar contents if they are very long (e.g. the line/curve tool).

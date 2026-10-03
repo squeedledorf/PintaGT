@@ -51,24 +51,28 @@ public sealed class MagicWandTool : FloodTool
 	}
 
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_S);
-	public override string Name => Translations.GetString ("Magic Wand Select");
+	public override string Name => Translations.GetString ("Magic Wand");
 	public override string Icon => Pinta.Resources.Icons.ToolSelectMagicWand;
 	public override string StatusBarText => Translations.GetString (
 		"Click to select region of similar color." +
-		"\nHold shift to use Global mode."
+		"\nHold Shift to switch between Contiguous and Global mode."
 	);
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.MagicWand.png"), 21, 10, null);
-	public override int Priority => 19;
+	public override int Priority => 13;
 	public override bool IsSelectionTool => true;
 
-	protected override void OnBuildToolBar (Gtk.Box tb)
+	// Paint.NET order: selection mode first, then the flood controls.
+	protected override void AppendFloodControls (Gtk.Box tb)
 	{
-		base.OnBuildToolBar (tb);
+		workspace.SelectionHandler.BuildToolbar (tb, Settings);
 
 		tb.Append (SelectionSeparator);
 
-		workspace.SelectionHandler.BuildToolbar (tb, Settings);
+		base.AppendFloodControls (tb);
 	}
+
+	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
+		=> SelectTool.TryDeselectOnKey (e) || base.OnKeyDown (document, e);
 
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)

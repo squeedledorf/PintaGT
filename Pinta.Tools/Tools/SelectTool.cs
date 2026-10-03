@@ -37,13 +37,10 @@ public abstract class SelectTool : BaseTool
 
 	private SelectionHistoryItem? hist = default;
 	private CombineMode combine_mode = default;
-	private Gtk.Separator? mode_sep;
-	private ToolBarDropDownButton? auto_scroll_button;
 
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_S);
 	public override bool IsSelectionTool => true;
 	protected override bool ShowAntialiasingButton => false;
-	private bool IsAutoScroll => AutoScrollButton.SelectedItem.GetTagOrDefault (true);
 	private readonly RectangleHandle handle;
 	public override IEnumerable<IToolHandle> Handles => [handle];
 
@@ -63,10 +60,36 @@ public abstract class SelectTool : BaseTool
 	{
 		base.OnBuildToolBar (tb);
 		workspace.SelectionHandler.BuildToolbar (tb, Settings);
+	}
 
-		tb.Append (Separator);
+	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
+	{
+		if (!handle.IsDragging && TryDeselectOnKey (e))
+			return true;
 
-		tb.Append (AutoScrollButton);
+		return base.OnKeyDown (document, e);
+	}
+
+	/// <summary>
+	/// As in Paint.NET, Enter or Esc in a selection tool deselects.
+	/// </summary>
+	internal static bool TryDeselectOnKey (ToolKeyEventArgs e)
+	{
+		switch (e.Key.Value) {
+			case Gdk.Constants.KEY_Return:
+			case Gdk.Constants.KEY_KP_Enter:
+			case Gdk.Constants.KEY_Escape:
+				break;
+			default:
+				return false;
+		}
+
+		Command deselect = PintaCore.Actions.Edit.Deselect;
+		if (!deselect.Sensitive)
+			return false;
+
+		deselect.Activate ();
+		return true;
 	}
 
 	private static PointD AdjustMousePosition (Document document, in PointD position)
@@ -115,9 +138,7 @@ public abstract class SelectTool : BaseTool
 
 		SelectionModeHandler.PerformSelectionMode (document, combine_mode, document.Selection.SelectionPolygons);
 
-		if (!IsAutoScroll)
-			return;
-
+		// Autoscroll is always on, as in Paint.NET.
 		var view = (Gtk.Viewport) document.Workspace.Canvas.Parent!;
 		var h_adjust = view.GetHadjustment ()!.PageSize;
 		var v_adjust = view.GetVadjustment ()!.PageSize;
@@ -192,10 +213,6 @@ public abstract class SelectTool : BaseTool
 		base.OnSaveSettings (settings);
 
 		workspace.SelectionHandler.OnSaveSettings (settings);
-
-		if (auto_scroll_button is not null) {
-			settings.PutSetting (SettingNames.SELECTION_MODE, auto_scroll_button.SelectedIndex);
-		}
 	}
 
 	private void ReDraw (Document document)
@@ -251,23 +268,5 @@ public abstract class SelectTool : BaseTool
 		DocumentSelection selection = document.Selection;
 		handle.Rectangle = selection.HandleBounds;
 		ShowHandles (document.Selection.Visible && tools.CurrentTool == this);
-	}
-
-	private Gtk.Separator Separator => mode_sep ??= GtkExtensions.CreateToolBarSeparator ();
-
-	private ToolBarDropDownButton AutoScrollButton {
-		get {
-			if (auto_scroll_button is null) {
-				auto_scroll_button ??= ToolBarDropDownButton.New ();
-
-				auto_scroll_button.AddItem (Translations.GetString ("Autoscroll On"), Pinta.Resources.Icons.EffectsBlursZoomBlur, true);
-				auto_scroll_button.AddItem (Translations.GetString ("Autoscroll Off"), Pinta.Resources.Icons.EffectsBlursUnfocus, false);
-
-				auto_scroll_button.SelectedIndex = Settings.GetSetting (SettingNames.SELECTION_MODE, 0);
-			}
-
-			return auto_scroll_button;
-		}
-
 	}
 }
