@@ -80,7 +80,10 @@ public sealed partial class SimpleEffectDialog
 		contentAreaBox.Spacing = 12;
 		contentAreaBox.SetAllMargins (6);
 
-		OnClose += (_, _) => HandleClose ();
+		// Flush on Response, not on the keybinding-only "close" signal: GTK emits that one (Escape)
+		// with an uninitialised return GValue, and GirCore's closure copies it back, which raises
+		// GLib-GObject-CRITICAL g_value_type_compatible / g_value_copy.
+		OnResponse += (_, _) => HandleClose ();
 	}
 
 	public static SimpleEffectDialog New (
