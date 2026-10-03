@@ -313,6 +313,16 @@ public abstract class BaseEditEngine
 		RestorePendingShape (committedItem, committedShape);
 	}
 
+	/// <summary>Whether a shape is being edited, for the Finish button.</summary>
+	public bool IsEditing => shape is not null;
+
+	/// <summary>The Finish button: commits the shape, as Enter does.</summary>
+	public void HandleFinish ()
+	{
+		if (drag == DragMode.None)
+			Commit ();
+	}
+
 	public bool HandleBeforeUndo () => drag != DragMode.None;
 
 	public bool HandleBeforeRedo () => drag != DragMode.None;
@@ -488,7 +498,7 @@ public abstract class BaseEditEngine
 		ImageSurface before = layer.Surface.Clone ();
 		RectangleD dirty;
 		using (Context g = CreateClippedContext (document, layer.Surface))
-			dirty = Draw (g, shape);
+			dirty = DrawBlended (g, shape);
 
 		ShapeHistoryItem committed;
 		if (item is not null && !item.IsCommitted && document.History.Current == item) {
@@ -564,6 +574,8 @@ public abstract class BaseEditEngine
 
 		Layer target = drawing_layer.Layer;
 		target.Clear ();
+		// The preview layer shows the blend mode (Overwrite previews as Normal).
+		target.BlendMode = owner.SelectedBlendMode;
 
 		RectangleD dirty;
 		using (Context g = CreateClippedContext (document, target.Surface))
@@ -579,10 +591,30 @@ public abstract class BaseEditEngine
 	private static Context CreateClippedContext (Document doc, ImageSurface surface)
 	{
 		Context g = new (surface);
-		g.AppendPath (doc.Selection.SelectionPath);
-		g.FillRule = FillRule.EvenOdd;
-		g.Clip ();
+		doc.Selection.Clip (g);
 		return g;
+	}
+
+	/// <summary>
+	/// Draws the shape with the tool's blend mode: as if on a layer of its own that is then merged down,
+	/// or, for Overwrite, replacing the pixels it covers.
+	/// </summary>
+	private RectangleD DrawBlended (Context g, EditableShape s)
+	{
+		if (!owner.UseAlphaBlending) {
+			g.Operator = Operator.Source;
+			return Draw (g, s);
+		}
+
+		BlendMode mode = owner.SelectedBlendMode;
+		if (mode == BlendMode.Normal)
+			return Draw (g, s);
+
+		g.PushGroup ();
+		RectangleD dirty = Draw (g, s);
+		g.PopGroupToSource ();
+		g.PaintWithBlendMode (mode);
+		return dirty;
 	}
 
 	private RectangleD Draw (Context g, EditableShape s)

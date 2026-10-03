@@ -59,7 +59,15 @@ public abstract class BaseTool
 			if (IsActiveTool ()) {
 				SetCursor (DefaultCursor);
 			}
+
+			RefreshFinishButton ();
 		};
+
+		if (!selection_quality_loaded) {
+			selection_quality_loaded = true;
+			DocumentSelection.AntialiasedClipping = Settings.GetSetting (SettingNames.SELECTION_QUALITY_ANTIALIASED, true);
+		}
+
 		// Give tools a chance to save their settings on application quit
 		Settings.SaveSettingsBeforeQuit += (_, _)
 			=> OnSaveSettings (Settings);
@@ -140,10 +148,57 @@ public abstract class BaseTool
 		=> false;
 
 	/// <summary>
-	/// Specifies if the Alpha Blending toolbar button should be shown for this tool.
+	/// Specifies if the Alpha Blending toolbar button (Normal / Overwrite) should be shown for this tool.
 	/// </summary>
 	protected virtual bool ShowAlphaBlendingButton
 		=> false;
+
+	/// <summary>
+	/// Specifies if the tool bar shows Paint.NET's blend mode list (the 14 layer blend modes plus Overwrite)
+	/// in place of the Normal / Overwrite button. The tool applies <see cref="SelectedBlendMode"/> as if it
+	/// drew on a new layer just above the active one and merged it down.
+	/// </summary>
+	protected virtual bool ShowBlendModeButton
+		=> false;
+
+	/// <summary>
+	/// Specifies if the tool bar shows the Selection Quality button (pixelated / antialiased selection edges),
+	/// which sets <see cref="DocumentSelection.AntialiasedClipping"/>.
+	/// </summary>
+	protected virtual bool ShowSelectionQualityButton
+		=> false;
+
+	/// <summary>
+	/// Specifies if the Finish button is shown at the end of the tool bar.
+	/// </summary>
+	protected virtual bool ShowFinishButton
+		=> false;
+
+	/// <summary>
+	/// Whether the tool has live work for the Finish button to commit. The button is greyed out otherwise.
+	/// It is refreshed after the tool's mouse, key, commit, undo and redo events.
+	/// </summary>
+	protected virtual bool CanFinish
+		=> false;
+
+	/// <summary>
+	/// Called when the Finish button is clicked: commits the tool's live work. Calls <see cref="OnCommit"/> by default.
+	/// </summary>
+	protected virtual void OnFinish (Document document)
+		=> OnCommit (document);
+
+	/// <summary>
+	/// Called when the blend mode (or Normal / Overwrite) setting is changed.
+	/// </summary>
+	protected virtual void OnBlendModeChanged ()
+	{
+	}
+
+	/// <summary>
+	/// The blend mode the tool draws with. Normal when the tool overwrites or has no blend mode button.
+	/// </summary>
+	public BlendMode SelectedBlendMode
+		=> HasBlendModeButton && BlendModeDropDown.SelectedItem.Tag is BlendMode mode ? mode : BlendMode.Normal;
 
 	/// <summary>
 	/// Specifies if the tool should use anti-aliasing.
@@ -159,17 +214,21 @@ public abstract class BaseTool
 	}
 
 	/// <summary>
-	/// Specifies if the tool should use alpha-blending.
+	/// Specifies if the tool should use alpha-blending, i.e. anything but Overwrite.
 	/// </summary>
 	public virtual bool UseAlphaBlending {
-		get => ShowAlphaBlendingButton && AlphaBlendingDropDown.SelectedItem.GetTagOrDefault (true);
+		get => HasBlendModeButton && BlendModeDropDown.SelectedItem.Tag is BlendMode;
 		set {
-			if (!ShowAlphaBlendingButton)
+			if (!HasBlendModeButton)
 				return;
 
-			AlphaBlendingDropDown.SelectedItem = AlphaBlendingDropDown.Items.First (i => i.Tag is bool b && b == value);
+			// Normal is the first item, Overwrite the last.
+			BlendModeDropDown.SelectedIndex = value ? 0 : BlendModeDropDown.Items.Count - 1;
 		}
 	}
+
+	private bool HasBlendModeButton
+		=> ShowBlendModeButton || ShowAlphaBlendingButton;
 
 	/// <summary>
 	/// Called when the tool is selected from the toolbox.
@@ -302,10 +361,12 @@ public abstract class BaseTool
 	protected virtual void OnSaveSettings (ISettingsService settings)
 	{
 		if (alphablending_button is not null)
-			settings.PutSetting (SettingNames.ToolAlphaBlend (this), alphablending_button.SelectedIndex);
+			settings.PutSetting (BlendModeSettingName, alphablending_button.SelectedIndex);
 
 		if (antialiasing_button is not null)
 			settings.PutSetting (SettingNames.ToolAntialias (this), antialiasing_button.SelectedIndex);
+
+		settings.PutSetting (SettingNames.SELECTION_QUALITY_ANTIALIASED, DocumentSelection.AntialiasedClipping);
 	}
 
 	/// <summary>
@@ -334,27 +395,102 @@ public abstract class BaseTool
 	}
 
 	#region Toolbar
+	private static bool selection_quality_loaded;
+
 	private ToolBarDropDownButton? antialiasing_button;
 	private ToolBarDropDownButton? alphablending_button;
+	private ToolBarDropDownButton? selection_quality_button;
+	private Button? finish_button;
 	private Separator? separator;
+	private Separator? finish_separator;
 
 	private Separator Separator => separator ??= GtkExtensions.CreateToolBarSeparator ();
+	private Separator FinishSeparator => finish_separator ??= GtkExtensions.CreateToolBarSeparator ();
 
-	protected ToolBarDropDownButton AlphaBlendingDropDown {
+	private string BlendModeSettingName
+		=> ShowBlendModeButton ? SettingNames.ToolBlendMode (this) : SettingNames.ToolAlphaBlend (this);
+
+	/// <summary>
+	/// The blend mode button. Item tags are a <see cref="BlendMode"/>, or null for Overwrite (the last item).
+	/// </summary>
+	protected ToolBarDropDownButton BlendModeDropDown {
 		get {
 			if (alphablending_button is null) {
-				alphablending_button = ToolBarDropDownButton.New ();
+				if (ShowBlendModeButton) {
+					// Paint.NET: the flask icon and the mode's name, with Overwrite after the 14 layer modes.
+					alphablending_button = ToolBarDropDownButton.New (showLabel: true);
 
-				alphablending_button.AddItem (Translations.GetString ("Normal Blending"), Pinta.Resources.Icons.BlendingNormal, true);
-				alphablending_button.AddItem (Translations.GetString ("Overwrite"), Pinta.Resources.Icons.BlendingOverwrite, false);
+					foreach (BlendMode mode in UserBlendOps.GetAllBlendModes ())
+						alphablending_button.AddItem (UserBlendOps.GetBlendModeName (mode), Pinta.Resources.Icons.BlendingNormal, mode);
+				} else {
+					alphablending_button = ToolBarDropDownButton.New ();
+					alphablending_button.AddItem (Translations.GetString ("Normal Blending"), Pinta.Resources.Icons.BlendingNormal, BlendMode.Normal);
+				}
 
-				alphablending_button.SelectedIndex = Settings.GetSetting (
-					SettingNames.ToolAlphaBlend (this),
-					0);
+				alphablending_button.AddItem (Translations.GetString ("Overwrite"), Pinta.Resources.Icons.BlendingOverwrite, null);
+
+				alphablending_button.SelectedIndex = Settings.GetSetting (BlendModeSettingName, 0);
+
+				alphablending_button.SelectedItemChanged += (_, _) => OnBlendModeChanged ();
 			}
 
 			return alphablending_button;
 		}
+	}
+
+	private ToolBarDropDownButton SelectionQualityDropDown {
+		get {
+			if (selection_quality_button is null) {
+				selection_quality_button = ToolBarDropDownButton.New ();
+
+				selection_quality_button.AddItem (Translations.GetString ("Pixelated selection quality"), Pinta.Resources.Icons.SelectionQualityPixelated, false);
+				selection_quality_button.AddItem (Translations.GetString ("Antialiased selection quality"), Pinta.Resources.Icons.SelectionQualityAntialiased, true);
+
+				selection_quality_button.SelectedIndex = DocumentSelection.AntialiasedClipping ? 1 : 0;
+
+				selection_quality_button.SelectedItemChanged += (_, _) => {
+					DocumentSelection.AntialiasedClipping = selection_quality_button.SelectedItem.GetTagOrDefault (true);
+
+					if (workspace.HasOpenDocuments)
+						workspace.Invalidate ();
+				};
+			}
+
+			return selection_quality_button;
+		}
+	}
+
+	private Button FinishButton {
+		get {
+			if (finish_button is null) {
+				Box content = Box.New (Orientation.Horizontal, 4);
+				content.Append (Image.NewFromIconName (Pinta.Resources.StandardIcons.ObjectSelect));
+				content.Append (Label.New (Translations.GetString ("Finish")));
+
+				finish_button = Button.New ();
+				finish_button.Child = content;
+				finish_button.HasFrame = false;
+				finish_button.CanFocus = false;
+				finish_button.TooltipText = Translations.GetString ("Finish");
+				finish_button.OnClicked += (_, _) => {
+					if (workspace.HasOpenDocuments)
+						OnFinish (workspace.ActiveDocument);
+
+					RefreshFinishButton ();
+				};
+			}
+
+			return finish_button;
+		}
+	}
+
+	/// <summary>
+	/// Greys out the Finish button when there is nothing to finish. See <see cref="CanFinish"/>.
+	/// </summary>
+	private void RefreshFinishButton ()
+	{
+		if (finish_button is not null)
+			finish_button.Sensitive = workspace.HasOpenDocuments && CanFinish;
 	}
 
 	private ToolBarDropDownButton AntialiasingDropDown {
@@ -385,29 +521,58 @@ public abstract class BaseTool
 	{
 		SetCursor (DefaultCursor);
 		OnActivated (document);
+		RefreshFinishButton ();
 	}
 
-	internal void DoAfterRedo (Document document) => OnAfterRedo (document);
+	internal void DoAfterRedo (Document document)
+	{
+		OnAfterRedo (document);
+		RefreshFinishButton ();
+	}
 
-	internal void DoAfterSave (Document document) => OnAfterSave (document);
+	internal void DoAfterSave (Document document)
+	{
+		OnAfterSave (document);
+		RefreshFinishButton ();
+	}
 
-	internal void DoAfterUndo (Document document) => OnAfterUndo (document);
+	internal void DoAfterUndo (Document document)
+	{
+		OnAfterUndo (document);
+		RefreshFinishButton ();
+	}
 
 	internal void DoBuildToolBar (Box toolbar)
 	{
 		OnBuildToolBar (toolbar);
 
-		// Add alpha-blending and anti-aliasing dropdowns if needed
-		if (ShowAlphaBlendingButton || ShowAntialiasingButton)
+		// Paint.NET order at the end of the bar: antialiasing, blend mode, selection quality, then Finish.
+		if (HasBlendModeButton || ShowAntialiasingButton || ShowSelectionQualityButton)
 			toolbar.Append (Separator);
 
 		if (ShowAntialiasingButton)
 			toolbar.Append (AntialiasingDropDown);
-		if (ShowAlphaBlendingButton)
-			toolbar.Append (AlphaBlendingDropDown);
+		if (HasBlendModeButton)
+			toolbar.Append (BlendModeDropDown);
+
+		if (ShowSelectionQualityButton) {
+			// The setting is shared by every tool, so pick up a change made on another tool's bar.
+			SelectionQualityDropDown.SelectedIndex = DocumentSelection.AntialiasedClipping ? 1 : 0;
+			toolbar.Append (SelectionQualityDropDown);
+		}
+
+		if (ShowFinishButton) {
+			toolbar.Append (FinishSeparator);
+			toolbar.Append (FinishButton);
+			RefreshFinishButton ();
+		}
 	}
 
-	internal void DoCommit (Document? document) => OnCommit (document);
+	internal void DoCommit (Document? document)
+	{
+		OnCommit (document);
+		RefreshFinishButton ();
+	}
 
 	internal void DoDeactivated (Document? document, BaseTool? newTool)
 	{
@@ -425,13 +590,28 @@ public abstract class BaseTool
 
 	internal bool DoHandleUndo (Document document) => OnHandleUndo (document);
 
-	internal bool DoKeyDown (Document document, ToolKeyEventArgs args) => OnKeyDown (document, args);
+	internal bool DoKeyDown (Document document, ToolKeyEventArgs args)
+	{
+		bool handled = OnKeyDown (document, args);
+		RefreshFinishButton ();
+		return handled;
+	}
 
 	internal bool DoKeyUp (Document document, ToolKeyEventArgs args) => OnKeyUp (document, args);
 
-	internal void DoMouseDown (Document document, ToolMouseEventArgs args) => OnMouseDown (document, args);
+	internal void DoMouseDown (Document document, ToolMouseEventArgs args)
+	{
+		OnMouseDown (document, args);
+		RefreshFinishButton ();
+	}
+
 	internal void DoMouseMove (Document document, ToolMouseEventArgs args) => OnMouseMove (document, args);
-	internal void DoMouseUp (Document document, ToolMouseEventArgs args) => OnMouseUp (document, args);
+
+	internal void DoMouseUp (Document document, ToolMouseEventArgs args)
+	{
+		OnMouseUp (document, args);
+		RefreshFinishButton ();
+	}
 	#endregion
 }
 

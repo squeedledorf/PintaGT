@@ -42,6 +42,16 @@ public abstract class ShapeTool : BaseTool
 
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_O);
 	protected override bool ShowAntialiasingButton => true;
+	protected override bool ShowBlendModeButton => true;
+	protected override bool ShowSelectionQualityButton => true;
+	protected override bool ShowFinishButton => true;
+	protected override bool CanFinish => EditEngine.IsEditing;
+
+	protected override void OnFinish (Document document)
+		=> EditEngine.HandleFinish ();
+
+	protected override void OnBlendModeChanged ()
+		=> EditEngine.Redraw ();
 
 	private string SettingsPrefix => GetType ().Name.ToLowerInvariant ();
 

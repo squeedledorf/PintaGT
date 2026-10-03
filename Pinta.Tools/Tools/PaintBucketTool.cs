@@ -51,6 +51,10 @@ public sealed class PaintBucketTool : FloodTool
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_F);
 	public override int Priority => 17;
 	protected override bool CalculatePolygonSet => false;
+	protected override bool ShowBlendModeButton => true;
+	protected override bool ShowSelectionQualityButton => true;
+	// ponytail: the fill commits at once, so Finish stays greyed until the live, re-editable fill exists.
+	protected override bool ShowFinishButton => true;
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
@@ -70,7 +74,9 @@ public sealed class PaintBucketTool : FloodTool
 		var hist = new SimpleHistoryItem (Icon, Name);
 		hist.TakeSnapshotOfLayer (document.Layers.CurrentUserLayer);
 
-		var color = fill_color.ToColorBgra ();
+		// Overwrite fills the stencil with an opaque mask, through which the color replaces the pixels.
+		bool overwrite = !UseAlphaBlending;
+		var color = overwrite ? ColorBgra.Black : fill_color.ToColorBgra ();
 		var width = surf.Width;
 		surf.Flush ();
 
@@ -87,12 +93,17 @@ public sealed class PaintBucketTool : FloodTool
 
 		surf.MarkDirty ();
 
-		// Composite the fill over the real layer, respecting any selection area,
+		// Composite the fill onto the real layer with the tool's blend mode, respecting any selection area,
 		// so a translucent color blends with the existing pixels.
-		using Context layer_ctx = document.CreateClippedContext ();
-		layer_ctx.Operator = Operator.Over;
-		layer_ctx.SetSourceSurface (surf, 0, 0);
-		layer_ctx.Paint ();
+		using (Context layer_ctx = document.CreateClippedContext ()) {
+			if (overwrite) {
+				layer_ctx.Operator = Operator.Source;
+				layer_ctx.SetSourceColor (fill_color);
+				layer_ctx.MaskSurface (surf, 0, 0);
+			} else {
+				layer_ctx.BlendSurface (surf, SelectedBlendMode);
+			}
+		}
 
 		document.Layers.ToolLayer.Clear ();
 		document.History.PushNewItem (hist);

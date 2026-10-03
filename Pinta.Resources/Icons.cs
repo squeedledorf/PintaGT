@@ -126,6 +126,9 @@ public static class Icons
 	public const string BlendingNormal = "tool-blending-normal";
 	public const string BlendingOverwrite = "tool-blending-overwrite";
 
+	public const string SelectionQualityPixelated = "tool-selection-quality-pixelated";
+	public const string SelectionQualityAntialiased = "tool-selection-quality-antialiased";
+
 	public const string ColorModeColor = "tool-gradient-colormode-color";
 	public const string ColorModeTransparency = "tool-gradient-colormode-transparency";
 

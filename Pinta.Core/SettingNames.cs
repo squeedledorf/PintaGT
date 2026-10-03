@@ -30,6 +30,11 @@ public static class SettingNames
 
 	internal static string ToolAlphaBlend (BaseTool tool)
 		=> $"{tool.GetType ().Name.ToLowerInvariant ()}-alpha-blend";
+
+	internal static string ToolBlendMode (BaseTool tool)
+		=> $"{tool.GetType ().Name.ToLowerInvariant ()}-blend-mode";
+
+	internal const string SELECTION_QUALITY_ANTIALIASED = "selection-quality-antialiased";
 }
 
 public static class SettingDefaults

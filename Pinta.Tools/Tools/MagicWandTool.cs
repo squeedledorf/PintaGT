@@ -60,6 +60,9 @@ public sealed class MagicWandTool : FloodTool
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.MagicWand.png"), 21, 10, null);
 	public override int Priority => 13;
 	public override bool IsSelectionTool => true;
+	protected override bool ShowSelectionQualityButton => true;
+	// ponytail: the selection is final at once, so Finish stays greyed until the click point can be dragged.
+	protected override bool ShowFinishButton => true;
 
 	// Paint.NET order: selection mode first, then the flood controls.
 	protected override void AppendFloodControls (Gtk.Box tb)

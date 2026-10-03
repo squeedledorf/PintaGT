@@ -91,11 +91,23 @@ public sealed class DocumentSelection
 		SelectionModified?.Invoke (this, EventArgs.Empty);
 	}
 
+	/// <summary>
+	/// Paint.NET's Selection Quality (tool bar): whether clipping to the selection antialiases its edges
+	/// or snaps them to whole pixels. One setting for the whole app, shared by every tool's tool bar.
+	/// </summary>
+	public static bool AntialiasedClipping { get; set; } = true;
+
 	public void Clip (Context g)
 	{
+		Antialias antialias = g.Antialias;
+		if (!AntialiasedClipping)
+			g.Antialias = Antialias.None;
+
 		g.AppendPath (SelectionPath);
 		g.FillRule = FillRule.EvenOdd;
 		g.Clip ();
+
+		g.Antialias = antialias;
 	}
 
 	/// <summary>

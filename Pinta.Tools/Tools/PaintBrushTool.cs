@@ -96,6 +96,8 @@ public sealed class PaintBrushTool : BaseBrushTool
 
 
 	protected override bool ShowDabOptions => true;
+	protected override bool ShowBlendModeButton => true;
+	protected override bool ShowSelectionQualityButton => true;
 
 	// The Normal brush is Paint.NET's brush; the other types draw their own way.
 	protected override bool PaintsWithDabs => active_brush is Brushes.PlainBrush;
@@ -127,6 +129,8 @@ public sealed class PaintBrushTool : BaseBrushTool
 	{
 		document.Layers.ToolLayer.Clear ();
 		document.Layers.ToolLayer.Hidden = false;
+		// The stroke previews (and is later merged) as a layer with the tool's blend mode.
+		document.Layers.ToolLayer.BlendMode = SelectedBlendMode;
 
 		base.OnMouseDown (document, e);
 
@@ -226,10 +230,20 @@ public sealed class PaintBrushTool : BaseBrushTool
 		if (active_brush is not null && mouse_button is (MouseButton.Left or MouseButton.Right))
 			PaintDabs (document, FinishDabStroke (), StrokeColor (active_brush));
 
-		using Context g = new (document.Layers.CurrentUserLayer.Surface);
+		if (UseAlphaBlending || StrokeMask is null || active_brush is null) {
+			// The tool layer carries the blend mode (see OnMouseDown).
+			// ponytail: brush types other than Normal have no coverage mask, so they can't Overwrite and blend Normally.
+			using Context g = new (document.Layers.CurrentUserLayer.Surface);
+			document.Layers.ToolLayer.Draw (g);
+		} else {
+			// Overwrite: the stroke's color, alpha included, replaces the pixels as far as the stroke covers them.
+			using Context g = document.CreateClippedContext ();
+			g.Operator = Operator.Source;
+			g.SetSourceColor (StrokeColor (active_brush));
+			g.MaskSurface (StrokeMask, 0, 0);
+		}
 
-		document.Layers.ToolLayer.Draw (g);
-
+		document.Layers.ToolLayer.BlendMode = BlendMode.Normal;
 		document.Layers.ToolLayer.Hidden = true;
 
 		base.OnMouseUp (document, e);

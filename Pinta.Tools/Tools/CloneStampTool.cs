@@ -64,6 +64,8 @@ public sealed class CloneStampTool : BaseBrushTool
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_L);
 	public override int Priority => 29;
 	protected override bool ShowAntialiasingButton => true;
+	protected override bool ShowBlendModeButton => true;
+	protected override bool ShowSelectionQualityButton => true;
 	protected override bool ShowDabOptions => true;
 	public override IEnumerable<IToolHandle> Handles => [handle];
 
@@ -103,6 +105,7 @@ public sealed class CloneStampTool : BaseBrushTool
 			// The stroke is applied with the alpha of the button's color.
 			// The tool layer is drawn with this opacity, both while painting and when committing.
 			document.Layers.ToolLayer.Opacity = (e.MouseButton == MouseButton.Right ? Palette.SecondaryColor : Palette.PrimaryColor).A;
+			document.Layers.ToolLayer.BlendMode = SelectedBlendMode;
 
 			surface_modified = false;
 			undo_surface = document.Layers.CurrentUserLayer.Surface.Clone ();
@@ -169,10 +172,23 @@ public sealed class CloneStampTool : BaseBrushTool
 		if (e.IsControlPressed)
 			handle.Active = true;
 
-		using (Cairo.Context g = new (document.Layers.CurrentUserLayer.Surface))
+		if (UseAlphaBlending || StrokeMask is null || !offset.HasValue) {
+			// The tool layer carries the stroke's opacity and blend mode (see OnMouseDown).
+			using Cairo.Context g = new (document.Layers.CurrentUserLayer.Surface);
 			document.Layers.ToolLayer.Draw (g);
+		} else {
+			// Overwrite: the cloned pixels, alpha included, replace the layer's as far as the stroke covers them.
+			using Cairo.Context g = document.CreateClippedContext ();
+			g.PushGroup ();
+			g.SetSourceSurface (document.Layers.CurrentUserLayer.Surface, offset.Value.X, offset.Value.Y);
+			g.PaintWithAlpha (document.Layers.ToolLayer.Opacity);
+			g.PopGroupToSource ();
+			g.Operator = Cairo.Operator.Source;
+			g.MaskSurface (StrokeMask, 0, 0);
+		}
 
 		document.Layers.ToolLayer.Opacity = 1.0;
+		document.Layers.ToolLayer.BlendMode = BlendMode.Normal;
 
 		base.OnMouseUp (document, e);
 

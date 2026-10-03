@@ -42,6 +42,9 @@ public sealed class GradientTool : BaseTool
 	private ImageSurface? undo_surface;
 	private GradientData? undo_data;
 
+	// The layer as it was before the live gradient was drawn, which every redraw blends onto.
+	private ImageSurface? base_surface;
+
 	private bool is_newly_created = false;
 
 	public bool is_reversed = false;
@@ -71,7 +74,10 @@ public sealed class GradientTool : BaseTool
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_G);
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.Gradient.png"), 9, 18, null);
 	public override int Priority => 19;
-	protected override bool ShowAlphaBlendingButton => true;
+	protected override bool ShowBlendModeButton => true;
+	protected override bool ShowSelectionQualityButton => true;
+	protected override bool ShowFinishButton => true;
+	protected override bool CanFinish => handle.Active;
 	private GradientType SelectedGradientType => GradientDropDown.SelectedItem.GetTagOrDefault (GradientType.Linear);
 	private GradientColorMode SelectedGradientColorMode => ColorModeDropDown.SelectedItem.GetTagOrDefault (GradientColorMode.Color);
 	public override IEnumerable<IToolHandle> Handles => [handle];
@@ -85,8 +91,12 @@ public sealed class GradientTool : BaseTool
 		tb.Append (GtkExtensions.CreateToolBarSeparator ());
 		tb.Append (ModeLabel);
 		tb.Append (ColorModeDropDown);
+	}
 
-		AlphaBlendingDropDown.SelectedItemChanged += HandleGradientTypeChanged;
+	protected override void OnBlendModeChanged ()
+	{
+		if (handle.Active)
+			RenderGradient ();
 	}
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
@@ -122,6 +132,7 @@ public sealed class GradientTool : BaseTool
 		is_reversed = e.MouseButton == MouseButton.Right;
 
 		is_newly_created = true;
+		base_surface = undo_surface;
 		drag_button = e.MouseButton;
 
 		palette.PrimaryColorChanged -= HandlePintaCorePalettePrimaryColorChanged;
@@ -216,6 +227,7 @@ public sealed class GradientTool : BaseTool
 						document.Layers.CurrentUserLayerIndex, undo_data!.Value, this));
 		}
 		handle.Active = false;
+		base_surface = null;
 
 		palette.PrimaryColorChanged -= HandlePintaCorePalettePrimaryColorChanged;
 		palette.SecondaryColorChanged -= HandlePintaCorePalettePrimaryColorChanged;
@@ -261,19 +273,23 @@ public sealed class GradientTool : BaseTool
 
 		gr.StartPoint = handle.StartPosition;
 		gr.EndPoint = handle.EndPosition;
-		gr.AlphaBlending = UseAlphaBlending;
+		// A blend mode other than Normal renders the bare gradient, then blends it onto the layer below.
+		BlendMode blend_mode = SelectedBlendMode;
+		bool use_blend_mode = !gr.AlphaOnly && UseAlphaBlending && blend_mode != BlendMode.Normal;
+		gr.AlphaBlending = UseAlphaBlending && !use_blend_mode;
 
 		gr.BeforeRender ();
 
 		var selection_bounds = document.GetSelectedBounds (true);
 		var scratch_layer = document.Layers.ToolLayer.Surface;
 		document.Layers.ToolLayer.Hidden = true;
+		ImageSurface original = base_surface ?? undo_surface!;
 
 		// Initialize the scratch layer with the (original) current layer, if any blending is required.
 		if (gr.AlphaOnly || (gr.AlphaBlending && (gr.StartColor.A != 255 || gr.EndColor.A != 255))) {
 			using Context g = new (scratch_layer);
 			document.Selection.Clip (g);
-			g.SetSourceSurface (undo_surface!, 0, 0);
+			g.SetSourceSurface (original, 0, 0);
 			g.Operator = Operator.Source;
 			g.Paint ();
 		}
@@ -283,9 +299,17 @@ public sealed class GradientTool : BaseTool
 
 		// Transfer the result back to the current layer.
 		using Context context = document.CreateClippedContext ();
-		context.SetSourceSurface (scratch_layer, 0, 0);
-		context.Operator = Operator.Source;
-		context.Paint ();
+
+		if (use_blend_mode) {
+			context.SetSourceSurface (original, 0, 0);
+			context.Operator = Operator.Source;
+			context.Paint ();
+			context.BlendSurface (scratch_layer, blend_mode);
+		} else {
+			context.SetSourceSurface (scratch_layer, 0, 0);
+			context.Operator = Operator.Source;
+			context.Paint ();
+		}
 
 		selection_bounds = selection_bounds.Inflated (5, 5);
 		document.Workspace.Invalidate (selection_bounds);
