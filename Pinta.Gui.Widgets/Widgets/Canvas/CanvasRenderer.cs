@@ -104,7 +104,10 @@ public sealed class CanvasRenderer
 			// Use nearest-neighbor interpolation when zoomed in so that there isn't any smoothing.
 			ResamplingMode filter = (scale_ratio <= 1) ? ResamplingMode.NearestNeighbor : ResamplingMode.Bilinear;
 
-			g.SetSourceSurface (surface, filter);
+			if (layer.TransformFilter is Cairo.Filter transform_filter)
+				g.SetSource (new Cairo.SurfacePattern (surface) { Filter = transform_filter });
+			else
+				g.SetSourceSurface (surface, filter);
 
 			g.SetBlendMode (layer.BlendMode);
 			g.PaintWithAlpha (layer.Opacity);

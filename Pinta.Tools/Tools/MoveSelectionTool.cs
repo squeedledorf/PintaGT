@@ -46,10 +46,8 @@ public sealed class MoveSelectionTool : BaseTransformTool
 	public override string Name => Translations.GetString ("Move Selection");
 	public override string Icon => Pinta.Resources.Icons.ToolMoveSelection;
 	public override string StatusBarText => Translations.GetString (
-		"Left click and drag the selection to move selection outline." +
-		"\nRight click and drag the selection to rotate selection outline." +
-		"\nHold Shift to rotate in steps." +
-		"\nUse arrow keys to move selection outline by a single pixel.");
+		"Drag to move the outline, drag a nub to resize, drag just outside to rotate (or right-drag)." +
+		"\nHold Shift to keep the aspect ratio or rotate in 15° steps.");
 
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon (Pinta.Resources.Icons.ToolMoveSelection), 0, 0, null);
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_M);
