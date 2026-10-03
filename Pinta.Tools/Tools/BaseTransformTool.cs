@@ -38,7 +38,6 @@ public abstract class BaseTransformTool : BaseTool
 	private PointD original_point;
 	private bool is_dragging = false;
 	private bool is_rotating = false;
-	private bool is_scaling = false;
 	private bool using_mouse = false;
 
 	/// <summary>
@@ -60,10 +59,9 @@ public abstract class BaseTransformTool : BaseTool
 		if (!document.Workspace.PointInCanvas (e.PointDouble))
 			return;
 
+		// Ctrl+drag is a plain move for now (no scaling); Paint.NET's Ctrl copy-move is not implemented yet.
 		if (e.MouseButton == MouseButton.Right)
 			is_rotating = true;
-		else if (e.IsControlPressed)
-			is_scaling = true;
 		else
 			is_dragging = true;
 
@@ -97,23 +95,7 @@ public abstract class BaseTransformTool : BaseTool
 
 		transform.InitIdentity ();
 
-		if (is_scaling) {
-
-			double sx = (c1.X + dx) / c1.X;
-			double sy = (c1.Y + dy) / c1.Y;
-
-			if (constrain) {
-
-				double max_scale = Math.Max (Math.Abs (sx), Math.Abs (sy));
-
-				sx = max_scale * Math.Sign (sx);
-				sy = max_scale * Math.Sign (sy);
-			}
-
-			transform.Translate (center.X, center.Y);
-			transform.Scale (sx, sy);
-			transform.Translate (-center.X, -center.Y);
-		} else if (is_rotating) {
+		if (is_rotating) {
 
 			if (constrain)
 				angle = Utility.GetNearestStepAngle (angle, rotate_steps);
@@ -208,11 +190,10 @@ public abstract class BaseTransformTool : BaseTool
 	{
 		is_dragging = false;
 		is_rotating = false;
-		is_scaling = false;
 		using_mouse = false;
 	}
 
 	private bool IsActive
-		=> is_dragging || is_rotating || is_scaling;
+		=> is_dragging || is_rotating;
 }
 
