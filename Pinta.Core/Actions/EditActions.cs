@@ -41,6 +41,12 @@ public sealed class EditActions
 	public Command Paste { get; }
 	public Command PasteIntoNewLayer { get; }
 	public Command PasteIntoNewImage { get; }
+	public Command CopySelection { get; }
+	public Command PasteSelectionReplace { get; }
+	public Command PasteSelectionUnion { get; }
+	public Command PasteSelectionExclude { get; }
+	public Command PasteSelectionIntersect { get; }
+	public Command PasteSelectionXor { get; }
 	public Command EraseSelection { get; }
 	public Command FillSelection { get; }
 	public Command FillSelectionSecondary { get; }
@@ -124,6 +130,44 @@ public sealed class EditActions
 			null,
 			Resources.StandardIcons.EditPaste,
 			shortcuts: ["<Primary><Alt>V"]);
+
+		CopySelection = new Command (
+			"copyselection",
+			Translations.GetString ("Copy Selection"),
+			null,
+			Resources.StandardIcons.EditCopy,
+			shortcuts: ["<Primary><Alt><Shift>C"]);
+
+		PasteSelectionReplace = new Command (
+			"pasteselectionreplace",
+			Translations.GetString ("Replace"),
+			null,
+			Resources.StandardIcons.EditPaste,
+			shortcuts: ["<Primary><Alt><Shift>V"]);
+
+		PasteSelectionUnion = new Command (
+			"pasteselectionunion",
+			Translations.GetString ("Add (union)"),
+			null,
+			Resources.StandardIcons.EditPaste);
+
+		PasteSelectionExclude = new Command (
+			"pasteselectionexclude",
+			Translations.GetString ("Exclude"),
+			null,
+			Resources.StandardIcons.EditPaste);
+
+		PasteSelectionIntersect = new Command (
+			"pasteselectionintersect",
+			Translations.GetString ("Intersect"),
+			null,
+			Resources.StandardIcons.EditPaste);
+
+		PasteSelectionXor = new Command (
+			"pasteselectionxor",
+			Translations.GetString ("Invert (\"xor\")"),
+			null,
+			Resources.StandardIcons.EditPaste);
 
 		EraseSelection = new Command (
 			"eraseselection",
@@ -220,6 +264,18 @@ public sealed class EditActions
 		paste_section.AppendItem (PasteIntoNewLayer.CreateMenuItem ());
 		paste_section.AppendItem (PasteIntoNewImage.CreateMenuItem ());
 
+		// Paint.NET: Copy Selection, then a Paste Selection submenu of combine modes.
+		Gio.Menu paste_selection_menu = Gio.Menu.New ();
+		paste_selection_menu.AppendItem (PasteSelectionReplace.CreateMenuItem ());
+		paste_selection_menu.AppendItem (PasteSelectionUnion.CreateMenuItem ());
+		paste_selection_menu.AppendItem (PasteSelectionExclude.CreateMenuItem ());
+		paste_selection_menu.AppendItem (PasteSelectionIntersect.CreateMenuItem ());
+		paste_selection_menu.AppendItem (PasteSelectionXor.CreateMenuItem ());
+
+		Gio.Menu geometry_section = Gio.Menu.New ();
+		geometry_section.AppendItem (CopySelection.CreateMenuItem ());
+		geometry_section.AppendSubmenu (Translations.GetString ("Paste Selection"), paste_selection_menu);
+
 		// Paint.NET order. Offset Selection is a Pinta extra kept after Invert Selection.
 		// The palette commands stay registered but are not in this menu (Paint.NET keeps them in the Colors window).
 		Gio.Menu sel_section = Gio.Menu.New ();
@@ -233,6 +289,7 @@ public sealed class EditActions
 		menu.AppendItem (Undo.CreateMenuItem ());
 		menu.AppendItem (Redo.CreateMenuItem ());
 		menu.AppendSection (null, paste_section);
+		menu.AppendSection (null, geometry_section);
 		menu.AppendSection (null, sel_section);
 
 		app.AddCommands ([
@@ -246,6 +303,13 @@ public sealed class EditActions
 			Paste,
 			PasteIntoNewLayer,
 			PasteIntoNewImage,
+
+			CopySelection,
+			PasteSelectionReplace,
+			PasteSelectionUnion,
+			PasteSelectionExclude,
+			PasteSelectionIntersect,
+			PasteSelectionXor,
 
 			SelectAll,
 			Deselect,
@@ -283,6 +347,12 @@ public sealed class EditActions
 		SavePalette.Activated += HandlerPintaCoreActionsEditSavePaletteActivated;
 		ResetPalette.Activated += HandlerPintaCoreActionsEditResetPaletteActivated;
 		InvertSelection.Activated += HandleInvertSelectionActivated;
+		CopySelection.Activated += HandleCopySelectionActivated;
+		PasteSelectionReplace.Activated += (_, _) => PasteSelection (CombineMode.Replace);
+		PasteSelectionUnion.Activated += (_, _) => PasteSelection (CombineMode.Union);
+		PasteSelectionExclude.Activated += (_, _) => PasteSelection (CombineMode.Exclude);
+		PasteSelectionIntersect.Activated += (_, _) => PasteSelection (CombineMode.Intersect);
+		PasteSelectionXor.Activated += (_, _) => PasteSelection (CombineMode.Xor);
 
 		workspace.ActiveDocumentChanged += WorkspaceActiveDocumentChanged;
 
@@ -303,6 +373,7 @@ public sealed class EditActions
 			FillSelectionSecondary.Sensitive = visible;
 			InvertSelection.Sensitive = visible;
 			OffsetSelection.Sensitive = visible;
+			CopySelection.Sensitive = visible;
 		};
 	}
 
@@ -661,6 +732,51 @@ public sealed class EditActions
 		doc.Selection.Invert (doc.ImageSize);
 
 		doc.History.PushNewItem (historyItem);
+		doc.Workspace.Invalidate ();
+	}
+
+	private void HandleCopySelectionActivated (object sender, EventArgs e)
+	{
+		tools.Commit ();
+
+		Document doc = workspace.ActiveDocument;
+		GdkExtensions.GetDefaultClipboard ().SetText (DocumentSelection.ToPolygonListJson (doc.Selection.SelectionPolygons));
+	}
+
+	private async void PasteSelection (CombineMode mode)
+	{
+		Document doc = workspace.ActiveDocument;
+
+		string? text;
+		try {
+			text = await GdkExtensions.GetDefaultClipboard ().ReadTextAsync ();
+		} catch (GLib.GException) {
+			text = null; // No text on the clipboard (e.g. an image).
+		}
+
+		List<List<ClipperLib.IntPoint>>? polygons = DocumentSelection.ParsePolygonListJson (text);
+		if (polygons is null || !workspace.HasOpenDocuments || workspace.ActiveDocument != doc)
+			return;
+
+		tools.Commit ();
+
+		SelectionHistoryItem hist = new (
+			workspace,
+			Resources.StandardIcons.EditPaste,
+			Translations.GetString ("Paste Selection"));
+		hist.TakeSnapshot ();
+
+		// A hidden selection covers the whole canvas; as in Paint.NET it counts as nothing selected here.
+		doc.PreviousSelection = doc.Selection.Clone ();
+		if (!doc.Selection.Visible)
+			doc.PreviousSelection.SelectionPolygons = [];
+		// The pasted shape has no handle rectangle, so the select tools hide their handles.
+		// Cleared before combining, because the combine raises the selection-changed event the tools listen to.
+		doc.PreviousSelection.HandleBounds = RectangleD.Zero;
+
+		SelectionModeHandler.PerformSelectionMode (doc, mode, polygons);
+
+		doc.History.PushNewItem (hist);
 		doc.Workspace.Invalidate ();
 	}
 
