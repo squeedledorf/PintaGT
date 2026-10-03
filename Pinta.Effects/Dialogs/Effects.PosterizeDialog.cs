@@ -51,6 +51,7 @@ public sealed partial class PosterizeDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 	}
 
 	public static PosterizeDialog New (IChromeService chrome, PosterizeData data)

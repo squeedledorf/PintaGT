@@ -56,8 +56,7 @@ public sealed partial class ResizeImageDialog
 		Gtk.DropDown resamplingDropdown = Gtk.DropDown.New (modes, expression: null);
 		resamplingDropdown.Hexpand = true;
 
-		Gtk.Button resetButton = Gtk.Button.NewFromIconName (Resources.StandardIcons.EditUndo);
-		resetButton.TooltipText = Translations.GetString ("Reset");
+		Gtk.Button resetButton = GtkExtensions.CreateResetButton ();
 		resetButton.OnClicked += (_, _) => {
 			fields.Reset (original_dpi);
 			resamplingDropdown.Selected = (uint) ResamplingMode.Bicubic;

@@ -82,6 +82,8 @@ public sealed partial class SimpleEffectDialog
 		contentAreaBox.SetAllMargins (6);
 
 		OnClose += (_, _) => HandleClose ();
+		// Connected before RunAsync's handler, so a value typed just before Enter reaches the effect before OK is read.
+		OnResponse += (_, _) => HandleClose ();
 	}
 
 	public static SimpleEffectDialog New (
@@ -167,7 +169,9 @@ public sealed partial class SimpleEffectDialog
 		// If there is a timeout that hasn't been invoked yet, run it before closing the dialog.
 		if (event_delay_timeout_id == 0) return;
 		GLib.Source.Remove (event_delay_timeout_id);
+		event_delay_timeout_id = 0;
 		timeout_func?.Invoke ();
+		timeout_func = null;
 	}
 
 	private IEnumerable<Gtk.Widget> GenerateDialogWidgets (EffectData effectData, IAddinLocalizer localizer, IWorkspaceService workspace) =>

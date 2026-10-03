@@ -78,6 +78,7 @@ internal sealed class PdnEffectDialog
 		dialog.WidthRequest = (int) (400 * Math.Clamp (widthScale, 0.75, 2.5));
 		dialog.AddCancelOkButtons ();
 		dialog.SetDefaultResponse (Gtk.ResponseType.Ok);
+		dialog.PressOkOnEnter ();
 
 		PdnEffectDialog d = new (adapter, props, dialog);
 		Gtk.Box content = dialog.GetContentAreaBox ();

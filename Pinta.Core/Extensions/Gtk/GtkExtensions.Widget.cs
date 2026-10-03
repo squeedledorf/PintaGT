@@ -299,6 +299,7 @@ partial class GtkExtensions
 		click.OnPressed += (_, _) => {
 			Stop ();
 			arrow.AddCssClass (STACKED_STEP_PRESSED_CLASS);
+			spin.Update (); // Step from the typed text, as GTK's own buttons do.
 			spin.Spin (direction, 0);
 			delay = GLib.Functions.TimeoutAdd (GLib.Constants.PRIORITY_DEFAULT, 400, () => {
 				delay = 0;
