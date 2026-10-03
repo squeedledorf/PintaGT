@@ -17,6 +17,12 @@
     padding: 2px;
 }
 
+/* Fixed tool options height (as in Paint.NET), so the canvas does not jump when switching tools.
+   Matches the tallest options widget, a spin button. */
+#tool_toolbar {
+    min-height: 34px;
+}
+
 #main_toolbar button, #tool_toolbar button {
     min-width: 24px;
     min-height: 24px;

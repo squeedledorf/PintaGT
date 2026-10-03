@@ -115,6 +115,10 @@ internal sealed class LayerPropertiesAction : IActionHandler
 			count++;
 		}
 
+		// Paint.NET has no separate history name for a blend mode change; it reads "Layer Properties".
+		if (updated.BlendMode != initial.BlendMode)
+			count++;
+
 		if (message == null || count > 1) {
 			message = Translations.GetString ("Layer Properties");
 			icon = Resources.Icons.LayerProperties;

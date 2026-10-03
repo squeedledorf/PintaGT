@@ -101,6 +101,13 @@ public sealed partial class HistoryListView
 		SetPolicy (Gtk.PolicyType.Automatic, Gtk.PolicyType.Automatic);
 		SetChild (listView);
 
+		// ScrollTo runs before the ListView has measured a newly added row, so it stops one row short.
+		// While the newest item is current, keep the view pinned to the bottom whenever the content grows.
+		Vadjustment!.OnChanged += (adjustment, _) => {
+			if (listModel.NItems > 0 && selectionModel.Selected == listModel.NItems - 1)
+				adjustment.Value = adjustment.Upper - adjustment.PageSize;
+		};
+
 		// --- References to keep
 
 		model = listModel;

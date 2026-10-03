@@ -48,11 +48,11 @@ public sealed class InvertHistoryItem : BaseHistoryItem
 				Icon = Resources.Icons.ImageRotate180;
 				break;
 			case InvertType.FlipHorizontal:
-				Text = Translations.GetString ("Flip Image Horizontal");
+				Text = Translations.GetString ("Flip Horizontal");
 				Icon = Resources.Icons.ImageFlipHorizontal;
 				break;
 			case InvertType.FlipVertical:
-				Text = Translations.GetString ("Flip Image Vertical");
+				Text = Translations.GetString ("Flip Vertical");
 				Icon = Resources.Icons.ImageFlipVertical;
 				break;
 			case InvertType.Rotate90CW:

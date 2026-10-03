@@ -89,6 +89,10 @@ public static class Translations
 
 		// List folders in the locale dir if they contain Pinta's translation file.
 		// On Linux, the folder might e.g. be /usr/share/locale which contains additional languages.
+		// A development build has no locale dir until the translations are compiled.
+		if (!Directory.Exists (locale_dir))
+			return [];
+
 		DirectoryInfo dirInfo = new (locale_dir);
 		return dirInfo.EnumerateDirectories ()
 			.Where (dir => File.Exists (Path.Combine (dir.FullName, "LC_MESSAGES", moFile)))
