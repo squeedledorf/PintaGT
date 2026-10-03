@@ -98,7 +98,7 @@ partial class CairoExtensions
 		// Fill white
 		g.FillRectangle (new RectangleD (0, 0, size, size), new Color (1, 1, 1));
 
-		Color color = new (0.78, 0.78, 0.78);
+		Color color = new (0.75, 0.75, 0.75); // #BFBFBF, as in Paint.NET
 		int half_size = size / 2;
 
 		// Draw gray squares
