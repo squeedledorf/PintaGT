@@ -60,6 +60,12 @@ public class Layer : ObservableObject
 	public ImageSurface Surface { get; set; }
 	public Matrix Transform { get; set; }
 
+	/// <summary>
+	/// The resampling filter used when drawing the layer through its <see cref="Transform"/>,
+	/// e.g. the Move Selected Pixels tool's Sampling option. Null uses the default filter.
+	/// </summary>
+	public Filter? TransformFilter { get; set; }
+
 	public static string OpacityProperty { get; } = nameof (Opacity);
 	public static string HiddenProperty { get; } = nameof (Hidden);
 	public static string NameProperty { get; } = nameof (Name);
@@ -163,7 +169,10 @@ public class Layer : ObservableObject
 			ctx.Transform (Transform);
 
 		ctx.Operator = op;
-		ctx.SetSourceSurface (surface, 0, 0);
+		if (transform && TransformFilter is Filter filter)
+			ctx.SetSource (new SurfacePattern (surface) { Filter = filter });
+		else
+			ctx.SetSourceSurface (surface, 0, 0);
 
 		if (opacity >= 1.0)
 			ctx.Paint ();
