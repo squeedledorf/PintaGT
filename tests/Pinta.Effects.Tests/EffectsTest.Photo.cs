@@ -55,6 +55,25 @@ partial class EffectsTest
 	}
 
 	[Test]
+	public void Sharpen3 ()
+	{
+		SharpenEffect effect = new (Utilities.CreateMockServices ());
+		effect.Data.Amount = 10;
+		effect.Data.Threshold = 5;
+		Utilities.TestEffect (effect, "sharpen3.png");
+	}
+
+	[Test]
+	public void SharpenThreshold ()
+	{
+		ColorBgra a = ColorBgra.FromBgra (100, 100, 100, 255);
+		ColorBgra near = ColorBgra.FromBgra (104, 100, 98, 255);
+		Assert.That (SharpenEffect.IsBelowThreshold (a, near, 5), Is.True);
+		Assert.That (SharpenEffect.IsBelowThreshold (a, near, 3), Is.False);
+		Assert.That (SharpenEffect.IsBelowThreshold (a, a, 0), Is.False); // 0 sharpens everything
+	}
+
+	[Test]
 	public void SoftenPortrait1 ()
 	{
 		SoftenPortraitEffect effect = new (Utilities.CreateMockServices ());
