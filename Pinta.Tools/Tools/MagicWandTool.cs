@@ -36,6 +36,8 @@ public sealed class MagicWandTool : FloodTool
 	private readonly IWorkspaceService workspace;
 
 	private CombineMode combine_mode;
+	// The selection before the live wand click, which every redo of the flood combines with.
+	private DocumentSelection? base_selection;
 
 	public MagicWandTool (IServiceProvider services) : base (services)
 	{
@@ -55,14 +57,15 @@ public sealed class MagicWandTool : FloodTool
 	public override string Icon => Pinta.Resources.Icons.ToolSelectMagicWand;
 	public override string StatusBarText => Translations.GetString (
 		"Click to select region of similar color." +
-		"\nHold Shift to switch between Contiguous and Global mode."
+		"\nHold Shift to switch between Contiguous and Global mode." +
+		"\nDrag the nub to move the click point; press Enter or click Finish when done."
 	);
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.MagicWand.png"), 21, 10, null);
 	public override int Priority => 13;
 	public override bool IsSelectionTool => true;
 	protected override bool ShowSelectionQualityButton => true;
-	// ponytail: the selection is final at once, so Finish stays greyed until the click point can be dragged.
 	protected override bool ShowFinishButton => true;
+	protected override IWorkspaceService Workspace => workspace;
 
 	// Paint.NET order: selection mode first, then the flood controls.
 	protected override void AppendFloodControls (Gtk.Box tb)
@@ -74,38 +77,45 @@ public sealed class MagicWandTool : FloodTool
 		base.AppendFloodControls (tb);
 	}
 
+	// Enter finishes a live selection first; the next Enter deselects.
 	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
-		=> SelectTool.TryDeselectOnKey (e) || base.OnKeyDown (document, e);
+		=> base.OnKeyDown (document, e) || SelectTool.TryDeselectOnKey (e);
 
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
 		// As in Paint.NET, clicking off-canvas with a selection tool deselects.
 		if (!document.Workspace.PointInCanvas ((PointD) e.Point)) {
+			FinishLiveFill ();
 			Command deselect = PintaCore.Actions.Edit.Deselect;
 			if (deselect.Sensitive)
 				deselect.Activate ();
 			return;
 		}
 
-		combine_mode = workspace.SelectionHandler.DetermineCombineMode (e);
-
 		base.OnMouseDown (document, e);
 	}
 
-	protected override void OnFillRegionComputed (Document document, IReadOnlyList<IReadOnlyList<PointI>> polygonSet)
+	protected override BaseHistoryItem BeginLiveFill (Document document, ToolMouseEventArgs e)
 	{
+		combine_mode = workspace.SelectionHandler.DetermineCombineMode (e);
+		base_selection = document.Selection.Clone ();
+
 		var undoAction = new SelectionHistoryItem (workspace, Icon, Name);
 		undoAction.TakeSnapshot ();
+		return undoAction;
+	}
 
-		document.PreviousSelection = document.Selection.Clone ();
+	protected override void EndLiveFill ()
+		=> base_selection = null;
 
-		document.Selection.SelectionPolygons.Clear ();
+	protected override void OnFillRegionComputed (Document document, IReadOnlyList<IReadOnlyList<PointI>> polygonSet)
+	{
+		document.PreviousSelection = (base_selection ?? document.Selection).Clone ();
+
 		SelectionModeHandler.PerformSelectionMode (document, combine_mode, DocumentSelection.ConvertToPolygons (polygonSet));
 		// Only reveal the selection once a fill happened; an off-canvas click must not expose a hidden one.
 		document.Selection.Visible = true;
-
-		document.History.PushNewItem (undoAction);
 	}
 
 	protected override void OnSaveSettings (ISettingsService settings)

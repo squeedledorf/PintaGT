@@ -80,14 +80,58 @@ public abstract class FloodTool : BaseTool
 		tb.Append (Separator);
 		tb.Append (ToleranceLabel);
 		tb.Append (ToleranceSlider);
+		AppendSamplingControls (tb);
+	}
+
+	/// <summary>The tolerance alpha mode and Sampling controls, which follow the tolerance bar.</summary>
+	protected void AppendSamplingControls (Gtk.Box tb)
+	{
 		tb.Append (AlphaModeDropDown);
 		tb.Append (SamplingSeparator);
 		tb.Append (SamplingLabel);
 		tb.Append (SamplingDropDown);
 	}
 
+	// The live fill, as in Paint.NET: until it is finished, the fill is redone from its click point whenever the
+	// point is dragged or an option changes, without adding more history items.
+	private Document? live_document;
+	private UserLayer? live_layer;
+	private PointI live_point;
+	private bool live_shift;
+	private bool dragging_nub;
+	private PointD drag_offset;
+	private MoveNubHandle? nub;
+
+	protected bool IsLive => live_document is not null;
+	private MoveNubHandle Nub => nub ??= new MoveNubHandle (Workspace);
+	public override IEnumerable<IToolHandle> Handles => [Nub];
+	protected override bool CanFinish => IsLive;
+
+	protected abstract IWorkspaceService Workspace { get; }
+
+	/// <summary>
+	/// Called on a click that starts a new live fill, before the first flood. Records what the fill will change
+	/// and returns the history item for it, which is pushed once the first flood is drawn.
+	/// </summary>
+	protected abstract BaseHistoryItem BeginLiveFill (Document document, ToolMouseEventArgs e);
+
+	/// <summary>Called before every flood after the first: undo the previous flood's result.</summary>
+	protected virtual void RestoreBeforeFill (Document document) { }
+
+	/// <summary>Called when the live fill is finished: release anything kept for redoing it.</summary>
+	protected virtual void EndLiveFill () { }
+
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
+		if (live_document == document && Nub.ContainsPoint (e.WindowPoint)) {
+			dragging_nub = true;
+			drag_offset = new PointD (live_point.X - e.PointDouble.X, live_point.Y - e.PointDouble.Y);
+			return;
+		}
+
+		// A click elsewhere finishes the live fill and starts a new one.
+		FinishLiveFill ();
+
 		var pos = e.Point;
 
 		// Don't do anything if we're outside the canvas
@@ -103,6 +147,115 @@ public abstract class FloodTool : BaseTool
 		if (!currentRegion.ContainsPoint (pos.X, pos.Y) && LimitToSelection)
 			return;
 
+		BaseHistoryItem history = BeginLiveFill (document, e);
+
+		live_document = document;
+		live_layer = document.Layers.CurrentUserLayer;
+		live_point = pos;
+		live_shift = e.IsShiftPressed;
+
+		Flood (document);
+		document.History.PushNewItem (history);
+
+		Nub.Active = true;
+		MoveNub (document);
+	}
+
+	protected override void OnMouseMove (Document document, ToolMouseEventArgs e)
+	{
+		if (!dragging_nub) {
+			SetCursor (live_document == document && Nub.ContainsPoint (e.WindowPoint) ? Nub.Cursor : DefaultCursor);
+			return;
+		}
+
+		PointI point = new (
+			Math.Clamp ((int) (e.PointDouble.X + drag_offset.X), 0, document.ImageSize.Width - 1),
+			Math.Clamp ((int) (e.PointDouble.Y + drag_offset.Y), 0, document.ImageSize.Height - 1));
+
+		if (point == live_point)
+			return;
+
+		live_point = point;
+		Reflood ();
+		MoveNub (document);
+	}
+
+	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
+	{
+		dragging_nub = false;
+	}
+
+	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
+	{
+		if (IsLive && e.Key.Value is Gdk.Constants.KEY_Return or Gdk.Constants.KEY_KP_Enter) {
+			FinishLiveFill ();
+			return true;
+		}
+
+		return base.OnKeyDown (document, e);
+	}
+
+	protected override void OnCommit (Document? document)
+	{
+		FinishLiveFill ();
+		base.OnCommit (document);
+	}
+
+	protected override void OnDeactivated (Document? document, BaseTool? newTool)
+	{
+		FinishLiveFill ();
+		base.OnDeactivated (document, newTool);
+	}
+
+	// Undo or redo moves away from the live fill's history item, so the fill can no longer be redone in place.
+	protected override void OnAfterUndo (Document document)
+	{
+		FinishLiveFill ();
+		base.OnAfterUndo (document);
+	}
+
+	protected override void OnAfterRedo (Document document)
+	{
+		FinishLiveFill ();
+		base.OnAfterRedo (document);
+	}
+
+	/// <summary>Commits the live fill: it stays as it is, and its click point can no longer be dragged.</summary>
+	protected void FinishLiveFill ()
+	{
+		if (live_document is null)
+			return;
+
+		live_document.Workspace.InvalidateWindowRect (Nub.InvalidateRect);
+		Nub.Active = false;
+		dragging_nub = false;
+		live_document = null;
+		live_layer = null;
+		EndLiveFill ();
+	}
+
+	/// <summary>Redoes the live fill with the current options. Called when the tolerance, mode or a colour changes.</summary>
+	protected void Reflood ()
+	{
+		if (live_document is null)
+			return;
+
+		// The fill belongs to one layer of one image; once either changes, it's finished.
+		if (!Workspace.HasOpenDocuments || Workspace.ActiveDocument != live_document || live_document.Layers.CurrentUserLayer != live_layer) {
+			FinishLiveFill ();
+			return;
+		}
+
+		RestoreBeforeFill (live_document);
+		Flood (live_document);
+		live_document.Workspace.Invalidate ();
+	}
+
+	private void Flood (Document document)
+	{
+		PointI pos = live_point;
+		var currentRegion = CairoExtensions.CreateRegion (document.GetSelectedBounds (true));
+
 		using ImageSurface? sample_copy = SampleImage || StraightAlpha ? CreateSampleSurface (document, SampleImage, StraightAlpha) : null;
 		ImageSurface surface = sample_copy ?? document.Layers.CurrentUserLayer.Surface;
 		var stencilBuffer = new BitMask (surface.Width, surface.Height);
@@ -111,7 +264,7 @@ public abstract class FloodTool : BaseTool
 		RectangleD boundingBox;
 
 		// As in Paint.NET, Shift toggles the flood mode rather than forcing Global.
-		if (IsGlobalMode ^ e.IsShiftPressed)
+		if (IsGlobalMode ^ live_shift)
 			CairoExtensions.FillStencilByColor (surface, stencilBuffer, surface.GetColorBgra (pos), tol, out boundingBox, currentRegion, LimitToSelection);
 		else
 			CairoExtensions.FillStencilFromPoint (surface, stencilBuffer, pos, tol, out boundingBox, currentRegion, LimitToSelection);
@@ -124,6 +277,13 @@ public abstract class FloodTool : BaseTool
 			var polygonSet = stencilBuffer.CreatePolygonSet (boundingBox, PointI.Zero);
 			OnFillRegionComputed (document, polygonSet);
 		}
+	}
+
+	private void MoveNub (Document document)
+	{
+		document.Workspace.InvalidateWindowRect (Nub.InvalidateRect);
+		Nub.CanvasPosition = new PointD (live_point.X + 0.5, live_point.Y + 0.5);
+		document.Workspace.InvalidateWindowRect (Nub.InvalidateRect);
 	}
 
 	/// <summary>
@@ -171,7 +331,16 @@ public abstract class FloodTool : BaseTool
 
 	protected Label ModeLabel => mode_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Flood Mode")));
 	protected Label ToleranceLabel => tolerance_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Tolerance")));
-	protected ToolBarSlider ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.FloodToolFillTolerance (this), 50));
+	protected ToolBarSlider ToleranceSlider {
+		get {
+			if (tolerance_slider is null) {
+				tolerance_slider = GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.FloodToolFillTolerance (this), 50));
+				tolerance_slider.Scale.OnValueChanged += (_, _) => Reflood ();
+			}
+
+			return tolerance_slider;
+		}
+	}
 	protected Separator Separator => mode_sep ??= GtkExtensions.CreateToolBarSeparator ();
 	private Separator SamplingSeparator => sampling_sep ??= GtkExtensions.CreateToolBarSeparator ();
 	private Label SamplingLabel => sampling_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Sampling")));
@@ -183,6 +352,7 @@ public abstract class FloodTool : BaseTool
 				alpha_mode_button.AddItem (Translations.GetString ("Premultiplied"), Pinta.Resources.Icons.ToleranceAlphaPremultiplied, false);
 				alpha_mode_button.AddItem (Translations.GetString ("Straight"), Pinta.Resources.Icons.ToleranceAlphaStraight, true);
 				alpha_mode_button.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingPrefix + "-tolerance-alpha-mode", 0), 0, 1);
+				alpha_mode_button.SelectedItemChanged += (_, _) => Reflood ();
 			}
 
 			return alpha_mode_button;
@@ -197,6 +367,7 @@ public abstract class FloodTool : BaseTool
 				sampling_button.AddItem (Translations.GetString ("Layer"), Pinta.Resources.Icons.LayerMergeDown, false);
 				// Layer by default, as in Paint.NET.
 				sampling_button.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingPrefix + "-sampling", 1), 0, 1);
+				sampling_button.SelectedItemChanged += (_, _) => Reflood ();
 			}
 
 			return sampling_button;
@@ -212,6 +383,7 @@ public abstract class FloodTool : BaseTool
 				mode_button.AddItem (Translations.GetString ("Global"), Pinta.Resources.Icons.HelpWebsite, true);
 
 				mode_button.SelectedIndex = Settings.GetSetting (SettingNames.FloodToolFillMode (this), 0);
+				mode_button.SelectedItemChanged += (_, _) => Reflood ();
 			}
 
 			return mode_button;
