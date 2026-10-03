@@ -240,11 +240,11 @@ public sealed class ColorPickerTool : BaseTool
 				sample_size.SelectedItemChanged += (sender, e) => SetCursor (DefaultCursor);
 
 				sample_size.AddItem (Translations.GetString ("Single Pixel"), Pinta.Resources.Icons.Sampling1, 1);
-				sample_size.AddItem (Translations.GetString ("3 x 3 Region"), Pinta.Resources.Icons.Sampling3, 3);
-				sample_size.AddItem (Translations.GetString ("5 x 5 Region"), Pinta.Resources.Icons.Sampling5, 5);
-				sample_size.AddItem (Translations.GetString ("11 x 11 Region"), Pinta.Resources.Icons.Sampling7, 11);
-				sample_size.AddItem (Translations.GetString ("31 x 31 Region"), Pinta.Resources.Icons.Sampling9, 31);
-				sample_size.AddItem (Translations.GetString ("51 x 51 Region"), Pinta.Resources.Icons.Sampling9, 51);
+				sample_size.AddItem (Translations.GetString ("3 × 3 pixels"), Pinta.Resources.Icons.Sampling3, 3);
+				sample_size.AddItem (Translations.GetString ("5 × 5 pixels"), Pinta.Resources.Icons.Sampling5, 5);
+				sample_size.AddItem (Translations.GetString ("11 × 11 pixels"), Pinta.Resources.Icons.Sampling7, 11);
+				sample_size.AddItem (Translations.GetString ("31 × 31 pixels"), Pinta.Resources.Icons.Sampling9, 31);
+				sample_size.AddItem (Translations.GetString ("51 × 51 pixels"), Pinta.Resources.Icons.Sampling9, 51);
 
 				sample_size.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingNames.COLOR_PICKER_SAMPLE_SIZE, 0), 0, sample_size.Items.Count - 1);
 			}

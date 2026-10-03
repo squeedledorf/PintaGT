@@ -142,9 +142,21 @@ public abstract class BaseBrushTool : BaseTool
 			if (brush_width is null) {
 				brush_width = GtkExtensions.CreateToolBarSpinButton (1, 1e5, 1, SettingNames.GetBrushWidth (Settings, SettingNames.BrushWidth (this)));
 				brush_width.Digits = 2;
+				// Paint.NET shows a whole brush size as "2", not "2.00".
+				brush_width.OnOutput += (spin, _) => ShowWholeAsInteger (spin);
+				ShowWholeAsInteger (brush_width);
 			}
 			return brush_width;
 		}
 	}
+	private static bool ShowWholeAsInteger (SpinButton spin)
+	{
+		double value = spin.Value;
+		if (value != Math.Floor (value))
+			return false; // Let GTK print the decimals.
+		spin.SetText (value.ToString ("0"));
+		return true;
+	}
+
 	protected Label BrushWidthLabel => brush_width_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Brush size")));
 }
