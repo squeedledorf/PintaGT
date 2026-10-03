@@ -24,6 +24,7 @@ internal static class SettingNames
 	internal const string TEXT_JOIN = "text-join";
 
 	internal const string RECOLOR_TOLERANCE = "recolor-tolerance";
+	internal const string RECOLOR_SAMPLING = "recolor-sampling";
 
 	internal const string GRADIENT_TYPE = "gradient-type";
 	internal const string GRADIENT_COLOR_MODE = "gradient-color-mode";
