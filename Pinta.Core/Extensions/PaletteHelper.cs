@@ -57,57 +57,21 @@ public static class PaletteHelper
 			errors.ToString ());
 	}
 
+	// Paint.NET 5's default layout: 16 columns, read row by row. Columns 0-1 are greys,
+	// then 14 hues as full colour, dark, pastel and muted rows.
+	private static readonly string[] default_rows = [
+		"000000 404040 FF0000 FF6A00 FFD800 B6FF00 4CFF00 00FF21 00FF90 00FFFF 0094FF 0026FF 4800FF B200FF FF00DC FF006E",
+		"FFFFFF 808080 7F0000 7F3300 7F6A00 5B7F00 267F00 007F0E 007F46 007F7F 004A7F 00137F 21007F 57007F 7F006E 7F0037",
+		"A0A0A0 303030 FF7F7F FFB27F FFE97F DAFF7F A5FF7F 7FFF8E 7FFFC5 7FFFFF 7FC9FF 7F92FF A17FFF D67FFF FF7FED FF7FB6",
+		"C0C0C0 606060 7F3F3F 7F593F 7F743F 6D7F3F 527F3F 3F7F47 3F7F62 3F7F7F 3F647F 3F497F 503F7F 6B3F7F 7F3F76 7F3F5B",
+	];
+
+	/// <summary>
+	/// The 96-colour default palette (16 x 6). The last two rows repeat the first two at half opacity.
+	/// </summary>
 	public static IEnumerable<Color> EnumerateDefaultColors ()
 	{
-		yield return new (255 / 255f, 255 / 255f, 255 / 255f);
-		yield return new (0 / 255f, 0 / 255f, 0 / 255f);
-
-		yield return new (160 / 255f, 160 / 255f, 160 / 255f);
-		yield return new (128 / 255f, 128 / 255f, 128 / 255f);
-
-		yield return new (64 / 255f, 64 / 255f, 64 / 255f);
-		yield return new (48 / 255f, 48 / 255f, 48 / 255f);
-
-		yield return new (255 / 255f, 0 / 255f, 0 / 255f);
-		yield return new (255 / 255f, 127 / 255f, 127 / 255f);
-
-		yield return new (255 / 255f, 106 / 255f, 0 / 255f);
-		yield return new (255 / 255f, 178 / 255f, 127 / 255f);
-
-		yield return new (255 / 255f, 216 / 255f, 0 / 255f);
-		yield return new (255 / 255f, 233 / 255f, 127 / 255f);
-
-		yield return new (182 / 255f, 255 / 255f, 0 / 255f);
-		yield return new (218 / 255f, 255 / 255f, 127 / 255f);
-
-		yield return new (76 / 255f, 255 / 255f, 0 / 255f);
-		yield return new (165 / 255f, 255 / 255f, 127 / 255f);
-
-		yield return new (0 / 255f, 255 / 255f, 33 / 255f);
-		yield return new (127 / 255f, 255 / 255f, 142 / 255f);
-
-		yield return new (0 / 255f, 255 / 255f, 144 / 255f);
-		yield return new (127 / 255f, 255 / 255f, 197 / 255f);
-
-		yield return new (0 / 255f, 255 / 255f, 255 / 255f);
-		yield return new (127 / 255f, 255 / 255f, 255 / 255f);
-
-		yield return new (0 / 255f, 148 / 255f, 255 / 255f);
-		yield return new (127 / 255f, 201 / 255f, 255 / 255f);
-
-		yield return new (0 / 255f, 38 / 255f, 255 / 255f);
-		yield return new (127 / 255f, 146 / 255f, 255 / 255f);
-
-		yield return new (72 / 255f, 0 / 255f, 255 / 255f);
-		yield return new (161 / 255f, 127 / 255f, 255 / 255f);
-
-		yield return new (178 / 255f, 0 / 255f, 255 / 255f);
-		yield return new (214 / 255f, 127 / 255f, 255 / 255f);
-
-		yield return new (255 / 255f, 0 / 255f, 220 / 255f);
-		yield return new (255 / 255f, 127 / 255f, 237 / 255f);
-
-		yield return new (255 / 255f, 0 / 255f, 110 / 255f);
-		yield return new (255 / 255f, 127 / 255f, 182 / 255f);
+		Color[] opaque = [.. default_rows.SelectMany (row => row.Split (' ')).Select (hex => Color.FromHex (hex)!.Value)];
+		return [.. opaque, .. opaque.Take (32).Select (c => c with { A = 0.5 })];
 	}
 }

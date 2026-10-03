@@ -191,6 +191,16 @@ public sealed partial class ColorPickerSlider
 		OnColorChanged?.Invoke (this, new ());
 	}
 
+	/// <summary>
+	/// Replaces the default label, e.g. with a short "R:" for compact layouts.
+	/// </summary>
+	public void SetLabel (string text, int width)
+	{
+		slider_label.SetText (text);
+		slider_label.WidthRequest = width;
+		slider_label.Xalign = 0;
+	}
+
 	public void SetSliderWidth (int sliderWidth)
 	{
 		gradient_slider.WidthRequest = sliderWidth;
