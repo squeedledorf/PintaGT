@@ -49,7 +49,7 @@ popover.menu separator {
 }
 
 /* Fixed tool options height (as in Paint.NET), so the canvas does not jump when switching tools.
-   Matches the tallest options widget, a spin button. */
+   Spin buttons are 24px; the tolerance slider is pulled in with negative margins to fit. */
 #tool_toolbar {
     min-height: 28px;
 }
@@ -84,8 +84,8 @@ popover.menu separator {
 }
 
 .tool-bar-scale {
-    margin-top: -4px;
-    margin-bottom: -5px;
+    margin-top: -6px;
+    margin-bottom: -6px;
 }
 
 #statusbar button {
