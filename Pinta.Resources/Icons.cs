@@ -189,6 +189,18 @@ public static class Icons
 	public const string LassoFreeform = "tool-select-lasso-freeform-symbolic";
 	public const string LassoPolygon = "tool-select-lasso-polygon-symbolic";
 
+	public const string SelectionModeReplace = "selection-mode-replace";
+	public const string SelectionModeUnion = "selection-mode-union";
+	public const string SelectionModeExclude = "selection-mode-exclude";
+	public const string SelectionModeIntersect = "selection-mode-intersect";
+	public const string SelectionModeXor = "selection-mode-xor";
+	public const string SelectionDrawAnySize = "selection-drawmode-anysize";
+	public const string SelectionDrawFixedRatio = "selection-drawmode-fixedratio";
+	public const string SelectionDrawFixedSize = "selection-drawmode-fixedsize";
+
+	public const string ToleranceAlphaPremultiplied = "tolerance-alpha-premultiplied";
+	public const string ToleranceAlphaStraight = "tolerance-alpha-straight";
+
 	public const string HelpBug = "help-bug";
 	public const string HelpTranslate = "help-translate";
 	public const string HelpWebsite = "help-website";

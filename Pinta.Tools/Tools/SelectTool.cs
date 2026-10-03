@@ -38,6 +38,11 @@ public abstract class SelectTool : BaseTool
 	private SelectionHistoryItem? hist = default;
 	private CombineMode combine_mode = default;
 
+	// A new shape being dragged out (as opposed to a nub drag that resizes the last one).
+	private bool drawing;
+	private PointD draw_anchor;
+	private PointD draw_start_view;
+
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_S);
 	public override bool IsSelectionTool => true;
 	protected override bool ShowAntialiasingButton => false;
@@ -60,11 +65,20 @@ public abstract class SelectTool : BaseTool
 	{
 		base.OnBuildToolBar (tb);
 		workspace.SelectionHandler.BuildToolbar (tb, Settings);
+
+		tb.Append (DrawModeSeparator);
+		tb.Append (DrawModeDropDown);
+		tb.Append (SizeWidthLabel);
+		tb.Append (SizeWidthSpin);
+		tb.Append (SizeSwapButton);
+		tb.Append (SizeHeightLabel);
+		tb.Append (SizeHeightSpin);
+		UpdateSizeFields ();
 	}
 
 	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
 	{
-		if (!handle.IsDragging && TryDeselectOnKey (e))
+		if (!handle.IsDragging && !drawing && TryDeselectOnKey (e))
 			return true;
 
 		return base.OnKeyDown (document, e);
@@ -102,42 +116,48 @@ public abstract class SelectTool : BaseTool
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
 		// Ignore extra button clicks while drawing
-		if (handle.IsDragging)
+		if (handle.IsDragging || drawing)
 			return;
 
 		hist = new SelectionHistoryItem (workspace, Icon, Name);
 		hist.TakeSnapshot ();
 
 		// Hidden handles (no selection, or an inverted one) can't be grabbed.
-		if (handle.Active && handle.BeginDrag (e.PointDouble, document.ImageSize))
+		// A modifier or a right click asks for a new shape to combine with the selection, so it
+		// never grabs the previous selection's nubs; a Fixed Size selection has no size to drag.
+		bool plain_click = e.MouseButton == MouseButton.Left && !e.IsControlPressed && !e.IsAltPressed;
+		if (plain_click && DrawMode != SelectionDrawMode.FixedSize && handle.Active && handle.BeginDrag (e.PointDouble, document.ImageSize))
 			return;
 
-		// Start drawing a new rectangle.
+		// Start drawing a new shape.
 		combine_mode = PintaCore.Workspace.SelectionHandler.DetermineCombineMode (e);
 
-		PointD adjusted = AdjustMousePosition (document, e.PointDouble);
-		handle.Rectangle = new (adjusted.X, adjusted.Y, 0.0, 0.0);
+		draw_anchor = AdjustMousePosition (document, e.PointDouble);
+		draw_start_view = e.WindowPoint;
+		drawing = true;
 
 		document.PreviousSelection = document.Selection.Clone ();
 		document.Selection.SelectionPolygons.Clear ();
 
-		if (!handle.BeginDrag (adjusted, document.ImageSize))
-			throw new InvalidOperationException ("Should be able to start drawing a new rectangle!");
+		UpdateDrawnShape (document, draw_anchor, e.IsShiftPressed);
 	}
 
 	protected override void OnMouseMove (Document document, ToolMouseEventArgs e)
 	{
-		if (!handle.IsDragging) {
+		if (!handle.IsDragging && !drawing) {
 			UpdateCursor (e.WindowPoint);
 			return;
 		}
 
 		PointD adjusted = AdjustMousePosition (document, e.PointDouble);
-		handle.UpdateDrag (adjusted, e.IsShiftPressed);
 
-		ReDraw (document);
-
-		SelectionModeHandler.PerformSelectionMode (document, combine_mode, document.Selection.SelectionPolygons);
+		if (drawing) {
+			UpdateDrawnShape (document, adjusted, e.IsShiftPressed);
+		} else {
+			handle.UpdateDrag (adjusted, e.IsShiftPressed);
+			ReDraw (document);
+			SelectionModeHandler.PerformSelectionMode (document, combine_mode, document.Selection.SelectionPolygons);
+		}
 
 		// Autoscroll is always on, as in Paint.NET.
 		var view = (Gtk.Viewport) document.Workspace.Canvas.Parent!;
@@ -163,8 +183,21 @@ public abstract class SelectTool : BaseTool
 
 	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
 	{
+		if (!handle.IsDragging && !drawing)
+			return;
+
 		PointD adjusted = AdjustMousePosition (document, e.PointDouble);
-		if (handle.HasDragged (adjusted) && handle.Rectangle.Width > 0 && handle.Rectangle.Height > 0) {
+
+		bool keep;
+		if (drawing) {
+			// A click with Fixed Size places the box; otherwise the pointer must have moved.
+			bool moved = draw_start_view.DistanceSquared (e.WindowPoint) > 1;
+			keep = (moved || DrawMode == SelectionDrawMode.FixedSize) && handle.Rectangle is { Width: > 0, Height: > 0 };
+		} else {
+			keep = handle.HasDragged (adjusted) && handle.Rectangle.Width > 0 && handle.Rectangle.Height > 0;
+		}
+
+		if (keep) {
 			ReDraw (document);
 
 			SelectionModeHandler.PerformSelectionMode (document, combine_mode, document.Selection.SelectionPolygons);
@@ -176,13 +209,13 @@ public abstract class SelectTool : BaseTool
 				hist = null;
 			}
 
-			handle.EndDrag ();
+			EndDrawing ();
 		} else {
 			// If the user didn't move the mouse, they want to deselect
 
 			// Mark as being done interactive drawing before invoking the deselect action.
 			// This will allow AfterSelectionChanged() to clear the selection.
-			handle.EndDrag ();
+			EndDrawing ();
 
 			if (hist != null) {
 				// Roll back any changes made to the selection, e.g. in OnMouseDown().
@@ -196,6 +229,57 @@ public abstract class SelectTool : BaseTool
 
 		// Update the mouse cursor.
 		UpdateCursor (e.WindowPoint);
+	}
+
+	private void EndDrawing ()
+	{
+		if (handle.IsDragging)
+			handle.EndDrag ();
+		drawing = false;
+	}
+
+	private void UpdateDrawnShape (Document document, PointD pointer, bool shift)
+	{
+		handle.Rectangle = ComputeDrawRectangle (DrawMode, draw_anchor, pointer, SizeWidthSpin.Value, SizeHeightSpin.Value, document.ImageSize, shift);
+		ReDraw (document);
+		SelectionModeHandler.PerformSelectionMode (document, combine_mode, document.Selection.SelectionPolygons);
+	}
+
+	/// <summary>
+	/// The rectangle for a shape dragged from <paramref name="anchor"/> to <paramref name="pointer"/>, kept inside the image.
+	/// Any Size follows the pointer (Shift makes it square). Fixed Ratio keeps width:height and grows to reach the pointer.
+	/// Fixed Size is width × height with its top-left corner at the pointer. As in Paint.NET, Fixed Ratio and
+	/// Fixed Size stop at the canvas edge rather than change the ratio or the size.
+	/// </summary>
+	public static RectangleD ComputeDrawRectangle (SelectionDrawMode mode, PointD anchor, PointD pointer, double width, double height, Size imageSize, bool shift)
+	{
+		if (mode == SelectionDrawMode.FixedSize) {
+			double w = Math.Clamp (Math.Round (width), 1, imageSize.Width);
+			double h = Math.Clamp (Math.Round (height), 1, imageSize.Height);
+			double x = Math.Clamp (Math.Round (pointer.X), 0, imageSize.Width - w);
+			double y = Math.Clamp (Math.Round (pointer.Y), 0, imageSize.Height - h);
+			return new RectangleD (x, y, w, h);
+		}
+
+		if (mode == SelectionDrawMode.AnySize && !shift)
+			return RectangleD.FromPoints (anchor, pointer, invertIfNegative: true);
+
+		double dx = pointer.X - anchor.X;
+		double dy = pointer.Y - anchor.Y;
+		double ratio_w = mode == SelectionDrawMode.FixedRatio ? Math.Max (width, 1e-6) : 1;
+		double ratio_h = mode == SelectionDrawMode.FixedRatio ? Math.Max (height, 1e-6) : 1;
+
+		// Grow until the shape reaches the pointer, but stop at the canvas edge in that direction.
+		double room_x = dx >= 0 ? imageSize.Width - anchor.X : anchor.X;
+		double room_y = dy >= 0 ? imageSize.Height - anchor.Y : anchor.Y;
+		double scale = Math.Max (Math.Abs (dx) / ratio_w, Math.Abs (dy) / ratio_h);
+		scale = Math.Min (scale, Math.Min (room_x / ratio_w, room_y / ratio_h));
+
+		double rw = Math.Min (Math.Round (scale * ratio_w), room_x);
+		double rh = Math.Min (Math.Round (scale * ratio_h), room_y);
+		double rx = dx >= 0 ? anchor.X : anchor.X - rw;
+		double ry = dy >= 0 ? anchor.Y : anchor.Y - rh;
+		return new RectangleD (rx, ry, rw, rh);
 	}
 
 	protected override void OnActivated (Document? document)
@@ -214,6 +298,16 @@ public abstract class SelectTool : BaseTool
 		base.OnSaveSettings (settings);
 
 		workspace.SelectionHandler.OnSaveSettings (settings);
+
+		if (draw_mode_button is null)
+			return;
+
+		StoreSizeFields ();
+		settings.PutSetting (SettingPrefix + "-draw-mode", draw_mode_button.SelectedIndex);
+		settings.PutSetting (SettingPrefix + "-ratio-width", ratio_size.Width);
+		settings.PutSetting (SettingPrefix + "-ratio-height", ratio_size.Height);
+		settings.PutSetting (SettingPrefix + "-fixed-width", fixed_size.Width);
+		settings.PutSetting (SettingPrefix + "-fixed-height", fixed_size.Height);
 	}
 
 	private void ReDraw (Document document)
@@ -254,7 +348,7 @@ public abstract class SelectTool : BaseTool
 
 	private void AfterSelectionChange (object? sender, EventArgs event_args)
 	{
-		if (handle.IsDragging || !workspace.HasOpenDocuments)
+		if (handle.IsDragging || drawing || !workspace.HasOpenDocuments)
 			return;
 
 		// TODO: Try to remove this ActiveDocument call
@@ -271,4 +365,115 @@ public abstract class SelectTool : BaseTool
 		// An empty HandleBounds (e.g. after Invert Selection) has no rectangle to resize.
 		ShowHandles (document.Selection.Visible && tools.CurrentTool == this && selection.HandleBounds is { Width: > 0, Height: > 0 });
 	}
+
+	// Paint.NET's draw modes: Any Size, or Fixed Ratio / Fixed Size with Width and Height fields.
+	private ToolBarDropDownButton? draw_mode_button;
+	private Gtk.Separator? draw_mode_sep;
+	private Gtk.Label? size_width_label;
+	private Gtk.Label? size_height_label;
+	private Gtk.SpinButton? size_width_spin;
+	private Gtk.SpinButton? size_height_spin;
+	private Gtk.Button? size_swap_button;
+	private (double Width, double Height) ratio_size;
+	private (double Width, double Height) fixed_size;
+	private SelectionDrawMode shown_size_mode = SelectionDrawMode.AnySize;
+
+	private string SettingPrefix => GetType ().Name.ToLowerInvariant ();
+
+	private SelectionDrawMode DrawMode => draw_mode_button?.SelectedItem.GetTagOrDefault (SelectionDrawMode.AnySize) ?? SelectionDrawMode.AnySize;
+
+	private Gtk.Separator DrawModeSeparator => draw_mode_sep ??= GtkExtensions.CreateToolBarSeparator ();
+	private Gtk.Label SizeWidthLabel => size_width_label ??= Gtk.Label.New (string.Format (" {0}: ", Translations.GetString ("Width")));
+	private Gtk.Label SizeHeightLabel => size_height_label ??= Gtk.Label.New (string.Format (" {0}: ", Translations.GetString ("Height")));
+	private Gtk.SpinButton SizeWidthSpin => size_width_spin ??= CreateSizeSpin ();
+	private Gtk.SpinButton SizeHeightSpin => size_height_spin ??= CreateSizeSpin ();
+
+	private ToolBarDropDownButton DrawModeDropDown {
+		get {
+			if (draw_mode_button is null) {
+				ratio_size = (Settings.GetSetting (SettingPrefix + "-ratio-width", 4.0), Settings.GetSetting (SettingPrefix + "-ratio-height", 3.0));
+				fixed_size = (Settings.GetSetting (SettingPrefix + "-fixed-width", 300.0), Settings.GetSetting (SettingPrefix + "-fixed-height", 200.0));
+
+				draw_mode_button = ToolBarDropDownButton.New (showLabel: true);
+				draw_mode_button.AddItem (Translations.GetString ("Any Size"), Pinta.Resources.Icons.SelectionDrawAnySize, SelectionDrawMode.AnySize);
+				draw_mode_button.AddItem (Translations.GetString ("Fixed Ratio"), Pinta.Resources.Icons.SelectionDrawFixedRatio, SelectionDrawMode.FixedRatio);
+				draw_mode_button.AddItem (Translations.GetString ("Fixed Size"), Pinta.Resources.Icons.SelectionDrawFixedSize, SelectionDrawMode.FixedSize);
+				draw_mode_button.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingPrefix + "-draw-mode", 0), 0, 2);
+				draw_mode_button.SelectedItemChanged += (_, _) => UpdateSizeFields ();
+			}
+
+			return draw_mode_button;
+		}
+	}
+
+	private Gtk.Button SizeSwapButton {
+		get {
+			if (size_swap_button is null) {
+				size_swap_button = Gtk.Button.NewFromIconName (Pinta.Resources.StandardIcons.EditSwap);
+				size_swap_button.TooltipText = Translations.GetString ("Swap width and height");
+				size_swap_button.HasFrame = false;
+				size_swap_button.CanFocus = false;
+				size_swap_button.FocusOnClick = false;
+				size_swap_button.OnClicked += (_, _) => {
+					double w = SizeWidthSpin.Value;
+					SizeWidthSpin.Value = SizeHeightSpin.Value;
+					SizeHeightSpin.Value = w;
+				};
+			}
+
+			return size_swap_button;
+		}
+	}
+
+	private static Gtk.SpinButton CreateSizeSpin ()
+	{
+		// Integers and decimals can be typed, as in Paint.NET; whole values show without decimals.
+		Gtk.SpinButton spin = GtkExtensions.CreateToolBarSpinButton (0.01, 65535, 1, 1);
+		spin.Digits = 2;
+		spin.WidthChars = 5;
+		spin.OnOutput += (_, _) => {
+			if (spin.Value != Math.Floor (spin.Value))
+				return false;
+			spin.SetText (spin.Value.ToString ("0"));
+			return true;
+		};
+		return spin;
+	}
+
+	/// <summary>
+	/// Shows the Width/Height fields for Fixed Ratio and Fixed Size; each mode keeps its own values.
+	/// </summary>
+	private void UpdateSizeFields ()
+	{
+		StoreSizeFields ();
+
+		SelectionDrawMode mode = DrawMode;
+		if (mode == SelectionDrawMode.FixedRatio)
+			(SizeWidthSpin.Value, SizeHeightSpin.Value) = ratio_size;
+		else if (mode == SelectionDrawMode.FixedSize)
+			(SizeWidthSpin.Value, SizeHeightSpin.Value) = fixed_size;
+		shown_size_mode = mode;
+
+		bool visible = mode != SelectionDrawMode.AnySize;
+		SizeWidthLabel.Visible = visible;
+		SizeWidthSpin.Visible = visible;
+		SizeSwapButton.Visible = visible;
+		SizeHeightLabel.Visible = visible;
+		SizeHeightSpin.Visible = visible;
+	}
+
+	private void StoreSizeFields ()
+	{
+		if (shown_size_mode == SelectionDrawMode.FixedRatio)
+			ratio_size = (SizeWidthSpin.Value, SizeHeightSpin.Value);
+		else if (shown_size_mode == SelectionDrawMode.FixedSize)
+			fixed_size = (SizeWidthSpin.Value, SizeHeightSpin.Value);
+	}
+}
+
+public enum SelectionDrawMode
+{
+	AnySize,
+	FixedRatio,
+	FixedSize,
 }

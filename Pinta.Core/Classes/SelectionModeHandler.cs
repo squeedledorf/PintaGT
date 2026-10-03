@@ -32,13 +32,13 @@ namespace Pinta.Core;
 
 public sealed class SelectionModeHandler
 {
-	private Gtk.Label? selection_label;
-	private ToolBarComboBox? selection_combo_box;
+	private Gtk.Box? mode_box;
+	private int selected_index;
 
 	private CombineMode selected_mode;
 
-	// Paint.NET's names, in Paint.NET's order.
-	private readonly (string Label, CombineMode Mode)[] combine_modes;
+	// Paint.NET's names and icons, in Paint.NET's order.
+	private readonly (string Label, string Icon, CombineMode Mode)[] combine_modes;
 
 	// The combo order used to be Replace/Union/Exclude/Xor/Intersect, so the index is now
 	// stored under a new key and an index stored under the old key is remapped once.
@@ -48,42 +48,56 @@ public sealed class SelectionModeHandler
 	public SelectionModeHandler (SystemManager system)
 	{
 		combine_modes = [
-			(Translations.GetString ("Replace"), CombineMode.Replace),
-			(Translations.GetString ("Add (union)"), CombineMode.Union),
-			(Translations.GetString ("Subtract"), CombineMode.Exclude),
-			(Translations.GetString ("Intersect"), CombineMode.Intersect),
-			(Translations.GetString ("Invert (xor)"), CombineMode.Xor),
+			(Translations.GetString ("Replace"), Resources.Icons.SelectionModeReplace, CombineMode.Replace),
+			(Translations.GetString ("Add (union)"), Resources.Icons.SelectionModeUnion, CombineMode.Union),
+			(Translations.GetString ("Subtract"), Resources.Icons.SelectionModeExclude, CombineMode.Exclude),
+			(Translations.GetString ("Intersect"), Resources.Icons.SelectionModeIntersect, CombineMode.Intersect),
+			(Translations.GetString ("Invert (xor)"), Resources.Icons.SelectionModeXor, CombineMode.Xor),
 		];
 	}
 
+	/// <summary>
+	/// As in Paint.NET, the five selection modes are a row of icon toggle buttons with no label.
+	/// </summary>
 	public void BuildToolbar (Gtk.Box tb, ISettingsService settings)
 	{
-		selection_label ??= Gtk.Label.New (Translations.GetString (" Selection Mode: "));
-
-		tb.Append (selection_label);
-
-		if (selection_combo_box == null) {
-			selection_combo_box = ToolBarComboBox.New (170, 0, false);
-
-			selection_combo_box.ComboBox.OnChanged += (o, e) => {
-				int active = selection_combo_box.ComboBox.Active;
-				if (active >= 0 && active < combine_modes.Length)
-					selected_mode = combine_modes[active].Mode;
-			};
-
-			foreach (var (label, _) in combine_modes)
-				selection_combo_box.ComboBox.AppendText (label);
-
+		if (mode_box is null) {
 			int index = settings.GetSetting (COMBINE_MODE_SETTING, -1);
 			if (index < 0) {
 				int legacy = settings.GetSetting (SettingNames.SELECTION_COMBINE_MODE, 0);
 				index = legacy >= 0 && legacy < legacy_index_map.Length ? legacy_index_map[legacy] : 0;
 			}
 
-			selection_combo_box.ComboBox.Active = Math.Clamp (index, 0, combine_modes.Length - 1);
+			selected_index = Math.Clamp (index, 0, combine_modes.Length - 1);
+			selected_mode = combine_modes[selected_index].Mode;
+
+			mode_box = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+			Gtk.ToggleButton? group = null;
+
+			for (int i = 0; i < combine_modes.Length; i++) {
+				int mode_index = i;
+				Gtk.ToggleButton button = Gtk.ToggleButton.New ();
+				button.IconName = combine_modes[i].Icon;
+				button.TooltipText = combine_modes[i].Label;
+				button.HasFrame = false;
+				button.CanFocus = false;
+				button.FocusOnClick = false;
+				if (group is null)
+					group = button;
+				else
+					button.SetGroup (group);
+				button.Active = i == selected_index;
+				button.OnToggled += (_, _) => {
+					if (!button.Active)
+						return;
+					selected_index = mode_index;
+					selected_mode = combine_modes[mode_index].Mode;
+				};
+				mode_box.Append (button);
+			}
 		}
 
-		tb.Append (selection_combo_box);
+		tb.Append (mode_box);
 	}
 
 	/// <summary>
@@ -184,8 +198,8 @@ public sealed class SelectionModeHandler
 
 	public void OnSaveSettings (ISettingsService settings)
 	{
-		if (selection_combo_box is not null)
-			settings.PutSetting (COMBINE_MODE_SETTING, selection_combo_box.ComboBox.Active);
+		if (mode_box is not null)
+			settings.PutSetting (COMBINE_MODE_SETTING, selected_index);
 	}
 }
 
