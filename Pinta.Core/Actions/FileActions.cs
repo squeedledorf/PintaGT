@@ -100,7 +100,8 @@ public sealed class FileActions
 
 		Print = new Command (
 			"print",
-			Translations.GetString ("Print..."),
+			// Built from the existing "Print" and "..." strings so current translations still apply.
+			Translations.GetString ("Print") + Translations.GetString ("..."),
 			null,
 			Resources.StandardIcons.DocumentPrint,
 			shortcuts: ["<Primary>P"]);
