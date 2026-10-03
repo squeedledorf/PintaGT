@@ -32,7 +32,7 @@ namespace Pinta.Tools;
 
 public abstract class BaseTransformTool : BaseTool
 {
-	private readonly int rotate_steps = 32;
+	private readonly int rotate_steps = 24; // Shift snaps rotation to 15 degrees, as in Paint.NET
 	private readonly Matrix transform = CairoExtensions.CreateIdentityMatrix ();
 	private RectangleD source_rect;
 	private PointD original_point;
