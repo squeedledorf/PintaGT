@@ -92,14 +92,12 @@ public sealed partial class ToolBoxWidget
 		while (GetFirstChild () is Gtk.Widget child)
 			Remove (child);
 
-		HashSet<Gtk.ToggleButton> placed = [];
-		int index = 0;
-		foreach (BaseTool tool in tools.Where (tool_buttons.ContainsKey)) {
-			Gtk.ToggleButton button = tool_buttons[tool];
-			if (!placed.Add (button))
-				continue;
-			Attach (button, index % COLUMNS, index / COLUMNS, 1, 1);
-			index++;
+		List<Gtk.ToggleButton> buttons = tools.Where (tool_buttons.ContainsKey).Select (t => tool_buttons[t]).Distinct ().ToList ();
+		for (int index = 0; index < buttons.Count; index++) {
+			// Like Paint.NET, a lone button on the last row sits centred between the columns.
+			bool lone = index == buttons.Count - 1 && index % COLUMNS == 0;
+			buttons[index].Halign = lone ? Gtk.Align.Center : Gtk.Align.Fill;
+			Attach (buttons[index], index % COLUMNS, index / COLUMNS, lone ? COLUMNS : 1, 1);
 		}
 	}
 

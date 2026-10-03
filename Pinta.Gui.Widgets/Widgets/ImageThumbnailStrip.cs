@@ -24,7 +24,7 @@ public sealed partial class ImageThumbnailStrip
 	private static readonly Color selected_border = new (0.0, 0.47, 0.84);
 	private static readonly Color hover_fill = new (0.0, 0.47, 0.84, 0.1);
 	private static readonly Color hover_border = new (0.0, 0.47, 0.84, 0.45);
-	private static readonly Color shadow_color = new (0, 0, 0, 0.06);
+	private static readonly Color frame_color = new (0, 0, 0, 0.25);
 	private static readonly Color dirty_color = new (0.97, 0.6, 0.15);
 	private static readonly Color close_color = new (0.79, 0.31, 0.31);
 	private static readonly Pattern transparent_pattern = CairoExtensions.CreateTransparentBackgroundPattern (4);
@@ -570,12 +570,11 @@ public sealed partial class ImageThumbnailStrip
 				double x = PADDING + (boxWidth - drawWidth) / 2;
 				double y = PADDING + (boxHeight - drawHeight) / 2;
 
-				// A soft drop shadow on all sides (stronger below right) instead of a frame.
-				for (int i = 3; i >= 1; i--) {
-					g.Rectangle (x - i + 1, y - i + 1, drawWidth + 2 * i, drawHeight + 2 * i);
-					g.SetSourceColor (shadow_color);
-					g.Fill ();
-				}
+				// A thin grey frame round the image, as in Paint.NET.
+				g.Rectangle (x - 0.5, y - 0.5, drawWidth + 1, drawHeight + 1);
+				g.LineWidth = 1;
+				g.SetSourceColor (frame_color);
+				g.Stroke ();
 
 				int scaleFactor = Area.GetScaleFactor ();
 				ImageSurface thumb = GetSurface (drawWidth * scaleFactor, drawHeight * scaleFactor);

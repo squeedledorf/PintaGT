@@ -11,7 +11,7 @@ public sealed partial class ToolBarDropDownButton
 {
 	private bool show_label = false;
 
-	private readonly Gtk.Box selected_box = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+	private readonly Gtk.Box selected_box = Gtk.Box.New (Gtk.Orientation.Horizontal, 3);
 	private readonly Gtk.Image dropdown_icon = Gtk.Image.New ();
 	private readonly Gtk.Label dropdown_label = Gtk.Label.New (null);
 
@@ -68,6 +68,7 @@ public sealed partial class ToolBarDropDownButton
 	{
 		ToolBarDropDownButton button = NewWithProperties ([]);
 		button.show_label = showLabel;
+		button.dropdown_label.Visible = showLabel; // Else the box spacing pads icon-only buttons.
 		return button;
 	}
 

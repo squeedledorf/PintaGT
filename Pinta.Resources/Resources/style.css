@@ -259,8 +259,15 @@ popover.pdn-menu separator {
     background-color: @view_bg_color;
 }
 
+/* Without a compositor GTK draws a 4px solid frame round the window; Paint.NET's panels and status
+   bar run to the window edge. */
+window.solid-csd {
+    padding: 0;
+    box-shadow: none;
+}
+
 .pdn-title {
-    min-height: 23px;
+    min-height: 22px;
     padding: 0 8px;
 }
 
@@ -296,7 +303,7 @@ popover.pdn-menu separator {
 
 /* Fixed tool options height (as in Paint.NET), so the canvas does not jump when switching tools. */
 #tool_toolbar {
-    min-height: 27px;
+    min-height: 28px;
     padding-top: 0;
     padding-bottom: 0;
     border-bottom: 1px solid alpha(@window_fg_color, 0.15);
@@ -357,6 +364,12 @@ button label, menubutton label, dropdown label {
 
 #statusbar arrow {
     -gtk-icon-source: -gtk-icontheme("pinta-pan-up-symbolic");
+}
+
+/* Combo fields (white boxes: Brush width, Font, the Colors window's Primary) end in a thin chevron
+   like Windows 11 combo boxes; flat drop-down buttons keep the small triangle. */
+#tool_toolbar .pdn-combo arrow, #tool_toolbar dropdown.pdn-field arrow, .pdn-panel dropdown > button arrow {
+    -gtk-icon-source: -gtk-icontheme("pinta-chevron-down-symbolic");
 }
 
 /* Option fields: white box, 1px grey border, square corners, compact. */
@@ -1118,7 +1131,7 @@ tabview scrolledwindow > scrollbar > range > trough > slider:active {
 .pdn-caption button {
     -gtk-icon-size: 10px;
     min-width: 46px;
-    min-height: 23px;
+    min-height: 22px;
     padding: 0;
     border-radius: 0;
     background: none;

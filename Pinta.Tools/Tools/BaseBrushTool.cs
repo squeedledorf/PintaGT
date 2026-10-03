@@ -274,7 +274,7 @@ public abstract class BaseBrushTool : BaseTool
 		return true;
 	}
 
-	protected Label BrushWidthLabel => brush_width_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Brush size")));
+	protected Label BrushWidthLabel => brush_width_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Brush width")));
 
 	private Box? brush_width_box;
 	private Box BrushWidthBox => brush_width_box ??= BrushWidthSpinButton.WithOuterStepButtons ();
