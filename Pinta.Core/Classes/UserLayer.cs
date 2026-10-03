@@ -87,22 +87,22 @@ public sealed class UserLayer : Layer
 				rel.Layer.Crop (rect, selection);
 	}
 
-	public override void ResizeCanvas (Size newSize, Anchor anchor)
+	public override void ResizeCanvas (Size newSize, Anchor anchor, Color? fill = null)
 	{
-		base.ResizeCanvas (newSize, anchor);
+		base.ResizeCanvas (newSize, anchor, fill);
 
 		foreach (ReEditableLayer rel in ReEditableLayers)
 			if (rel.IsLayerSetup)
 				rel.Layer.ResizeCanvas (newSize, anchor);
 	}
 
-	public override void Resize (Size newSize, ResamplingMode resamplingMode)
+	public override void Resize (Size newSize, ResamplingMode resamplingMode, bool gammaCorrection = false)
 	{
-		base.Resize (newSize, resamplingMode);
+		base.Resize (newSize, resamplingMode, gammaCorrection);
 
 		foreach (ReEditableLayer rel in ReEditableLayers)
 			if (rel.IsLayerSetup)
-				rel.Layer.Resize (newSize, resamplingMode);
+				rel.Layer.Resize (newSize, resamplingMode, gammaCorrection);
 	}
 
 	/// <summary>

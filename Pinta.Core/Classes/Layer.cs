@@ -229,24 +229,13 @@ public class Layer : ObservableObject
 			(int) (w * sin + h * cos));
 	}
 
-	public virtual void Resize (Size newSize, ResamplingMode resamplingMode)
+	public virtual void Resize (Size newSize, ResamplingMode resamplingMode, bool gammaCorrection = false)
 	{
-		ImageSurface dest = CairoExtensions.CreateImageSurface (
-			Format.Argb32,
-			newSize.Width,
-			newSize.Height);
-
-		using Context g = new (dest);
-
-		g.Scale (newSize.Width / (double) Surface.Width, newSize.Height / (double) Surface.Height);
-		g.SetSourceSurface (Surface, resamplingMode);
-
-		g.Paint ();
-
-		Surface = dest;
+		Surface = Resampler.Resize (Surface, newSize, resamplingMode, gammaCorrection);
 	}
 
-	public virtual void ResizeCanvas (Size newSize, Anchor anchor)
+	/// <param name="fill">Optionally, a colour for the area outside the old canvas.</param>
+	public virtual void ResizeCanvas (Size newSize, Anchor anchor, Color? fill = null)
 	{
 		ImageSurface dest = CairoExtensions.CreateImageSurface (
 			Format.Argb32,
@@ -260,6 +249,14 @@ public class Layer : ObservableObject
 		PointD anchorPoint = GetAnchorPoint (delta, anchor);
 
 		using Context g = new (dest);
+
+		if (fill is Color fillColor) {
+			g.SetSourceColor (fillColor);
+			g.Paint ();
+			g.Rectangle (anchorPoint.X, anchorPoint.Y, Surface.Width, Surface.Height);
+			g.Clip ();
+			g.Operator = Operator.Source;
+		}
 
 		g.SetSourceSurface (Surface, anchorPoint.X, anchorPoint.Y);
 		g.Paint ();

@@ -72,7 +72,7 @@ public sealed class ActionHandlers
 
 			// Image
 			new ResizeImageAction (actions.Image, chrome, workspace, settings),
-			new ResizeCanvasAction (chrome, workspace, settings, actions),
+			new ResizeCanvasAction (chrome, workspace, settings, actions, palette),
 
 			// Layers
 			new LayerPropertiesAction (chrome, actions.Layers, workspace),

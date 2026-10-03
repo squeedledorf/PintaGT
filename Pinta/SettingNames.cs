@@ -43,7 +43,12 @@ internal static class SettingNames
 	internal const string RESIZE_IMAGE_PERCENTAGE = "resize-image-percentage";
 	internal const string RESIZE_IMAGE_WIDTH = "resize-image-width";
 	internal const string RESIZE_IMAGE_HEIGHT = "resize-image-height";
-	internal const string RESIZE_IMAGE_RESAMPLING = "resize-image-resampling";
+	// Renamed from "resize-image-resampling" when the list became Paint.NET's eight modes, Bicubic first.
+	internal const string RESIZE_IMAGE_RESAMPLING = "resize-image-resampling-mode";
+	internal const string RESIZE_IMAGE_GAMMA = "resize-image-gamma-correction";
+	internal const string RESIZE_CANVAS_FILL = "resize-canvas-fill";
+	// Inches or centimeters, shared by the New, Resize and Canvas Size dialogs.
+	internal const string PRINT_UNITS = "print-units";
 }
 
 internal static class SettingDefaults

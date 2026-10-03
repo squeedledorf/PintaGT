@@ -63,7 +63,7 @@ internal sealed class ResizeImageAction : IActionHandler
 		ResizeImageOptions? response = await PromptResize ();
 		if (!response.HasValue) return;
 		ResizeImageOptions resizing = response.Value;
-		workspace.ResizeImage (resizing.NewSize, resizing.ResamplingMode);
+		workspace.ResizeImage (resizing.NewSize, resizing.ResamplingMode, resizing.GammaCorrection, resizing.Dpi);
 	}
 
 	private async Task<ResizeImageOptions?> PromptResize ()

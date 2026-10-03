@@ -92,18 +92,22 @@ public static class WorkspaceServiceExtensions
 	public static void ResizeImage (
 		this IWorkspaceService workspace,
 		Size newSize,
-		ResamplingMode resamplingMode)
+		ResamplingMode resamplingMode,
+		bool gammaCorrection = false,
+		double? dpi = null)
 	{
-		workspace.ActiveDocument.ResizeImage (newSize, resamplingMode);
+		workspace.ActiveDocument.ResizeImage (newSize, resamplingMode, gammaCorrection, dpi);
 	}
 
 	public static void ResizeCanvas (
 		this IWorkspaceService workspace,
 		Size newSize,
 		Anchor anchor,
-		CompoundHistoryItem? compoundAction)
+		CompoundHistoryItem? compoundAction,
+		Cairo.Color? fill = null,
+		double? dpi = null)
 	{
-		workspace.ActiveDocument.ResizeCanvas (newSize, anchor, compoundAction);
+		workspace.ActiveDocument.ResizeCanvas (newSize, anchor, compoundAction, fill, dpi);
 	}
 
 	public static void CloseActiveDocument (this WorkspaceManager workspace)
