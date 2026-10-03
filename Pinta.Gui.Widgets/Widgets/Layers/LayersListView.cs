@@ -110,6 +110,8 @@ public sealed partial class LayersListView
 		widget.AddController (dragSource);
 
 		Gtk.DropTarget dropTarget = Gtk.DropTarget.New (GObject.Type.String, Gdk.DragAction.Move);
+		// Decline other drags (text, files) so they reach the window's own drop target instead.
+		dropTarget.OnAccept += (_, _) => drag_from >= 0;
 		dropTarget.OnDrop += (_, dropArgs) => {
 			// Only rows dragged within this list are accepted.
 			if (drag_from < 0 || active_document is null || dropArgs.Value.GetString () != DRAG_MARKER)
