@@ -317,7 +317,7 @@ public sealed class DocumentWorkspace
 	{
 		// Fit the rectangle to the window, in whole percent rounded down so it is never cropped.
 		double ratio = GetFitScale (rect.Width, rect.Height, WindowSizeLessScrollbars, FitMargin);
-		ratio = Math.Clamp (Math.Floor (ratio * 100) / 100, 0.01, 36);
+		ratio = Math.Clamp (Math.Floor (ratio * 100) / 100, ViewActions.MinZoomPercent / 100, ViewActions.MaxZoomPercent / 100);
 
 		actions.View.ZoomComboBox.ComboBox.GetEntry ().SetText (ViewActions.ToPercent (ratio));
 		GLib.MainContext.Default ().Iteration (false); //Force update of scrollbar upper before recenter
@@ -365,58 +365,23 @@ public sealed class DocumentWorkspace
 		if (!ViewActions.TryParsePercent (actions.View.ZoomComboBox.ComboBox.GetActiveText ()!, out var zoom))
 			zoom = Scale * 100;
 
-		zoom = Math.Min (zoom, 3600);
+		zoom = Math.Min (zoom, ViewActions.MaxZoomPercent);
 
 		actions.View.SuspendZoomUpdate ();
 
 		Gtk.Viewport view = (Gtk.Viewport) Canvas.Parent!;
 
-		double scroll_offset_x = center_point.X - view.Hadjustment!.Value;
-		double scroll_offset_y = center_point.Y - view.Vadjustment!.Value;
+		// Where the point is in the window. An image smaller than the window is centred in it, so add that margin.
+		double scroll_offset_x = center_point.X + CentringMargin (view.Hadjustment!.PageSize, ViewSize.Width) - view.Hadjustment.Value;
+		double scroll_offset_y = center_point.Y + CentringMargin (view.Vadjustment!.PageSize, ViewSize.Height) - view.Vadjustment.Value;
 
 		PointD canvas_point = ViewPointToCanvas (center_point);
 
 		if (zoomType == ZoomType.ZoomIn || zoomType == ZoomType.ZoomOut) {
-
-			int i = 0;
-
-			bool UpdateZoomLevel (string zoomInList)
-			{
-				if (!ViewActions.TryParsePercent (zoomInList, out var zoom_level))
-					return false;
-
-				switch (zoomType) {
-					case ZoomType.ZoomIn:
-
-						if (zoomInList == Translations.GetString ("Window") || zoom_level <= zoom) {
-							actions.View.ZoomComboBox.ComboBox.Active = i - 1;
-							return true;
-						}
-
-						break;
-
-					case ZoomType.ZoomOut:
-
-						if (zoomInList == Translations.GetString ("Window"))
-							return true;
-
-						if (zoom_level < zoom) {
-							actions.View.ZoomComboBox.ComboBox.Active = i;
-							return true;
-						}
-
-						break;
-				}
-				return false;
-			}
-
-			foreach (string item in actions.View.ZoomCollection) {
-
-				if (UpdateZoomLevel (item))
-					break;
-
-				i++;
-			}
+			// ZoomCollection lists ViewActions.ZoomLevels in the same order.
+			int step = ViewActions.GetZoomStep (zoom, zoomType == ZoomType.ZoomIn);
+			if (step >= 0)
+				actions.View.ZoomComboBox.ComboBox.Active = step;
 		}
 
 		actions.View.UpdateCanvasScale ();
@@ -430,11 +395,13 @@ public sealed class DocumentWorkspace
 		// Note that the canvas widget might not have resized yet, so using Offset is important for taking
 		// the size difference into account.
 		PointD new_center_point = CanvasPointToView (canvas_point);
-		view.Hadjustment.Value = new_center_point.X - scroll_offset_x;
-		view.Vadjustment.Value = new_center_point.Y - scroll_offset_y;
+		view.Hadjustment.Value = new_center_point.X + CentringMargin (view.Hadjustment.PageSize, ViewSize.Width) - scroll_offset_x;
+		view.Vadjustment.Value = new_center_point.Y + CentringMargin (view.Vadjustment.PageSize, ViewSize.Height) - scroll_offset_y;
 
 		actions.View.ResumeZoomUpdate ();
 	}
+
+	private static double CentringMargin (double window, int view) => Math.Max (0, (window - view) / 2);
 
 	#endregion
 }
