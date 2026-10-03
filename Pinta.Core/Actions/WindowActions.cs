@@ -92,6 +92,10 @@ public sealed class WindowActions
 
 		workspace.ActiveDocumentChanged += OnActiveDocumentChanged;
 		workspace.DocumentClosed += (_, _) => RebuildDocumentMenu ();
+		workspace.DocumentsReordered += (_, _) => {
+			RebuildDocumentMenu ();
+			OnActiveDocumentChanged (null, System.EventArgs.Empty);
+		};
 
 		this.workspace = workspace;
 	}

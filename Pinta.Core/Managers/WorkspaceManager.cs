@@ -289,6 +289,31 @@ public sealed class WorkspaceManager : IWorkspaceService
 	}
 
 	/// <summary>
+	/// Moves an open document to a new position in the list (e.g. dragging a thumbnail in the image list).
+	/// The active document stays the same, although its index may change.
+	/// </summary>
+	public void MoveDocument (int from, int to)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegative (from);
+		ArgumentOutOfRangeException.ThrowIfNegative (to);
+		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual (from, open_documents.Count);
+		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual (to, open_documents.Count);
+
+		if (from == to)
+			return;
+
+		Document? active = ActiveDocumentOrDefault;
+		Document moved = open_documents[from];
+		open_documents.RemoveAt (from);
+		open_documents.Insert (to, moved);
+
+		if (active is not null)
+			active_document_index = open_documents.IndexOf (active);
+
+		DocumentsReordered?.Invoke (this, EventArgs.Empty);
+	}
+
+	/// <summary>
 	/// Creates a new Document with a specified image as content.
 	/// Primarily used for Paste Into New Image.
 	/// </summary>
@@ -499,6 +524,11 @@ public sealed class WorkspaceManager : IWorkspaceService
 
 	public event EventHandler<DocumentEventArgs>? DocumentActivated;
 	public event EventHandler<DocumentEventArgs>? DocumentClosed;
+
+	/// <summary>
+	/// Emitted after <see cref="MoveDocument"/> changes the order of the open documents.
+	/// </summary>
+	public event EventHandler? DocumentsReordered;
 
 	/// <summary>
 	/// Emitted before the active document has changed.
