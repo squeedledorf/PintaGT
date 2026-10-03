@@ -47,7 +47,7 @@ public sealed class EllipseTool : ShapeTool
 
 	public override Gdk.Cursor DefaultCursor { get; }
 
-	public override int Priority => 43;
+	public override int Priority => 41;
 
 	public override BaseEditEngine EditEngine { get; }
 

@@ -34,6 +34,7 @@ namespace Pinta.Tools;
 public sealed class CloneStampTool : BaseBrushTool
 {
 	private bool painting;
+	private MouseButton paint_button;
 	private PointI? origin = null;
 	private PointI? offset = null;
 	private PointI? last_point = null;
@@ -60,9 +61,9 @@ public sealed class CloneStampTool : BaseBrushTool
 	public override string Name => Translations.GetString ("Clone Stamp");
 	public override string Icon => Pinta.Resources.Icons.ToolCloneStamp;
 	// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS.
-	public override string StatusBarText => Translations.GetString ("{0} + left click to set origin, left click to paint.", system_manager.CtrlLabel ());
+	public override string StatusBarText => Translations.GetString ("{0} + click to set origin, left or right click to paint.", system_manager.CtrlLabel ());
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_L);
-	public override int Priority => 47;
+	public override int Priority => 29;
 	protected override bool ShowAntialiasingButton => true;
 	public override IEnumerable<IToolHandle> Handles => [handle];
 
@@ -70,7 +71,7 @@ public sealed class CloneStampTool : BaseBrushTool
 		get {
 			double scale = workspace.GetScale ();
 			var icon = GdkExtensions.CreateIconWithShape ("Cursor.CloneStamp.png",
-							CursorShape.Ellipse, scale, BrushWidth, 16, 26,
+							CursorShape.Ellipse, scale, BrushWidthCeiling, 16, 26,
 							out var iconOffsetX, out var iconOffsetY);
 			return Gdk.Cursor.NewFromTexture (icon, iconOffsetX, iconOffsetY, null);
 		}
@@ -78,8 +79,11 @@ public sealed class CloneStampTool : BaseBrushTool
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
-		// We only do stuff with the left mouse button
-		if (e.MouseButton != MouseButton.Left)
+		if (e.MouseButton is not (MouseButton.Left or MouseButton.Right))
+			return;
+
+		// If we are already painting, ignore the other button
+		if (painting)
 			return;
 
 		// Ctrl click is set origin, regular click is begin drawing
@@ -88,12 +92,17 @@ public sealed class CloneStampTool : BaseBrushTool
 				return;
 
 			painting = true;
+			paint_button = e.MouseButton;
 
 			if (!offset.HasValue)
 				offset = new (e.Point.X - origin.Value.X, e.Point.Y - origin.Value.Y);
 
 			document.Layers.ToolLayer.Clear ();
 			document.Layers.ToolLayer.Hidden = false;
+
+			// The stroke is applied with the alpha of the button's color.
+			// The tool layer is drawn with this opacity, both while painting and when committing.
+			document.Layers.ToolLayer.Opacity = (e.MouseButton == MouseButton.Right ? Palette.SecondaryColor : Palette.PrimaryColor).A;
 
 			surface_modified = false;
 			undo_surface = document.Layers.CurrentUserLayer.Surface.Clone ();
@@ -134,7 +143,7 @@ public sealed class CloneStampTool : BaseBrushTool
 
 		g.Stroke ();
 
-		int dirtyPadding = BrushWidth + 2;
+		int dirtyPadding = BrushWidthCeiling + 2;
 		RectangleI dirtyRect = RectangleI.FromPoints (last_point.Value, e.Point).Inflated (dirtyPadding, dirtyPadding);
 
 		last_point = e.Point;
@@ -144,14 +153,19 @@ public sealed class CloneStampTool : BaseBrushTool
 
 	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
 	{
+		// Releasing the other button does not end the stroke
+		if (painting && e.MouseButton != paint_button)
+			return;
+
 		painting = false;
 
 		if (e.IsControlPressed)
 			handle.Active = true;
 
-		using Cairo.Context g = new (document.Layers.CurrentUserLayer.Surface);
-		g.SetSourceSurface (document.Layers.ToolLayer.Surface, 0, 0);
-		g.Paint ();
+		using (Cairo.Context g = new (document.Layers.CurrentUserLayer.Surface))
+			document.Layers.ToolLayer.Draw (g);
+
+		document.Layers.ToolLayer.Opacity = 1.0;
 
 		base.OnMouseUp (document, e);
 
@@ -184,17 +198,11 @@ public sealed class CloneStampTool : BaseBrushTool
 		return false;
 	}
 
-	protected override void OnDeactivated (Document? document, BaseTool? newTool)
-	{
-		origin = null;
-		handle.Active = false;
-	}
-
 	private void UpdateOriginHandle (Document document, int x, int y, bool move_event)
 	{
 		if (move_origin_handle || (!move_event))
 			handle.CanvasPosition = new (x, y);
-		handle.BrushWidth = BrushWidth;
+		handle.BrushWidth = BrushWidthCeiling;
 		document.Workspace.Invalidate (handle.InvalidateRect);
 	}
 }

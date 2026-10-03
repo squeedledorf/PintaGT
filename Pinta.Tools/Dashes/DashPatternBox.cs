@@ -56,7 +56,7 @@ public sealed class DashPatternBox
 		tb.Append (dash_pattern_sep);
 
 		if (dash_pattern_label == null) {
-			var dashString = Translations.GetString ("Dash");
+			var dashString = Translations.GetString ("Style");
 			dash_pattern_label = Label.New ($" {dashString}: ");
 		}
 

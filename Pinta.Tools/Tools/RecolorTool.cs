@@ -44,8 +44,15 @@ public class RecolorTool : BaseBrushTool
 {
 	private readonly IWorkspaceService workspace;
 
+	private enum SamplingMode
+	{
+		Once = 0,
+		SecondaryColor = 1,
+	}
+
 	private PointI? last_point = null;
 	private BitMask? stencil;
+	private ColorBgra? sampled_color;
 
 	public RecolorTool (IServiceProvider services) : base (services)
 	{
@@ -55,18 +62,22 @@ public class RecolorTool : BaseBrushTool
 	public override string Name => Translations.GetString ("Recolor");
 	public override string Icon => Pinta.Resources.Icons.ToolRecolor;
 	public override string StatusBarText => Translations.GetString (
-		"Left click to replace the secondary color with the primary color." +
-		"\nRight click to reverse.");
+		"Sampling Once: left click replaces the color under the cursor with the primary color, right click with the secondary color." +
+		"\nSampling Secondary Color: left click replaces the secondary color with the primary color, right click reverses.");
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.Recolor.png"), 9, 18, null);
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_R);
 	protected float Tolerance => (float) (ToleranceSlider.GetValue () / 100);
-	public override int Priority => 49;
+	private SamplingMode Sampling => SamplingDropDown.SelectedItem.GetTagOrDefault (SamplingMode.Once);
+	public override int Priority => 31;
 
 	protected override void OnBuildToolBar (Box tb)
 	{
 		base.OnBuildToolBar (tb);
 
 		tb.Append (Separator);
+
+		tb.Append (SamplingLabel);
+		tb.Append (SamplingDropDown);
 
 		tb.Append (ToleranceLabel);
 		tb.Append (ToleranceSlider);
@@ -77,24 +88,37 @@ public class RecolorTool : BaseBrushTool
 		document.Layers.ToolLayer.Clear ();
 		stencil = new BitMask (document.ImageSize.Width, document.ImageSize.Height);
 
+		// In "Sampling Once" mode the color to replace is the one under the cursor when the stroke starts.
+		sampled_color = document.Workspace.PointInCanvas (e.PointDouble)
+			? document.Layers.CurrentUserLayer.Surface.GetColorBgra (e.Point)
+			: null;
+
 		base.OnMouseDown (document, e);
 	}
 
 	protected override void OnMouseMove (Document document, ToolMouseEventArgs e)
 	{
-		ColorBgra old_color;
-		ColorBgra new_color;
-
 		// This should have been created in OnMouseDown
 		if (stencil is null)
 			return;
 
-		if (mouse_button == MouseButton.Left) {
-			old_color = Palette.PrimaryColor.ToColorBgra ();
-			new_color = Palette.SecondaryColor.ToColorBgra ();
-		} else if (mouse_button == MouseButton.Right) {
-			old_color = Palette.SecondaryColor.ToColorBgra ();
-			new_color = Palette.PrimaryColor.ToColorBgra ();
+		if (mouse_button is not (MouseButton.Left or MouseButton.Right)) {
+			last_point = null;
+			return;
+		}
+
+		ColorBgra primary = Palette.PrimaryColor.ToColorBgra ();
+		ColorBgra secondary = Palette.SecondaryColor.ToColorBgra ();
+		bool left = mouse_button == MouseButton.Left;
+
+		// match: the color being replaced. replacement: the color it becomes.
+		ColorBgra match;
+		ColorBgra replacement = left ? primary : secondary;
+
+		if (Sampling == SamplingMode.SecondaryColor) {
+			match = left ? secondary : primary;
+		} else if (sampled_color.HasValue) {
+			match = sampled_color.Value;
 		} else {
 			last_point = null;
 			return;
@@ -112,7 +136,7 @@ public class RecolorTool : BaseBrushTool
 		var surf = document.Layers.CurrentUserLayer.Surface;
 		var tmp_layer = document.Layers.ToolLayer.Surface;
 
-		int roiPadding = BrushWidth + 2;
+		int roiPadding = BrushWidthCeiling + 2;
 		RectangleI roi = RectangleI.FromPoints (last_point.Value, new PointI (x, y)).Inflated (roiPadding, roiPadding);
 
 		roi = workspace.ClampToImageSize (roi);
@@ -134,8 +158,8 @@ public class RecolorTool : BaseBrushTool
 					continue;
 
 				ColorBgra surf_color = surf_data[j * surf_width + i];
-				if (ColorBgra.ColorsWithinTolerance (new_color, surf_color, myTolerance))
-					tmp_data[j * tmp_width + i] = AdjustColorDifference (new_color, old_color, surf_color);
+				if (ColorBgra.ColorsWithinTolerance (match, surf_color, myTolerance))
+					tmp_data[j * tmp_width + i] = AdjustColorDifference (match, replacement, surf_color);
 
 				stencil[i, j] = true;
 			}
@@ -167,6 +191,9 @@ public class RecolorTool : BaseBrushTool
 
 		if (tolerance_slider is not null)
 			settings.PutSetting (SettingNames.RECOLOR_TOLERANCE, (int) tolerance_slider.GetValue ());
+
+		if (sampling_button is not null)
+			settings.PutSetting (SettingNames.RECOLOR_SAMPLING, sampling_button.SelectedIndex);
 	}
 
 	#region Private PDN Methods
@@ -196,4 +223,23 @@ public class RecolorTool : BaseBrushTool
 	private Label ToleranceLabel => tolerance_label ??= Label.New (string.Format ("  {0}: ", Translations.GetString ("Tolerance")));
 	private Scale ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.RECOLOR_TOLERANCE, 50));
 	private Separator Separator => separator ??= GtkExtensions.CreateToolBarSeparator ();
+
+	private Label? sampling_label;
+	private ToolBarDropDownButton? sampling_button;
+
+	private Label SamplingLabel => sampling_label ??= Label.New (string.Format ("  {0}: ", Translations.GetString ("Sampling")));
+	private ToolBarDropDownButton SamplingDropDown {
+		get {
+			if (sampling_button is null) {
+				sampling_button = ToolBarDropDownButton.New ();
+
+				sampling_button.AddItem (Translations.GetString ("Sampling Once"), Pinta.Resources.Icons.ToolColorPicker, SamplingMode.Once);
+				sampling_button.AddItem (Translations.GetString ("Sampling Secondary Color"), Pinta.Resources.Icons.ColorModeColor, SamplingMode.SecondaryColor);
+
+				sampling_button.SelectedIndex = Settings.GetSetting (SettingNames.RECOLOR_SAMPLING, 0);
+			}
+
+			return sampling_button;
+		}
+	}
 }

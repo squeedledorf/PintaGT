@@ -73,7 +73,6 @@ public abstract class BaseEditEngine
 	protected ToolBarDropDownButton shape_type_button = null!;
 	protected Gtk.Label shape_type_label = null!;
 
-	protected Gtk.Label fill_label = null!;
 	protected ToolBarDropDownButton fill_button = null!;
 	protected Gtk.Separator fill_sep = null!;
 
@@ -86,15 +85,15 @@ public abstract class BaseEditEngine
 
 	private bool prev_antialiasing = true;
 
-	public int BrushWidth {
-		get => outline_width?.GetValueAsInt () ?? BaseTool.DEFAULT_BRUSH_WIDTH;
+	public double BrushWidth {
+		get => outline_width?.Value ?? BaseTool.DEFAULT_BRUSH_WIDTH;
 		set {
 			if (outline_width is not null)
 				outline_width.Value = value;
 		}
 	}
 
-	private int prev_outline_width = BaseTool.DEFAULT_BRUSH_WIDTH;
+	private double prev_outline_width = BaseTool.DEFAULT_BRUSH_WIDTH;
 
 	private bool StrokeShape {
 		get {
@@ -247,7 +246,7 @@ public abstract class BaseEditEngine
 	public virtual void OnSaveSettings (ISettingsService settings, string toolPrefix)
 	{
 		if (outline_width is not null)
-			settings.PutSetting (SettingNames.BrushWidth (toolPrefix), (int) outline_width.Value);
+			settings.PutSetting (SettingNames.BrushWidth (toolPrefix), outline_width.Value);
 
 		if (fill_button is not null)
 			settings.PutSetting (SettingNames.FillStyle (toolPrefix), fill_button.SelectedIndex);
@@ -323,19 +322,12 @@ public abstract class BaseEditEngine
 
 		tb.Append (fill_sep);
 
-		if (fill_label == null) {
-			string fillStyleText = Translations.GetString ("Fill Style");
-			fill_label = Gtk.Label.New ($" {fillStyleText}: ");
-		}
-
-		tb.Append (fill_label);
-
 		if (fill_button == null) {
 			fill_button = ToolBarDropDownButton.New ();
 
-			fill_button.AddItem (Translations.GetString ("Outline Shape"), Resources.Icons.FillStyleOutline, 0);
-			fill_button.AddItem (Translations.GetString ("Fill Shape"), Resources.Icons.FillStyleFill, 1);
-			fill_button.AddItem (Translations.GetString ("Fill and Outline Shape"), Resources.Icons.FillStyleOutlineFill, 2);
+			fill_button.AddItem (Translations.GetString ("Draw Shape Outline"), Resources.Icons.FillStyleOutline, 0);
+			fill_button.AddItem (Translations.GetString ("Draw Filled Shape"), Resources.Icons.FillStyleFill, 1);
+			fill_button.AddItem (Translations.GetString ("Draw Filled Shape With Outline"), Resources.Icons.FillStyleOutlineFill, 2);
 
 			fill_button.SelectedIndex = settings.GetSetting (
 				SettingNames.FillStyle (toolPrefix),
@@ -350,7 +342,7 @@ public abstract class BaseEditEngine
 		tb.Append (outline_width_sep);
 
 		if (outline_width_label == null) {
-			string outlineWidthText = Translations.GetString ("Outline width");
+			string outlineWidthText = Translations.GetString ("Brush size");
 			outline_width_label = Gtk.Label.New ($" {outlineWidthText}: ");
 		}
 
@@ -362,15 +354,15 @@ public abstract class BaseEditEngine
 				1,
 				1e5,
 				1,
-				settings.GetSetting (
-					SettingNames.BrushWidth (toolPrefix),
-					BaseTool.DEFAULT_BRUSH_WIDTH
-				)
+				SettingNames.GetBrushWidth (settings, SettingNames.BrushWidth (toolPrefix))
 			);
-			outline_width.TooltipText = Translations.GetString ("Change outline width.") + "\n"
+			outline_width.Digits = 2;
+			outline_width.TooltipText = Translations.GetString ("Change brush size.") + "\n"
 				+ "\n" + Translations.GetString ("Shortcut keys:")
-				+ "\n" + Translations.GetString ("Press {0} to decrease outline width", "\"[\"")
-				+ "\n" + Translations.GetString ("Press {0} to increase outline width", "\"]\"");
+				+ "\n" + Translations.GetString ("Press {0} to decrease brush size", "\"[\"")
+				+ "\n" + Translations.GetString ("Press {0} to increase brush size", "\"]\"")
+				// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS. {1} is a number.
+				+ "\n" + Translations.GetString ("Hold {0} to change it by {1}", PintaCore.System.CtrlLabel (), BaseBrushTool.BrushWidthLargeStep);
 
 			outline_width.OnValueChanged += (o, e) => {
 
@@ -484,10 +476,8 @@ public abstract class BaseEditEngine
 				return true;
 			case Gdk.Constants.KEY_Return:
 			case Gdk.Constants.KEY_KP_Enter:
+			case Gdk.Constants.KEY_Escape:
 				FinalizeAllShapes ();
-				return true;
-			case Gdk.Constants.KEY_space:
-				HandleSpace (e);
 				return true;
 			case Gdk.Constants.KEY_Up:
 				HandleUp ();
@@ -502,10 +492,10 @@ public abstract class BaseEditEngine
 				HandleRight (e);
 				return true;
 			case Gdk.Constants.KEY_bracketleft:
-				BrushWidth--;
+				BrushWidth -= e.IsControlPressed ? BaseBrushTool.BrushWidthLargeStep : 1;
 				return true;
 			case Gdk.Constants.KEY_bracketright:
-				BrushWidth++;
+				BrushWidth += e.IsControlPressed ? BaseBrushTool.BrushWidthLargeStep : 1;
 				return true;
 			default:
 				if (keyPressed.IsControlKey ()) {
@@ -602,58 +592,6 @@ public abstract class BaseEditEngine
 		DrawActiveShape (true, false, true, false, false);
 	}
 
-	private void HandleSpace (ToolKeyEventArgs e)
-	{
-		ControlPoint? selPoint = SelectedPoint;
-
-		if (selPoint == null)
-			return;
-
-		//This can be assumed not to be null since selPoint was not null.
-		ShapeEngine selEngine = SelectedShapeEngine!; // NRT - ^^
-
-		//Create a new ShapesModifyHistoryItem so that the adding of a control point can be undone.
-		workspace.ActiveDocument.History.PushNewItem (
-			new ShapesModifyHistoryItem (
-				this,
-				owner.Icon,
-				ShapeName + " " + Translations.GetString ("Point Added")
-			)
-		);
-
-		bool shiftKey = e.IsShiftPressed;
-		bool ctrlKey = e.IsControlPressed;
-
-		PointD newPointPos;
-
-		if (ctrlKey) {
-			//Ctrl + space combo: same position as currently selected point.
-			newPointPos = new PointD (selPoint.Position.X, selPoint.Position.Y);
-		} else {
-			shape_origin = new PointD (selPoint.Position.X, selPoint.Position.Y);
-
-			if (shiftKey) {
-				CalculateModifiedCurrentPoint ();
-			}
-
-			//Space only: position of mouse (after any potential shift alignment).
-			newPointPos = new PointD (current_point.X, current_point.Y);
-		}
-
-		//Place the new point on the outside-most end, order-wise.
-		if (SelectedPointIndex < selEngine.ControlPoints.Count / 2d) {
-			selEngine.ControlPoints.Insert (SelectedPointIndex,
-			    new ControlPoint (new PointD (newPointPos.X, newPointPos.Y), DefaultMidPointTension));
-		} else {
-			selEngine.ControlPoints.Insert (SelectedPointIndex + 1,
-			    new ControlPoint (new PointD (newPointPos.X, newPointPos.Y), DefaultMidPointTension));
-
-			++SelectedPointIndex;
-		}
-
-		DrawActiveShape (true, false, true, shiftKey, false, e.IsControlPressed);
-	}
-
 	private void HandleDelete ()
 	{
 		if (SelectedPointIndex < 0)
@@ -728,7 +666,7 @@ public abstract class BaseEditEngine
 			case Gdk.Constants.KEY_Delete:
 			case Gdk.Constants.KEY_Return:
 			case Gdk.Constants.KEY_KP_Enter:
-			case Gdk.Constants.KEY_space:
+			case Gdk.Constants.KEY_Escape:
 			case Gdk.Constants.KEY_Up:
 			case Gdk.Constants.KEY_Down:
 			case Gdk.Constants.KEY_Left:

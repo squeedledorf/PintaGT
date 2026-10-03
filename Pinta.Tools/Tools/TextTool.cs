@@ -89,7 +89,7 @@ public sealed class TextTool : BaseTool
 		=> new (Gdk.Constants.KEY_T);
 
 	public override int Priority
-		=> 35;
+		=> 33;
 
 	public override string StatusBarText
 		=> Translations.GetString ("Left click to place cursor, then type desired text. Text color is primary color.");
@@ -946,7 +946,8 @@ public sealed class TextTool : BaseTool
 						break;
 
 					case Gdk.Constants.KEY_Escape:
-						StopEditing (false);
+						// Escape commits the text, as in Paint.NET.
+						StopEditing (true);
 						return true;
 					case Gdk.Constants.KEY_Insert:
 						if (e.IsShiftPressed) {

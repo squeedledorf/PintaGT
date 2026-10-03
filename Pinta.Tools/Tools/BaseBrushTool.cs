@@ -44,22 +44,34 @@ public abstract class BaseBrushTool : BaseTool
 	{
 		Palette = services.GetService<IPaletteService> ();
 
-		BrushWidthSpinButton.TooltipText = Translations.GetString ("Change brush width.") + "\n"
+		BrushWidthSpinButton.TooltipText = Translations.GetString ("Change brush size.") + "\n"
 			+ "\n" + Translations.GetString ("Shortcut keys:")
-			+ "\n" + Translations.GetString ("Press {0} to decrease brush width", "\"[\"")
-			+ "\n" + Translations.GetString ("Press {0} to increase brush width", "\"]\"");
+			+ "\n" + Translations.GetString ("Press {0} to decrease brush size", "\"[\"")
+			+ "\n" + Translations.GetString ("Press {0} to increase brush size", "\"]\"")
+			// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS. {1} is a number.
+			+ "\n" + Translations.GetString ("Hold {0} to change it by {1}", services.GetService<SystemManager> ().CtrlLabel (), BrushWidthLargeStep);
 		BrushWidthSpinButton.OnValueChanged += (_, _) => OnBrushWidthChanged ();
 	}
 
 	protected override bool ShowAntialiasingButton => true;
 
-	protected int BrushWidth {
-		get => brush_width?.GetValueAsInt () ?? DEFAULT_BRUSH_WIDTH;
+	protected double BrushWidth {
+		get => brush_width?.Value ?? DEFAULT_BRUSH_WIDTH;
 		set {
 			if (brush_width is not null)
 				brush_width.Value = value;
 		}
 	}
+
+	/// <summary>
+	/// The brush width rounded up, for cursors and dirty-rectangle padding.
+	/// </summary>
+	protected int BrushWidthCeiling => (int) Math.Ceiling (BrushWidth);
+
+	/// <summary>
+	/// How far Ctrl+[ and Ctrl+] change the brush width.
+	/// </summary>
+	internal const int BrushWidthLargeStep = 5;
 
 	protected override void OnBuildToolBar (Box tb)
 	{
@@ -97,10 +109,10 @@ public abstract class BaseBrushTool : BaseTool
 	{
 		switch (e.Key.Value) {
 			case Gdk.Constants.KEY_bracketleft:
-				BrushWidth--;
+				BrushWidth -= e.IsControlPressed ? BrushWidthLargeStep : 1;
 				return true;
 			case Gdk.Constants.KEY_bracketright:
-				BrushWidth++;
+				BrushWidth += e.IsControlPressed ? BrushWidthLargeStep : 1;
 				return true;
 		}
 
@@ -112,7 +124,7 @@ public abstract class BaseBrushTool : BaseTool
 		base.OnSaveSettings (settings);
 
 		if (brush_width is not null)
-			settings.PutSetting (SettingNames.BrushWidth (this), brush_width.GetValueAsInt ());
+			settings.PutSetting (SettingNames.BrushWidth (this), brush_width.Value);
 	}
 
 	protected virtual void OnBrushWidthChanged ()
@@ -125,6 +137,14 @@ public abstract class BaseBrushTool : BaseTool
 	private SpinButton? brush_width;
 	private Label? brush_width_label;
 
-	protected SpinButton BrushWidthSpinButton => brush_width ??= GtkExtensions.CreateToolBarSpinButton (1, 1e5, 1, Settings.GetSetting (SettingNames.BrushWidth (this), DEFAULT_BRUSH_WIDTH));
-	protected Label BrushWidthLabel => brush_width_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Brush width")));
+	protected SpinButton BrushWidthSpinButton {
+		get {
+			if (brush_width is null) {
+				brush_width = GtkExtensions.CreateToolBarSpinButton (1, 1e5, 1, SettingNames.GetBrushWidth (Settings, SettingNames.BrushWidth (this)));
+				brush_width.Digits = 2;
+			}
+			return brush_width;
+		}
+	}
+	protected Label BrushWidthLabel => brush_width_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Brush size")));
 }

@@ -87,7 +87,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 		get {
 			double scale = workspace.GetScale ();
 			var icon = GdkExtensions.CreateIconWithShape ("Cursor.Paintbrush.png",
-							CursorShape.Ellipse, scale, BrushWidth, 8, 24,
+							CursorShape.Ellipse, scale, BrushWidthCeiling, 8, 24,
 							out var iconOffsetX, out var iconOffsetY);
 
 			return Gdk.Cursor.NewFromTexture (icon, iconOffsetX, iconOffsetY, null);
@@ -108,7 +108,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 		brush_specific_options_box.MarginStart = 10;
 		tb.Append (brush_specific_options_box);
 		if (active_brush is not null) {
-			active_brush.UpdateLineWidth (BrushWidth);
+			active_brush.UpdateLineWidth (BrushWidthCeiling);
 		}
 	}
 
@@ -230,7 +230,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 		if (active_brush is null) {
 			base.OnBrushWidthChanged ();
 		} else {
-			active_brush.UpdateLineWidth (BrushWidth);
+			active_brush.UpdateLineWidth (BrushWidthCeiling);
 		}
 	}
 
@@ -250,7 +250,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 					var brush_name = brush_combo_box.ComboBox.GetActiveText ();
 					active_brush = brushes.SingleOrDefault (brush => brush.Name == brush_name) ?? default_brush;
 					if (active_brush is not null) {
-						active_brush.UpdateLineWidth (BrushWidth);
+						active_brush.UpdateLineWidth (BrushWidthCeiling);
 					}
 				};
 

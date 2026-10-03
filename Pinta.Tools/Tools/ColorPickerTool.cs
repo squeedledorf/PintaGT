@@ -37,14 +37,17 @@ public sealed class ColorPickerTool : BaseTool
 	private readonly IPaletteService palette;
 	private readonly IToolService tools;
 	private readonly IWorkspaceService workspace;
+	private readonly SystemManager system;
 
 	private MouseButton button_down;
+	private bool sample_image_override;
 
 	public ColorPickerTool (IServiceProvider services) : base (services)
 	{
 		workspace = services.GetService<IWorkspaceService> ();
 		palette = services.GetService<IPaletteService> ();
 		tools = services.GetService<IToolService> ();
+		system = services.GetService<SystemManager> ();
 
 		// Update cursor on zoom
 		workspace.ViewSizeChanged += (_, _) => {
@@ -56,9 +59,10 @@ public sealed class ColorPickerTool : BaseTool
 
 	public override string Name => Translations.GetString ("Color Picker");
 	public override string Icon => Pinta.Resources.Icons.ToolColorPicker;
-	public override string StatusBarText => Translations.GetString ("Left click to set primary color.\nRight click to set secondary color.");
+	// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS.
+	public override string StatusBarText => Translations.GetString ("Left click to set primary color.\nRight click to set secondary color.\nHold {0} to sample the image instead of the layer.", system.CtrlLabel ());
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_K);
-	public override int Priority => 33;
+	public override int Priority => 27;
 	private int SampleSize => SampleSizeDropDown.SelectedItem.GetTagOrDefault (1);
 	private bool SampleLayerOnly => SampleTypeDropDown.SelectedItem.GetTagOrDefault (false);
 
@@ -83,8 +87,8 @@ public sealed class ColorPickerTool : BaseTool
 		base.OnBuildToolBar (tb);
 
 		tb.Append (SamplingLabel);
-		tb.Append (SampleSizeDropDown);
 		tb.Append (SampleTypeDropDown);
+		tb.Append (SampleSizeDropDown);
 
 		tb.Append (Separator);
 
@@ -98,6 +102,9 @@ public sealed class ColorPickerTool : BaseTool
 			button_down = MouseButton.Left;
 		else if (e.MouseButton == MouseButton.Right)
 			button_down = MouseButton.Right;
+
+		// Ctrl+click samples the whole image, whatever the Layer/Image setting.
+		sample_image_override = e.IsControlPressed;
 
 		if (!document.Workspace.PointInCanvas (e.PointDouble))
 			return;
@@ -191,7 +198,7 @@ public sealed class ColorPickerTool : BaseTool
 
 	private ColorBgra GetPixel (Document document, PointI position)
 	{
-		if (SampleLayerOnly)
+		if (SampleLayerOnly && !sample_image_override)
 			return document.Layers.CurrentUserLayer.Surface.GetColorBgra (position);
 		else
 			return document.GetComputedPixel (position);
@@ -204,7 +211,7 @@ public sealed class ColorPickerTool : BaseTool
 	private ToolBarDropDownButton? sample_type;
 	private Separator? sample_sep;
 
-	private Label ToolSelectionLabel => tool_select_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("After select")));
+	private Label ToolSelectionLabel => tool_select_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("After click")));
 	private Label SamplingLabel => sampling_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Sampling")));
 	private Separator Separator => sample_sep ??= GtkExtensions.CreateToolBarSeparator ();
 
@@ -235,10 +242,11 @@ public sealed class ColorPickerTool : BaseTool
 				sample_size.AddItem (Translations.GetString ("Single Pixel"), Pinta.Resources.Icons.Sampling1, 1);
 				sample_size.AddItem (Translations.GetString ("3 x 3 Region"), Pinta.Resources.Icons.Sampling3, 3);
 				sample_size.AddItem (Translations.GetString ("5 x 5 Region"), Pinta.Resources.Icons.Sampling5, 5);
-				sample_size.AddItem (Translations.GetString ("7 x 7 Region"), Pinta.Resources.Icons.Sampling7, 7);
-				sample_size.AddItem (Translations.GetString ("9 x 9 Region"), Pinta.Resources.Icons.Sampling9, 9);
+				sample_size.AddItem (Translations.GetString ("11 x 11 Region"), Pinta.Resources.Icons.Sampling7, 11);
+				sample_size.AddItem (Translations.GetString ("31 x 31 Region"), Pinta.Resources.Icons.Sampling9, 31);
+				sample_size.AddItem (Translations.GetString ("51 x 51 Region"), Pinta.Resources.Icons.Sampling9, 51);
 
-				sample_size.SelectedIndex = Settings.GetSetting (SettingNames.COLOR_PICKER_SAMPLE_SIZE, 0);
+				sample_size.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingNames.COLOR_PICKER_SAMPLE_SIZE, 0), 0, sample_size.Items.Count - 1);
 			}
 
 			return sample_size;
