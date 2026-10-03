@@ -630,6 +630,10 @@ public sealed partial class LevelsDialog
 				break;
 
 			case 1:
+				// Only a drag of the mid arrow sets the gamma; when the spin moved the arrow,
+				// recomputing from the whole-number arrow would turn 1.00 into 1.01.
+				if (gradient_output.ValueIndex != 1)
+					break;
 				med = gradient_output.GetValue (1);
 				spin_out_gamma.Value = Math.Clamp (1 / Math.Log (0.5, (med - lo) / (float) (hi - lo)), 0.1, 10.0);
 				break;
