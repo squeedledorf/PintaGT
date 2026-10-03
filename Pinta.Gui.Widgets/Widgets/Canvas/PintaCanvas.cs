@@ -49,6 +49,13 @@ internal sealed partial class PintaCanvas
 	private Gdk.Texture? canvas_texture;
 	private RectangleI? modified_area;
 
+	/// <summary>
+	/// The selection outline and the tool handles, drawn over the whole scrolled area rather than
+	/// clipped to the image, so they stay visible when a layer or selection is moved off-canvas.
+	/// The owner places it over the scrolled window holding this canvas's viewport (e.g. in a Gtk.Overlay).
+	/// </summary>
+	public Gtk.Picture Decorations { get; private set; } = null!;
+
 	private Gsk.Path? selection_path;
 	private uint selection_animation_timer_id;
 	private float selection_animation_dash_offset;
@@ -67,6 +74,11 @@ internal sealed partial class PintaCanvas
 		Halign = Gtk.Align.Center;
 		Vexpand = false;
 		Valign = Gtk.Align.Center;
+
+		Decorations = Gtk.Picture.New ();
+		Decorations.CanTarget = false; // Input goes to the canvas window's controllers.
+		Decorations.CanShrink = true;
+		Decorations.ContentFit = Gtk.ContentFit.Fill;
 	}
 
 	/// <summary>
@@ -133,6 +145,15 @@ internal sealed partial class PintaCanvas
 	/// This is useful to avoid redundant work if there are multiple events that trigger
 	/// changes to the document.
 	/// </summary>
+	/// <summary>
+	/// Queue an update after the area around the canvas changed size.
+	/// </summary>
+	public void QueueDecorationsUpdate ()
+	{
+		if (canvas_texture is not null) // Otherwise the first invalidation draws everything.
+			QueueUpdate ();
+	}
+
 	private void QueueUpdate ()
 	{
 		if (queued_update_id > 0)
@@ -161,8 +182,7 @@ internal sealed partial class PintaCanvas
 		// The grids go under the selection outline and handles.
 		DrawCanvasGrid (snapshot, canvasViewBounds);
 		DrawCanvasAxonometricGrid (snapshot, canvasViewBounds);
-		DrawSelection (snapshot, canvasViewBounds);
-		DrawHandles (snapshot, canvasViewBounds);
+		UpdateDecorations ();
 
 		// In the future, this would be cleaner to implement as a custom widget once gir.core supports virtual methods
 		// (in particular, zooming might be easier when we have control over the size allocation)
@@ -176,6 +196,44 @@ internal sealed partial class PintaCanvas
 		modified_area = null;
 		QueueDraw ();
 	}
+
+	private void UpdateDecorations ()
+	{
+		int width = Decorations.GetWidth ();
+		int height = Decorations.GetHeight ();
+		if (width <= 0 || height <= 0 ||
+		    Parent is not Gtk.Viewport viewport ||
+		    viewport.GetHadjustment () is not Gtk.Adjustment h ||
+		    viewport.GetVadjustment () is not Gtk.Adjustment v ||
+		    !viewport.TranslateCoordinates (Decorations, PointD.Zero, out PointD viewportOrigin))
+			return;
+
+		// Place the canvas from the scroll position rather than its allocation, which only catches
+		// up at the next layout and would leave the outline a scroll step behind.
+		Size viewSize = document.Workspace.ViewSize;
+		PointD canvasOrigin = new (
+			viewportOrigin.X + CanvasOffset (h, viewSize.Width),
+			viewportOrigin.Y + CanvasOffset (v, viewSize.Height));
+
+		Gtk.Snapshot snapshot = Gtk.Snapshot.New ();
+		Graphene.Rect viewportBounds = Graphene.Rect.Alloc ();
+		viewportBounds.Init ((float) viewportOrigin.X, (float) viewportOrigin.Y, (float) h.PageSize, (float) v.PageSize);
+		snapshot.PushClip (viewportBounds);
+		snapshot.Translate (new Graphene.Point { X = (float) canvasOrigin.X, Y = (float) canvasOrigin.Y });
+		DrawSelection (snapshot);
+		DrawHandles (snapshot);
+		snapshot.Pop ();
+
+		Graphene.Size size = new () { Width = width, Height = height };
+		Decorations.SetPaintable (snapshot.ToPaintable (size)); // null when there is nothing to draw
+	}
+
+	/// <summary>
+	/// Where the viewport puts this canvas along one axis: centred (Halign/Valign) when it is smaller
+	/// than the viewport, as GTK rounds it, otherwise scrolled.
+	/// </summary>
+	private static double CanvasOffset (Gtk.Adjustment adjustment, int canvasSize)
+		=> Math.Max (0, ((int) adjustment.PageSize - canvasSize) / 2) - adjustment.Value;
 
 	private static Gdk.Texture CreateTransparentPatternTexture () =>
 		CairoExtensions.CreateTransparentBackgroundSurface (size: 16).ToTexture ();
@@ -228,7 +286,7 @@ internal sealed partial class PintaCanvas
 		snapshot.AppendScaledTexture (canvas_texture, scalingFilter, canvasViewBounds);
 	}
 
-	private void DrawSelection (Gtk.Snapshot snapshot, Graphene.Rect canvasViewBounds)
+	private void DrawSelection (Gtk.Snapshot snapshot)
 	{
 		if (!document.Selection.Visible)
 			return;
@@ -243,7 +301,6 @@ internal sealed partial class PintaCanvas
 		}
 
 		snapshot.Save ();
-		snapshot.PushClip (canvasViewBounds);
 
 		// Scale the selection path up to the view size.
 		// Note the outline width (below) remains at a constant size.
@@ -267,23 +324,18 @@ internal sealed partial class PintaCanvas
 		Gdk.RGBA black = new () { Red = 0, Green = 0, Blue = 0, Alpha = 1 };
 		snapshot.AppendStroke (selection_path, stroke, black);
 
-		snapshot.Pop ();
 		snapshot.Restore ();
 	}
 
-	private void DrawHandles (Gtk.Snapshot snapshot, Graphene.Rect canvasViewBounds)
+	private void DrawHandles (Gtk.Snapshot snapshot)
 	{
 		BaseTool? tool = tools.CurrentTool;
 		if (tool is null)
 			return;
 
-		snapshot.PushClip (canvasViewBounds);
-
 		foreach (IToolHandle control in tool.Handles.Where (c => c.Active)) {
 			control.Draw (snapshot);
 		}
-
-		snapshot.Pop ();
 	}
 
 	private void DrawCanvasGrid (Gtk.Snapshot snapshot, Graphene.Rect canvasViewBounds)

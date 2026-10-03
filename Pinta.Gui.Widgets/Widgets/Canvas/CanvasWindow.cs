@@ -100,6 +100,11 @@ public sealed partial class CanvasWindow
 		scrolledWindow.OverlayScrolling = false; // Classic, always-visible scrollbars
 		scrolledWindow.Child = viewPort;
 
+		// The selection and handles go over the grey surround too, as in Paint.NET.
+		Gtk.Overlay scrolledOverlay = Gtk.Overlay.New ();
+		scrolledOverlay.Child = scrolledWindow;
+		scrolledOverlay.AddOverlay (canvas.Decorations);
+
 		Ruler horizontalRuler = Ruler.New (Gtk.Orientation.Horizontal);
 		horizontalRuler.Metric = MetricType.Pixels;
 		horizontalRuler.Visible = false;
@@ -137,7 +142,7 @@ public sealed partial class CanvasWindow
 		Attach (rulerUnits, 0, 0, 1, 1);
 		Attach (horizontalRuler, 1, 0, 1, 1);
 		Attach (verticalRuler, 0, 1, 1, 1);
-		Attach (scrolledWindow, 1, 1, 1, 1);
+		Attach (scrolledOverlay, 1, 1, 1, 1);
 
 		// --- References to keep
 
@@ -160,6 +165,12 @@ public sealed partial class CanvasWindow
 		// or when the window is resized and the scroll area's size changes.
 		scrolledWindow.Hadjustment!.OnChanged += UpdateRulerRange;
 		scrolledWindow.Vadjustment!.OnChanged += UpdateRulerRange;
+
+		// The decorations sit over the scrolled window, so redraw them when it scrolls or resizes.
+		scrolledWindow.Hadjustment!.OnChanged += (_, _) => canvas.QueueDecorationsUpdate ();
+		scrolledWindow.Vadjustment!.OnChanged += (_, _) => canvas.QueueDecorationsUpdate ();
+		scrolledWindow.Hadjustment!.OnValueChanged += (_, _) => canvas.QueueDecorationsUpdate ();
+		scrolledWindow.Vadjustment!.OnValueChanged += (_, _) => canvas.QueueDecorationsUpdate ();
 
 		// Update the ruler when scrolling around.
 		scrolledWindow.Hadjustment!.OnValueChanged += UpdateRulerRange;
