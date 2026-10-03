@@ -305,7 +305,7 @@ public sealed class TextTool : BaseTool
 	/// <summary>
 	/// As in Paint.NET's font list: it opens on the current font, and Enter in the search picks the first match.
 	/// </summary>
-	private static void HookFontPopup (Gtk.DropDown dropdown, List<string> names)
+	private void HookFontPopup (Gtk.DropDown dropdown, List<string> names)
 	{
 		if (FindDescendant<Gtk.Popover> (dropdown) is not Gtk.Popover popup
 		    || FindDescendant<Gtk.ListView> (popup) is not Gtk.ListView list)
@@ -317,16 +317,39 @@ public sealed class TextTool : BaseTool
 			return false;
 		});
 
+		// However the list closes (a pick, Enter, Esc), typing goes back to the text, not to the tool shortcuts.
+		// Deferred: the popover hands focus back to the dropdown after it closes.
+		popup.OnClosed += (_, _) => GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT_IDLE, () => {
+			if (workspace.HasOpenDocuments)
+				workspace.ActiveDocument.Workspace.GrabFocusToCanvas ();
+			return false;
+		});
+
 		if (FindDescendant<Gtk.SearchEntry> (popup) is Gtk.SearchEntry search) {
+			// Match the typed text here rather than read the filtered list: the search entry filters after a short delay,
+			// so a fast "C059" + Enter would otherwise pick a stale match. An empty search keeps the current font.
 			search.OnActivate += (_, _) => {
-				if (list.Model is not Gio.ListModel matches || matches.GetObject (0) is not Gtk.StringObject first)
-					return;
-				int index = names.IndexOf (first.GetString ());
+				string typed = search.GetText ();
+				int index = typed.Length == 0 ? -1 : BestFontMatch (names, typed);
 				if (index >= 0)
 					dropdown.Selected = (uint) index;
 				popup.Popdown ();
 			};
+			// The search entry takes Esc for itself; one Esc should close the list.
+			search.OnStopSearch += (_, _) => popup.Popdown ();
 		}
+	}
+
+	/// <summary>The font that Enter picks for the typed text: an exact name, else the first that starts with it, else the first that contains it.</summary>
+	private static int BestFontMatch (List<string> names, string typed)
+	{
+		const StringComparison ignoreCase = StringComparison.CurrentCultureIgnoreCase;
+		int index = names.FindIndex (n => n.Equals (typed, ignoreCase));
+		if (index < 0)
+			index = names.FindIndex (n => n.StartsWith (typed, ignoreCase));
+		if (index < 0)
+			index = names.FindIndex (n => n.Contains (typed, ignoreCase));
+		return index;
 	}
 
 	private static T? FindDescendant<T> (Gtk.Widget widget) where T : Gtk.Widget
