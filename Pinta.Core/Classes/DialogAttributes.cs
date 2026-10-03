@@ -60,6 +60,17 @@ public sealed class MaximumValueAttribute : Attribute
 	public int Value { get; set; }
 }
 
+/// <summary>
+/// Paints the slider's track with a gradient: names a CSS class defined in style.css (e.g. "pdn-track-hue").
+/// </summary>
+[AttributeUsage (AttributeTargets.Field | AttributeTargets.Property, Inherited = false)]
+public sealed class SliderTrackAttribute : Attribute
+{
+	public SliderTrackAttribute (string cssClass) => CssClass = cssClass;
+
+	public string CssClass { get; }
+}
+
 [AttributeUsage (AttributeTargets.Field | AttributeTargets.Property, Inherited = false)]
 public sealed class HintAttribute : Attribute
 {

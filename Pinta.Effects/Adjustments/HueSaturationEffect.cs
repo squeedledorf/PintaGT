@@ -58,13 +58,13 @@ public sealed class HueSaturationEffect : BaseEffect
 
 	public sealed class HueSaturationData : EffectData
 	{
-		[Caption ("Hue"), MinimumValue (-180), MaximumValue (180)]
+		[Caption ("Hue"), MinimumValue (-180), MaximumValue (180), SliderTrack ("pdn-track-hue")]
 		public int Hue { get; set; } = 0;
 
-		[Caption ("Saturation"), MinimumValue (0), MaximumValue (200)]
+		[Caption ("Saturation"), MinimumValue (0), MaximumValue (200), SliderTrack ("pdn-track-saturation")]
 		public int Saturation { get; set; } = 100;
 
-		[Caption ("Lightness")]
+		[Caption ("Lightness"), SliderTrack ("pdn-track-lightness")]
 		public int Lightness { get; set; } = 0;
 
 		[Skip]
