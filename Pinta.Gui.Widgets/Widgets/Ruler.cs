@@ -107,27 +107,26 @@ public sealed partial class Ruler
 		SetDrawFunc ((area, context, width, height) => Draw (context, new Size (width, height)));
 	}
 
+	/// <summary>
+	/// Paint.NET's slim rulers: 16px of ticks and labels plus a 1px edge line.
+	/// </summary>
+	public const int THICKNESS = 17;
+
+	// Paint.NET's tiny ruler numbers (about 7px tall digits).
+	private const int LABEL_FONT_PIXELS = 10;
+
+	// Tick lengths by depth: the labelled tick spans the ruler, then the half and the small ticks.
+	private static readonly ImmutableArray<int> tick_lengths = [THICKNESS, 10, 6, 4, 3];
+
 	private void SetOrientation (Gtk.Orientation orientation)
 	{
 		Orientation = orientation;
+		AddCssClass ("pdn-ruler");
 
-		// Determine the size request, based on the font size.
-		int font_size = GetFontSize (GetPangoContext ().GetFontDescription ()!, ScaleFactor);
-		int size = 2 + font_size * 2;
-
-		int width = 0;
-		int height = 0;
-		switch (Orientation) {
-			case Gtk.Orientation.Horizontal:
-				height = size;
-				break;
-			case Gtk.Orientation.Vertical:
-				width = size;
-				break;
-		}
-
-		WidthRequest = width;
-		HeightRequest = height;
+		if (Orientation == Gtk.Orientation.Horizontal)
+			HeightRequest = THICKNESS;
+		else
+			WidthRequest = THICKNESS;
 	}
 
 	public static Ruler New (Gtk.Orientation orientation)
@@ -163,7 +162,6 @@ public sealed partial class Ruler
 		ImmutableArray<int> SubDivide,
 		NumberRange<double> ScaledRange,
 		Pango.FontDescription Font,
-		int FontSize,
 		double Increment,
 		int DivideIndex,
 		double PixelsPerTick,
@@ -227,11 +225,12 @@ public sealed partial class Ruler
 
 		double maxSize = scaledRange.Upper - scaledRange.Lower;
 
-		// There must be enough space between the large ticks for the text labels.
-		Pango.FontDescription font = GetPangoContext ().GetFontDescription ()!;
-		int fontSize = GetFontSize (font, ScaleFactor);
+		// There must be enough space between the large ticks for the text labels;
+		// like Paint.NET, labelled ticks are never closer than about 60px.
+		Pango.FontDescription font = GetPangoContext ().GetFontDescription ()!.Copy ()!;
+		font.SetAbsoluteSize (LABEL_FONT_PIXELS * Pango.Constants.SCALE);
 		int maxDigits = ((int) -Math.Abs (maxSize)).ToString ().Length;
-		int minSeparation = maxDigits * fontSize * 2;
+		int minSeparation = Math.Max (60, maxDigits * LABEL_FONT_PIXELS);
 
 		double increment = effectiveSize.Width / maxSize;
 
@@ -256,7 +255,6 @@ public sealed partial class Ruler
 			SubDivide: subdivide,
 			ScaledRange: scaledRange,
 			Font: font,
-			FontSize: fontSize,
 			Increment: increment,
 			DivideIndex: divideIndex,
 			PixelsPerTick: pixelsPerTick,
@@ -337,7 +335,11 @@ public sealed partial class Ruler
 
 		using Context drawingContext = new (result);
 
-		drawingContext.SetSourceColor (settings.Color);
+		// Grey ticks and edge, darker numbers, as in Paint.NET.
+		Color tickColor = settings.Color with { A = settings.Color.A * 0.5 };
+		Color labelColor = settings.Color with { A = settings.Color.A * 0.85 };
+
+		drawingContext.SetSourceColor (tickColor);
 		drawingContext.LineWidth = 1.0;
 		drawingContext.Rectangle (settings.RulerOuterLine);
 		drawingContext.Fill ();
@@ -347,31 +349,36 @@ public sealed partial class Ruler
 			// Position of tick (add 0.5 to center tick on pixel).
 			double tickPosition = Math.Floor (i * settings.PixelsPerTick - settings.ScaledRange.Lower * settings.Increment) + 0.5;
 
-			// Height of tick
-			int tickHeight = settings.EffectiveSize.Height;
-
+			// Length of tick: the deeper its subdivision, the shorter.
+			int depth = 0;
 			for (int j = settings.DivideIndex; j > 0; --j) {
 				if (i % settings.SubDivide[j] == 0) break;
-				tickHeight = tickHeight / 2 + 1;
+				depth++;
 			}
+			int tickHeight = Math.Min (settings.EffectiveSize.Height, tick_lengths[Math.Min (depth, tick_lengths.Length - 1)]);
 
-			// Draw text for major ticks.
+			// Numbers beside the labelled ticks, in the increasing direction. The vertical ruler's read
+			// upwards, as in Paint.NET.
 			if (i % settings.SubDivide[settings.DivideIndex] == 0) {
 
 				string label = ((int) Math.Round (i * settings.UnitsPerTick)).ToString ();
 				var layout = CreatePangoLayout (label);
 				layout.SetFontDescription (settings.Font);
+				layout.GetPixelSize (out int labelWidth, out _);
 
+				drawingContext.SetSourceColor (labelColor);
 				if (settings.Orientation == Gtk.Orientation.Horizontal) {
 					drawingContext.MoveTo (tickPosition + 2, 0);
 					PangoCairo.Functions.ShowLayout (drawingContext, layout);
 				} else {
 					drawingContext.Save ();
-					drawingContext.MoveTo (settings.FontSize * 1.5, tickPosition + settings.FontSize / 2);
-					drawingContext.Rotate (0.5 * Math.PI);
+					drawingContext.Translate (0, tickPosition + 2 + labelWidth);
+					drawingContext.Rotate (-0.5 * Math.PI);
+					drawingContext.MoveTo (0, 0);
 					PangoCairo.Functions.ShowLayout (drawingContext, layout);
 					drawingContext.Restore ();
 				}
+				drawingContext.SetSourceColor (tickColor);
 			}
 
 			// Draw ticks
@@ -395,14 +402,5 @@ public sealed partial class Ruler
 		double scaledWidth = width / range;
 		double positionFromLower = position - RulerRange.Lower;
 		return positionFromLower * scaledWidth;
-	}
-
-	private static int GetFontSize (Pango.FontDescription font, int scaleFactor)
-	{
-		int fontSize = PangoExtensions.UnitsToPixels (font.GetSize ());
-		if (font.GetSizeIsAbsolute ())
-			return fontSize;
-		else
-			return (int) (scaleFactor * fontSize / 72.0);
 	}
 }

@@ -262,6 +262,7 @@ public sealed class TextTool : BaseTool
 			// Not CanFocus = false: that would also keep focus from the popup's search entry. A pick hands focus back to the canvas.
 			font_family_dropdown.FocusOnClick = false;
 			font_family_dropdown.TooltipText = Translations.GetString ("Font");
+			font_family_dropdown.AddCssClass ("pdn-field"); // A white box, like Paint.NET's font field.
 			// Fixed width, so the controls after it don't move when the font name changes.
 			font_family_dropdown.WidthRequest = 170;
 

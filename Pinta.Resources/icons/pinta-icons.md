@@ -84,3 +84,9 @@ same names and can be used with the same license as the project itself.
 - hicolor/scalable/actions/pinta-check-tick-symbolic.svg
 - hicolor/scalable/actions/pinta-slider-thumb.svg
 - hicolor/scalable/actions/pinta-image-list-more.svg
+- hicolor/scalable/actions/pinta-step-minus-symbolic.svg
+- hicolor/scalable/actions/pinta-step-plus-symbolic.svg
+- hicolor/scalable/actions/pinta-caption-minimize-symbolic.svg
+- hicolor/scalable/actions/pinta-caption-maximize-symbolic.svg
+- hicolor/scalable/actions/pinta-caption-restore-symbolic.svg
+- hicolor/scalable/actions/pinta-caption-close-symbolic.svg

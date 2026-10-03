@@ -93,9 +93,9 @@ public sealed partial class ToolBarSlider
 
 		Scale.OnValueChanged += (_, _) => UpdateLabel ();
 
-		Append (CreateStepButton ("list-remove-symbolic", -1));
+		Append (CreateStepButton ("pinta-step-minus-symbolic", -1));
 		Append (bar);
-		Append (CreateStepButton ("list-add-symbolic", 1));
+		Append (CreateStepButton ("pinta-step-plus-symbolic", 1));
 
 		UpdateLabel ();
 	}
@@ -104,6 +104,7 @@ public sealed partial class ToolBarSlider
 	{
 		Gtk.Button button = Gtk.Button.NewFromIconName (icon);
 		button.AddCssClass (AdwaitaStyles.Flat);
+		button.AddCssClass ("pdn-step");
 		button.FocusOnClick = false;
 		button.CanFocus = false;
 		button.Valign = Gtk.Align.Center;

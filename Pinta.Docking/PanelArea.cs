@@ -31,7 +31,10 @@ public sealed partial class PanelArea
 
 	private readonly List<Entry> entries = [];
 	private ISettingsService settings = null!; // NRT - set by New()
-	private Size area = Size.Empty;
+	private Size outer = Size.Empty; // The whole overlay.
+	private Size area = Size.Empty; // Where panels go: the overlay less the inset.
+	private int inset_left;
+	private int inset_top;
 	private uint relayout_idle;
 	private bool interacting;
 
@@ -41,8 +44,8 @@ public sealed partial class PanelArea
 		Gtk.DrawingArea sizer = Gtk.DrawingArea.New ();
 		sizer.CanTarget = false;
 		sizer.OnResize += (_, e) => {
-			area = new Size (e.Width, e.Height);
-			QueueRelayout ();
+			outer = new Size (e.Width, e.Height);
+			UpdateArea ();
 		};
 		AddOverlay (sizer);
 	}
@@ -128,6 +131,25 @@ public sealed partial class PanelArea
 		}
 	}
 
+	/// <summary>
+	/// Keep the panels clear of a strip along the left and top edges (the rulers, as in Paint.NET).
+	/// Panels keep their place relative to what is left, so they move along when the strip changes.
+	/// </summary>
+	public void SetInset (int left, int top)
+	{
+		if (inset_left == left && inset_top == top)
+			return;
+		inset_left = left;
+		inset_top = top;
+		UpdateArea ();
+	}
+
+	private void UpdateArea ()
+	{
+		area = new Size (Math.Max (0, outer.Width - inset_left), Math.Max (0, outer.Height - inset_top));
+		QueueRelayout ();
+	}
+
 	private bool RestsFaded => settings.GetSetting (TRANSLUCENT_SETTING, true);
 
 	// --- Placement
@@ -175,9 +197,9 @@ public sealed partial class PanelArea
 
 		panel.Halign = anchor.Right ? Gtk.Align.End : Gtk.Align.Start;
 		panel.Valign = anchor.Bottom ? Gtk.Align.End : Gtk.Align.Start;
-		panel.MarginStart = anchor.Right ? 0 : anchor.OffsetX;
+		panel.MarginStart = anchor.Right ? 0 : anchor.OffsetX + inset_left;
 		panel.MarginEnd = anchor.Right ? anchor.OffsetX : 0;
-		panel.MarginTop = anchor.Bottom ? 0 : anchor.OffsetY;
+		panel.MarginTop = anchor.Bottom ? 0 : anchor.OffsetY + inset_top;
 		panel.MarginBottom = anchor.Bottom ? anchor.OffsetY : 0;
 	}
 
@@ -195,7 +217,7 @@ public sealed partial class PanelArea
 		});
 	}
 
-	/// <summary>Where the pointer of an ongoing drag is, in this area's coordinates.</summary>
+	/// <summary>Where the pointer of an ongoing drag is, relative to the panels' area.</summary>
 	private bool PointerInArea (Gtk.GestureDrag gesture, out PointD point)
 	{
 		point = PointD.Zero;
@@ -205,7 +227,7 @@ public sealed partial class PanelArea
 		if (!widget.TranslateCoordinates (this, x, y, out double areaX, out double areaY))
 			return false;
 
-		point = new PointD (areaX, areaY);
+		point = new PointD (areaX - inset_left, areaY - inset_top);
 		return true;
 	}
 
@@ -292,7 +314,7 @@ public sealed partial class PanelArea
 		entry.Panel.Faded = false;
 		resize_start_bounds = Bounds (entry);
 		entry.Panel.TranslateCoordinates (this, startX, startY, out double x, out double y);
-		resize_start_pointer = new PointD (x, y);
+		resize_start_pointer = new PointD (x - inset_left, y - inset_top);
 
 		// Resize from a fixed top-left corner (moved along when dragging the left edge).
 		entry.Anchor = new PanelAnchor (false, false, (int) resize_start_bounds.X, (int) resize_start_bounds.Y);

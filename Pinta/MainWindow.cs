@@ -517,9 +517,11 @@ internal sealed class MainWindow
 				titleHandle.SetChild (title);
 				top.Attach (titleHandle, 0, 0, 1, 1);
 
-				// Paint.NET's minimize / maximize / close at the right end of the title row.
+				// Paint.NET's minimize / maximize / close at the right end of the title row. Drawn here
+				// rather than by Gtk.WindowControls, which follows the desktop's button layout and the
+				// compositor's capabilities and may show only a close button.
 				Gtk.WindowHandle controlsHandle = Gtk.WindowHandle.New ();
-				controlsHandle.SetChild (Gtk.WindowControls.New (Gtk.PackType.End));
+				controlsHandle.SetChild (CreateCaptionButtons ());
 				controlsHandle.Halign = Gtk.Align.End;
 				top.Attach (controlsHandle, 2, 0, 1, 1);
 
@@ -692,6 +694,49 @@ internal sealed class MainWindow
 		}
 	}
 
+	private Gtk.Box CreateCaptionButtons ()
+	{
+		Gtk.Window window = window_shell.Window;
+
+		Gtk.Button Caption (string icon, string tooltip, Action clicked)
+		{
+			Gtk.Button button = Gtk.Button.NewFromIconName (icon);
+			button.TooltipText = tooltip;
+			button.FocusOnClick = false;
+			button.CanFocus = false;
+			button.OnClicked += (_, _) => clicked ();
+			return button;
+		}
+
+		Gtk.Button maximize = Caption ("pinta-caption-maximize-symbolic", Translations.GetString ("Maximize"), () => {
+			if (window.IsMaximized ())
+				window.Unmaximize ();
+			else
+				window.Maximize ();
+		});
+		void UpdateMaximize ()
+		{
+			bool maximized = window.IsMaximized ();
+			maximize.IconName = maximized ? "pinta-caption-restore-symbolic" : "pinta-caption-maximize-symbolic";
+			maximize.TooltipText = maximized ? Translations.GetString ("Restore Down") : Translations.GetString ("Maximize");
+		}
+		window.OnNotify += (_, e) => {
+			if (e.Pspec.GetName () == "maximized")
+				UpdateMaximize ();
+		};
+		UpdateMaximize ();
+
+		Gtk.Button close = Caption ("pinta-caption-close-symbolic", Translations.GetString ("Close"), window.Close);
+		close.AddCssClass ("close");
+
+		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+		box.AddCssClass ("pdn-caption");
+		box.Append (Caption ("pinta-caption-minimize-symbolic", Translations.GetString ("Minimize"), window.Minimize));
+		box.Append (maximize);
+		box.Append (close);
+		return box;
+	}
+
 	// A flat icon button that is pressed while its window is shown.
 	// The pressed state is bound to the command by hand rather than through ActionName: the action
 	// helper sometimes left the Tools button unpressed while its window was shown.
@@ -843,6 +888,17 @@ internal sealed class MainWindow
 		panel_area.AddPanel (layers, new PanelAnchor (Right: true, Bottom: true, GAP, GAP), new Size (178, 300));
 
 		ViewActions view = PintaCore.Actions.View;
+
+		// As in Paint.NET the windows float below and right of the rulers, never over them.
+		// (Toggled is raised before the command's Value changes, so it passes the new state.)
+		void UpdatePanelInset (bool rulers)
+		{
+			int ruler = rulers && PintaCore.Workspace.HasOpenDocuments ? Ruler.THICKNESS : 0;
+			panel_area.SetInset (ruler, ruler);
+		}
+		view.Rulers.Toggled += (shown, _) => UpdatePanelInset (shown);
+		PintaCore.Workspace.ActiveDocumentChanged += (_, _) => UpdatePanelInset (view.Rulers.Value);
+
 		BindPanel (view.ToolsWindow, tools);
 		BindPanel (view.HistoryWindow, history);
 		BindPanel (view.LayersWindow, layers);

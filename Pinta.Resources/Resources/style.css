@@ -230,6 +230,21 @@ popover.pdn-menu separator {
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 8px 2px rgba(0, 0, 0, 0.22);
 }
 
+/* Paint.NET's slim rulers on the plain view background; the corner names the units. */
+.pdn-ruler {
+    background-color: @view_bg_color;
+    color: @view_fg_color;
+}
+
+.ruler-units {
+    background-color: @view_bg_color;
+    color: alpha(@view_fg_color, 0.85);
+    font-size: 10px;
+    padding: 0 0 1px 2px;
+    border-right: 1px solid alpha(@view_fg_color, 0.5);
+    border-bottom: 1px solid alpha(@view_fg_color, 0.5);
+}
+
 #new-image-preview {
     box-shadow: 0px 0px 2px 2px #7F7F7F;
 }
@@ -245,7 +260,7 @@ popover.pdn-menu separator {
 }
 
 .pdn-title {
-    min-height: 28px;
+    min-height: 23px;
     padding: 0 8px;
 }
 
@@ -253,13 +268,14 @@ popover.pdn-menu separator {
     font-size: 9pt;
 }
 
-/* The menus sit in a tab: a 1px frame on the left, top and right. The rule beside it
-   continues the tab's bottom edge to the window's right edge. */
+/* The menus sit in a tab: a 1px frame on the left, top and right, open at the bottom into the
+   toolbar row. The rule beside it continues the tab's bottom edge to the window's right edge. */
 .pdn-top menubar {
-    margin: 2px 0 0 4px;
+    margin: 0 0 0 3px;
     border: 1px solid alpha(@window_fg_color, 0.3);
     border-bottom: none;
     background: none;
+    box-shadow: none;
 }
 
 .pdn-top-rule {
@@ -273,9 +289,14 @@ popover.pdn-menu separator {
     border-spacing: 0;
 }
 
+/* Paint.NET's 26px toolbar row of 16px icons on a 23px pitch. */
+#main_toolbar {
+    padding: 2px 4px 1px;
+}
+
 /* Fixed tool options height (as in Paint.NET), so the canvas does not jump when switching tools. */
 #tool_toolbar {
-    min-height: 26px;
+    min-height: 27px;
     padding-top: 0;
     padding-bottom: 0;
     border-bottom: 1px solid alpha(@window_fg_color, 0.15);
@@ -295,10 +316,10 @@ popover.pdn-menu separator {
 }
 
 #main_toolbar button {
-    -gtk-icon-size: 20px;
-    min-width: 22px;
-    min-height: 22px;
-    padding: 0 1px;
+    -gtk-icon-size: 16px;
+    min-width: 23px;
+    min-height: 23px;
+    padding: 0;
 }
 
 #main_toolbar button:hover, #tool_toolbar button:hover, #statusbar button:hover, #window_buttons button:hover,
@@ -320,7 +341,7 @@ button label, menubutton label, dropdown label {
 
 #main_toolbar separator, #tool_toolbar separator, #window_buttons separator {
     min-width: 1px;
-    margin: 4px 4px;
+    margin: 4px 3px;
     background-color: alpha(@window_fg_color, 0.25);
 }
 
@@ -340,7 +361,7 @@ button label, menubutton label, dropdown label {
 
 /* Option fields: white box, 1px grey border, square corners, compact. */
 #tool_toolbar entry, #tool_toolbar spinbutton, #tool_toolbar combobox entry {
-    min-height: 20px;
+    min-height: 21px;
     padding-top: 0;
     padding-bottom: 0;
     border-radius: 0;
@@ -351,6 +372,24 @@ button label, menubutton label, dropdown label {
 
 #tool_toolbar entry:focus-within, #tool_toolbar spinbutton:focus-within {
     box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+/* Fields are 23px tall in the 27px row, as in Paint.NET. */
+#tool_toolbar spinbutton, #tool_toolbar entry, #tool_toolbar dropdown, #tool_toolbar combobox {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+#tool_toolbar combobox entry {
+    margin: 0;
+}
+
+/* Paint.NET's small boxed - and + beside Brush size, Hardness and the like. */
+#tool_toolbar button.pdn-step {
+    -gtk-icon-size: 9px;
+    min-width: 9px;
+    min-height: 9px;
+    padding: 3px;
 }
 
 #tool_toolbar spinbutton > text {
@@ -376,6 +415,17 @@ button label, menubutton label, dropdown label {
 #tool_toolbar dropdown > button, #tool_toolbar combobox > box > button, #tool_toolbar menubutton > button {
     min-height: 20px;
     padding: 0 3px;
+}
+
+/* Drop-down fields (the Text tool's font) are white boxes like the other fields. */
+#tool_toolbar dropdown.pdn-field > button {
+    border-radius: 0;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@window_fg_color, 0.4);
+}
+
+#tool_toolbar dropdown.pdn-field > button:hover {
+    box-shadow: inset 0 0 0 1px #0078d7;
 }
 
 #tool_toolbar label {
@@ -611,21 +661,21 @@ button label, menubutton label, dropdown label {
 
 /* Option sliders (Tolerance, Hardness...) as Paint.NET's blue bar in a box, without a knob. */
 #tool_toolbar scale trough {
-    min-height: 18px;
+    min-height: 21px;
     border-radius: 0;
     background-color: @view_bg_color;
     box-shadow: inset 0 0 0 1px alpha(@window_fg_color, 0.4);
 }
 
 #tool_toolbar scale highlight {
-    min-height: 18px;
+    min-height: 21px;
     border-radius: 0;
     background-color: #0078d7;
 }
 
 #tool_toolbar scale slider {
     min-width: 2px;
-    min-height: 18px;
+    min-height: 21px;
     margin: 0;
     border-radius: 0;
     background: none;
@@ -1011,23 +1061,33 @@ tabview scrolledwindow > scrollbar > range > trough > slider:active {
     background-color: alpha(@window_fg_color, 0.55);
 }
 
-/* Title-row window buttons: flat and square like Windows', not Adwaita's round ones. */
-.pdn-top windowcontrols button {
-	min-width: 32px;
-	min-height: 22px;
-	padding: 0;
-	border-radius: 0;
-	background: none;
-	box-shadow: none;
+
+/* Title-row window buttons: Windows' flat 46px caption buttons with thin 10px glyphs. */
+.pdn-caption button {
+    -gtk-icon-size: 10px;
+    min-width: 46px;
+    min-height: 23px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: @window_fg_color;
 }
-.pdn-top windowcontrols button > image {
-	background: none;
-	padding: 0;
+
+.pdn-caption button:hover {
+    background-color: alpha(@window_fg_color, 0.1);
 }
-.pdn-top windowcontrols button:hover {
-	background: alpha(currentColor, 0.1);
+
+.pdn-caption button:active {
+    background-color: alpha(@window_fg_color, 0.2);
 }
-.pdn-top windowcontrols button.close:hover {
-	background: #e81123;
-	color: white;
+
+.pdn-caption button.close:hover {
+    background-color: #e81123;
+    color: white;
+}
+
+.pdn-caption button.close:active {
+    background-color: #f1707a;
+    color: white;
 }

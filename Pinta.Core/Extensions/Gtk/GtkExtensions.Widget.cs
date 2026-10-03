@@ -207,6 +207,7 @@ partial class GtkExtensions
 		{
 			Gtk.Button button = Gtk.Button.NewFromIconName (icon);
 			button.AddCssClass (AdwaitaStyles.Flat);
+			button.AddCssClass ("pdn-step");
 			button.FocusOnClick = false;
 			button.CanFocus = false;
 			button.Valign = Gtk.Align.Center;
@@ -215,9 +216,9 @@ partial class GtkExtensions
 		}
 
 		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, 2);
-		box.Append (Step ("list-remove-symbolic", Gtk.SpinType.StepBackward));
+		box.Append (Step ("pinta-step-minus-symbolic", Gtk.SpinType.StepBackward));
 		box.Append (spin);
-		box.Append (Step ("list-add-symbolic", Gtk.SpinType.StepForward));
+		box.Append (Step ("pinta-step-plus-symbolic", Gtk.SpinType.StepForward));
 
 		// Hiding the spin button hides its step buttons too.
 		spin.BindProperty (

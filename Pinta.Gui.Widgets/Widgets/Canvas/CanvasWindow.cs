@@ -117,8 +117,10 @@ public sealed partial class CanvasWindow
 		Gtk.Label rulerUnits = Gtk.Label.New (null);
 		rulerUnits.SetMarkup (UnitsMarkup (MetricType.Pixels));
 		rulerUnits.AddCssClass ("ruler-units");
-		rulerUnits.Valign = Gtk.Align.Center;
-		rulerUnits.Halign = Gtk.Align.Center;
+		rulerUnits.Valign = Gtk.Align.Fill;
+		rulerUnits.Halign = Gtk.Align.Fill;
+		rulerUnits.Xalign = 0;
+		rulerUnits.Yalign = 1;
 		rulerUnits.Visible = false;
 
 		Gtk.EventControllerMotion motionController = Gtk.EventControllerMotion.New ();
@@ -312,7 +314,7 @@ public sealed partial class CanvasWindow
 			MetricType.Centimeters => Translations.GetString ("cm"),
 			_ => Translations.GetString ("px"),
 		};
-		return $"<small>{GLib.Functions.MarkupEscapeText (units, -1)}</small>";
+		return GLib.Functions.MarkupEscapeText (units, -1);
 	}
 
 	public void UpdateRulerRange (object? sender, EventArgs e)
