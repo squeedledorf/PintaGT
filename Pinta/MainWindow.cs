@@ -515,6 +515,17 @@ internal sealed class MainWindow
 		// The palette stays here until the Colors window replaces it.
 		StatusBarColorPaletteWidget widget = StatusBarColorPaletteWidget.New (PintaCore.Chrome, PintaCore.Palette, PintaCore.System);
 
+		// Without Hexpand the drawing area has no natural width and would be allocated 0px, so request what it draws.
+		// ponytail: mirrors PaletteWidget's layout (50px color area, 19px swatches in 2 rows, 10px margin); goes away when 2A removes this widget.
+		void UpdatePaletteWidth ()
+		{
+			int recentColumns = PintaCore.Palette.MaxRecentlyUsedColor / 2;
+			int paletteColumns = (PintaCore.Palette.CurrentPalette.Colors.Count + 1) / 2;
+			widget.WidthRequest = 50 + 19 * (recentColumns + paletteColumns) + 10 + 2;
+		}
+		UpdatePaletteWidth ();
+		PintaCore.Palette.CurrentPalette.PaletteChanged += (_, _) => UpdatePaletteWidth ();
+
 		statusbar.Append (widget);
 
 		PintaCore.Actions.CreateStatusBar (statusbar, PintaCore.Workspace);
