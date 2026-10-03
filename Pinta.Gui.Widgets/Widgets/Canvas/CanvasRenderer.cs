@@ -109,8 +109,7 @@ public sealed class CanvasRenderer
 			else
 				g.SetSourceSurface (surface, filter);
 
-			g.SetBlendMode (layer.BlendMode);
-			g.PaintWithAlpha (layer.Opacity);
+			g.PaintWithBlendMode (layer.BlendMode, layer.Opacity);
 			g.Restore ();
 		}
 

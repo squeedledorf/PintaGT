@@ -250,7 +250,7 @@ public sealed class OraFormat : IImageImporter, IImageExporter
 		thumbnailStream.Write (thumbnailBytes, 0, thumbnailBytes.Length);
 	}
 
-	private static string BlendModeToStandard (BlendMode mode)
+	internal static string BlendModeToStandard (BlendMode mode)
 		=> mode switch {
 			BlendMode.Multiply => "svg:multiply",
 			BlendMode.ColorBurn => "svg:color-burn",
@@ -267,10 +267,16 @@ public sealed class OraFormat : IImageImporter, IImageExporter
 			BlendMode.Luminosity => "svg:luminosity",
 			BlendMode.Hue => "svg:hue",
 			BlendMode.Saturation => "svg:saturation",
+			// OpenRaster's "plus" is Paint.NET's Additive. The spec has no Reflect, Glow or Negation,
+			// so those use Krita's names for the same modes.
+			BlendMode.Additive => "svg:plus",
+			BlendMode.Reflect => "krita:reflect",
+			BlendMode.Glow => "krita:glow",
+			BlendMode.Negation => "krita:negation",
 			_ => "svg:src-over",
 		};
 
-	private static BlendMode StandardToBlendMode (string mode)
+	internal static BlendMode StandardToBlendMode (string mode)
 	{
 		switch (mode) {
 			case "svg:src-over":
@@ -305,6 +311,14 @@ public sealed class OraFormat : IImageImporter, IImageExporter
 				return BlendMode.Hue;
 			case "svg:saturation":
 				return BlendMode.Saturation;
+			case "svg:plus":
+				return BlendMode.Additive;
+			case "krita:reflect":
+				return BlendMode.Reflect;
+			case "krita:glow":
+				return BlendMode.Glow;
+			case "krita:negation":
+				return BlendMode.Negation;
 			default:
 				Console.WriteLine ("Unrecognized composite-op: {0}, using Normal.", mode);
 				return BlendMode.Normal;

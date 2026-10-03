@@ -299,11 +299,10 @@ public sealed class Document
 
 			Color color = layer.Surface.GetColorBgra (position).ToCairoColor ();
 
-			g.SetBlendMode (layer.BlendMode);
 			g.SetSourceColor (color);
 
 			g.Rectangle (dst.GetBounds ().ToDouble ());
-			g.PaintWithAlpha (layer.Opacity);
+			g.PaintWithBlendMode (layer.BlendMode, layer.Opacity);
 		}
 
 		return dst.GetColorBgra (PointI.Zero);

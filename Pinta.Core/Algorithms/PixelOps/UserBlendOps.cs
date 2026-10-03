@@ -16,53 +16,67 @@ namespace Pinta.Core;
 /// This class contains all the render ops that can be used by the user
 /// to configure a layer's blending mode. It also contains helper
 /// functions to aid in enumerating and using these blend ops.
-/// 
+///
 /// Credit for mathematical descriptions of many of the blend modes goes to
 /// a page on Pegtop Software's website called, "Blend Modes"
 /// http://www.pegtop.net/delphi/articles/blendmodes/
 /// </summary>
 public sealed partial class UserBlendOps
 {
-	private static readonly IReadOnlyDictionary<string, BlendMode> blend_modes;
+	// Paint.NET's 14 layer blend modes, in its order. These are the ones offered in the UI.
+	private static readonly (BlendMode Mode, string Name)[] pdn_blend_modes = [
+		(BlendMode.Normal, Translations.GetString ("Normal")),
+		(BlendMode.Multiply, Translations.GetString ("Multiply")),
+		(BlendMode.Additive, Translations.GetString ("Additive")),
+		(BlendMode.ColorBurn, Translations.GetString ("Color Burn")),
+		(BlendMode.ColorDodge, Translations.GetString ("Color Dodge")),
+		(BlendMode.Reflect, Translations.GetString ("Reflect")),
+		(BlendMode.Glow, Translations.GetString ("Glow")),
+		(BlendMode.Overlay, Translations.GetString ("Overlay")),
+		(BlendMode.Difference, Translations.GetString ("Difference")),
+		(BlendMode.Negation, Translations.GetString ("Negation")),
+		(BlendMode.Lighten, Translations.GetString ("Lighten")),
+		(BlendMode.Darken, Translations.GetString ("Darken")),
+		(BlendMode.Screen, Translations.GetString ("Screen")),
+		(BlendMode.Xor, Translations.GetString ("Xor")),
+	];
 
-	static UserBlendOps ()
-	{
-		blend_modes = new Dictionary<string, BlendMode> {
-			[Translations.GetString ("Normal")] = BlendMode.Normal,
-			[Translations.GetString ("Multiply")] = BlendMode.Multiply,
-			[Translations.GetString ("Color Burn")] = BlendMode.ColorBurn,
-			[Translations.GetString ("Color Dodge")] = BlendMode.ColorDodge,
-			[Translations.GetString ("Overlay")] = BlendMode.Overlay,
-			[Translations.GetString ("Difference")] = BlendMode.Difference,
-			[Translations.GetString ("Lighten")] = BlendMode.Lighten,
-			[Translations.GetString ("Darken")] = BlendMode.Darken,
-			[Translations.GetString ("Screen")] = BlendMode.Screen,
-			[Translations.GetString ("Xor")] = BlendMode.Xor,
-			[Translations.GetString ("Hard Light")] = BlendMode.HardLight,
-			[Translations.GetString ("Soft Light")] = BlendMode.SoftLight,
-			[Translations.GetString ("Color")] = BlendMode.Color,
-			[Translations.GetString ("Luminosity")] = BlendMode.Luminosity,
-			[Translations.GetString ("Hue")] = BlendMode.Hue,
-			[Translations.GetString ("Saturation")] = BlendMode.Saturation,
-		};
-	}
+	// Pinta's other modes still load from .ora files and render, but are not offered.
+	private static readonly (BlendMode Mode, string Name)[] other_blend_modes = [
+		(BlendMode.HardLight, Translations.GetString ("Hard Light")),
+		(BlendMode.SoftLight, Translations.GetString ("Soft Light")),
+		(BlendMode.Color, Translations.GetString ("Color")),
+		(BlendMode.Luminosity, Translations.GetString ("Luminosity")),
+		(BlendMode.Hue, Translations.GetString ("Hue")),
+		(BlendMode.Saturation, Translations.GetString ("Saturation")),
+	];
 
 	private UserBlendOps ()
 	{
 	}
 
+	/// <summary>The blend modes offered to the user: Paint.NET's 14, in its order.</summary>
+	public static IEnumerable<BlendMode> GetAllBlendModes ()
+		=> pdn_blend_modes.Select (p => p.Mode);
+
 	public static IEnumerable<string> GetAllBlendModeNames ()
-	{
-		return blend_modes.Keys;
-	}
+		=> pdn_blend_modes.Select (p => p.Name);
 
 	public static BlendMode GetBlendModeByName (string name)
-	{
-		return blend_modes[name];
-	}
+		=> pdn_blend_modes.Concat (other_blend_modes).First (p => p.Name == name).Mode;
 
 	public static string GetBlendModeName (BlendMode mode)
-	{
-		return blend_modes.Where (p => p.Value == mode).First ().Key;
-	}
+		=> pdn_blend_modes.Concat (other_blend_modes).First (p => p.Mode == mode).Name;
+
+	/// <summary>
+	/// The pixel op for the Paint.NET modes that Cairo has no operator for, or null for the others.
+	/// </summary>
+	public static UserBlendOp? GetSoftwareBlendOp (BlendMode mode)
+		=> mode switch {
+			BlendMode.Additive => new AdditiveBlendOp (),
+			BlendMode.Reflect => new ReflectBlendOp (),
+			BlendMode.Glow => new GlowBlendOp (),
+			BlendMode.Negation => new NegationBlendOp (),
+			_ => null,
+		};
 }

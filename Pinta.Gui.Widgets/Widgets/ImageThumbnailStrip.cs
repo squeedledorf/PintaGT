@@ -608,8 +608,7 @@ public sealed partial class ImageThumbnailStrip
 				g.Transform (layer.Transform);
 				using SurfacePattern pattern = new (layer.Surface) { Filter = Filter.Good };
 				g.SetSource (pattern);
-				g.SetBlendMode (layer.BlendMode);
-				g.PaintWithAlpha (layer.Opacity);
+				g.PaintWithBlendMode (layer.BlendMode, layer.Opacity);
 				g.Restore ();
 			}
 

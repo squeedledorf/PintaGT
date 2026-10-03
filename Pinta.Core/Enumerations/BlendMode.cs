@@ -43,5 +43,10 @@ public enum BlendMode
 	Color,
 	Luminosity,
 	Hue,
-	Saturation
+	Saturation,
+	// Paint.NET modes that Cairo has no operator for; they are blended in software.
+	Additive,
+	Reflect,
+	Glow,
+	Negation,
 }
