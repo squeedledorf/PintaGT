@@ -34,16 +34,53 @@ public sealed class EffectsActions
 	public Dictionary<string, Gio.Menu> Menus { get; } = [];
 	public Collection<Command> Actions { get; } = [];
 
+	/// <summary>
+	/// Re-applies the last applied effect with its last settings, without showing its dialog.
+	/// </summary>
+	public Command RepeatEffect { get; }
+
 	private readonly ChromeManager chrome;
+
+	// The Effects menu has a section holding the Repeat item, followed by a section with the categories.
+	private Gio.Menu? repeat_section;
+	private Gio.Menu? categories_section;
+	private bool has_repeatable_effect;
+
 	public EffectsActions (ChromeManager chrome)
 	{
 		this.chrome = chrome;
+
+		RepeatEffect = new Command (
+			"repeateffect",
+			Translations.GetString ("Repeat"),
+			null,
+			null,
+			shortcuts: ["<Primary>F"]) {
+			Sensitive = false,
+		};
 	}
 
 	#region Initialization
+	private Gio.Menu GetCategoriesSection ()
+	{
+		if (categories_section is not null)
+			return categories_section;
+
+		chrome.Application.AddCommand (RepeatEffect);
+
+		repeat_section = Gio.Menu.New ();
+		repeat_section.AppendItem (RepeatEffect.CreateMenuItem ());
+		chrome.EffectsMenu.AppendSection (null, repeat_section);
+
+		categories_section = Gio.Menu.New ();
+		chrome.EffectsMenu.AppendSection (null, categories_section);
+
+		return categories_section;
+	}
+
 	public void AddEffect (string category, Command action)
 	{
-		var effects_menu = chrome.EffectsMenu;
+		var effects_menu = GetCategoriesSection ();
 
 		if (!Menus.ContainsKey (category)) {
 			var category_menu = Gio.Menu.New ();
@@ -73,6 +110,26 @@ public sealed class EffectsActions
 	{
 		foreach (Command a in Actions)
 			a.Sensitive = sensitive;
+
+		RepeatEffect.Sensitive = sensitive && has_repeatable_effect;
+	}
+
+	/// <summary>
+	/// Updates the Repeat menu item to name the last applied effect, and enables it.
+	/// </summary>
+	public void SetRepeatableEffect (string effectName)
+	{
+		has_repeatable_effect = true;
+		RepeatEffect.Sensitive = true;
+
+		if (repeat_section is null)
+			return;
+
+		// Menu items are immutable once added, so replace the item to change its label.
+		repeat_section.RemoveAll ();
+		repeat_section.AppendItem (Gio.MenuItem.New (
+			Translations.GetString ("Repeat {0}", effectName),
+			RepeatEffect.FullName));
 	}
 	#endregion
 }

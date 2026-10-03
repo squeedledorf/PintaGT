@@ -30,6 +30,7 @@
 
 using System;
 using System.ComponentModel;
+using System.Reflection;
 using System.Threading.Tasks;
 using Cairo;
 using Debug = System.Diagnostics.Debug;
@@ -68,7 +69,11 @@ public sealed class LivePreviewManager : ILivePreview
 	public RectangleI RenderBounds { get; private set; }
 	public bool IsEnabled { get; private set; }
 
-	public async void Start (BaseEffect effect)
+	/// <summary>
+	/// Runs the effect with a live preview, showing its configuration dialog unless skipDialog is set.
+	/// Returns true if the effect was applied to the image.
+	/// </summary>
+	public async Task<bool> Start (BaseEffect effect, bool skipDialog = false)
 	{
 		if (IsEnabled)
 			throw new InvalidOperationException ("LivePreviewManager.Start() called while live preview is already enabled.");
@@ -122,6 +127,9 @@ public sealed class LivePreviewManager : ILivePreview
 		bool renderAlive = true;
 		bool userCanceled = false;
 
+		// Snapshot the settings so a cancelled dialog does not leave its values behind.
+		EffectData? settingsSnapshot = effect.EffectData?.Clone ();
+
 		try {
 			// Paint the pre-effect layer surface into into the working surface.
 			using Context ctx = new (LivePreviewSurface);
@@ -144,7 +152,7 @@ public sealed class LivePreviewManager : ILivePreview
 				}
 			);
 
-			bool userConfirmed = !effect.IsConfigurable || await effect.LaunchConfiguration ();
+			bool userConfirmed = skipDialog || !effect.IsConfigurable || await effect.LaunchConfiguration ();
 
 			// Dialog closed, so configuration is final. Unsubscribing...
 			if (effect.EffectData != null)
@@ -154,14 +162,29 @@ public sealed class LivePreviewManager : ILivePreview
 
 			if (!userConfirmed) {
 				Debug.WriteLine ("User decided not to proceed with the render");
+				if (effect.EffectData is not null && settingsSnapshot is not null)
+					CopyEffectData (settingsSnapshot, effect.EffectData);
 				await session.StopAsync ();
-				return;
+				return false;
 			}
 
 			// The user confirmed, so show progress dialog
 			Debug.WriteLine (DateTime.Now.ToString ("HH:mm:ss:ffff") + "LivePreviewManager.Apply()");
 
-			dialog.Show ();
+			// Only show the progress dialog for renders that take a noticeable time.
+			const uint PROGRESS_DIALOG_DELAY_MILLISECONDS = 500;
+			bool dialogShown = false;
+			using GLibTimer progressDelay = GLib.Functions.TimeoutAdd (
+				0,
+				PROGRESS_DIALOG_DELAY_MILLISECONDS,
+				() => {
+					if (!dialogShown) {
+						dialogShown = true;
+						dialog.Show ();
+					}
+					return true; // Removed on dispose, which must not happen after the source is gone.
+				}
+			);
 
 			CompletionInfo result = await session.WaitForCompletionAsync ();
 
@@ -173,7 +196,7 @@ public sealed class LivePreviewManager : ILivePreview
 
 			if (userCanceled) {
 				Debug.WriteLine ("*User* decided to cancel the render");
-				return;
+				return false;
 			}
 
 			Debug.WriteLine ("Render completed without the user canceling");
@@ -187,6 +210,8 @@ public sealed class LivePreviewManager : ILivePreview
 			context.Restore ();
 
 			workspace.ActiveDocument.History.PushNewItem (historyItem);
+
+			return true;
 
 		} finally {
 
@@ -266,6 +291,19 @@ public sealed class LivePreviewManager : ILivePreview
 			// Tell GTK to expose the drawing area.
 			workspace.ActiveWorkspace.InvalidateWindowRect (areaToInvalidate);
 		}
+	}
+
+	/// <summary>
+	/// Copies every field of the source settings into the target, keeping the target instance
+	/// (which dialogs and effects hold references to) while restoring its values.
+	/// </summary>
+	private static void CopyEffectData (EffectData source, EffectData target)
+	{
+		const BindingFlags FIELDS = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+
+		for (Type? type = target.GetType (); type is not null && type != typeof (EffectData); type = type.BaseType)
+			foreach (FieldInfo field in type.GetFields (FIELDS))
+				field.SetValue (target, field.GetValue (source));
 	}
 
 	private sealed class RenderSession
