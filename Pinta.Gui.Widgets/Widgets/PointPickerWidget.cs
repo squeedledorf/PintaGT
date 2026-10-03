@@ -97,7 +97,7 @@ public sealed partial class PointPickerWidget
 			spacedHorizontal,
 			[
 				xLabel,
-				spinX,
+				spinX.WithStackedStepButtons (),
 				buttonResetX,
 			]);
 
@@ -105,7 +105,7 @@ public sealed partial class PointPickerWidget
 			spacedHorizontal,
 			[
 				yLabel,
-				spinY,
+				spinY.WithStackedStepButtons (),
 				buttonResetY,
 			]);
 
@@ -171,11 +171,7 @@ public sealed partial class PointPickerWidget
 
 	private static Gtk.Button CreateResetButton ()
 	{
-		Gtk.Button button = Gtk.Button.NewFromIconName (Resources.StandardIcons.GoPrevious);
-		button.WidthRequest = 28;
-		button.HeightRequest = 24;
-		button.CanFocus = true;
-		button.UseUnderline = true;
+		Gtk.Button button = GtkExtensions.CreateResetButton ();
 		button.Valign = Gtk.Align.Start;
 		return button;
 	}

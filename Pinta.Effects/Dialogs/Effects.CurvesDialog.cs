@@ -155,6 +155,7 @@ public sealed partial class CurvesDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		// Paint.NET puts Reset at the left end of the OK / Cancel row. It is a plain button, not a response.
 		Gtk.Box actionArea = (Gtk.Box) GetWidgetForResponse ((int) Gtk.ResponseType.Ok)!.GetParent ()!;

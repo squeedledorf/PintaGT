@@ -96,7 +96,7 @@ public sealed partial class ResizeImageDialog
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
 		OnResponse += OnDialogResponse;
-		ImageSizeFields.PressOkOnEnter (this);
+		this.PressOkOnEnter ();
 
 		Gtk.Box contentArea = this.GetContentAreaBox ();
 		contentArea.SetAllMargins (12);

@@ -60,7 +60,7 @@ public sealed partial class NewImageDialog
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
 
-		ImageSizeFields.PressOkOnEnter (this);
+		this.PressOkOnEnter ();
 
 		// --- References to keep
 		size_area = sizeArea;

@@ -93,17 +93,17 @@ public sealed partial class CanvasGridSettingsDialog
 		grid.Attach (showGridCheckBox, 0, 0, 2, 1);
 
 		grid.Attach (CreateLabel (Translations.GetString ("Width:"), Gtk.Align.End), 0, 1, 1, 1);
-		grid.Attach (widthSpinner, 1, 1, 1, 1);
+		grid.Attach (widthSpinner.WithStackedStepButtons (), 1, 1, 1, 1);
 		grid.Attach (Gtk.Label.New (Translations.GetString ("pixels")), 2, 1, 1, 1);
 
 		grid.Attach (CreateLabel (Translations.GetString ("Height:"), Gtk.Align.End), 0, 2, 1, 1);
-		grid.Attach (heightSpinner, 1, 2, 1, 1);
+		grid.Attach (heightSpinner.WithStackedStepButtons (), 1, 2, 1, 1);
 		grid.Attach (Gtk.Label.New (Translations.GetString ("pixels")), 2, 2, 1, 1);
 
 		grid.Attach (showAxonometricGridCheckBox, 0, 3, 2, 1);
 
 		grid.Attach (CreateLabel (Translations.GetString ("Width:"), Gtk.Align.End), 0, 4, 1, 1);
-		grid.Attach (axonometricWidthSpinner, 1, 4, 1, 1);
+		grid.Attach (axonometricWidthSpinner.WithStackedStepButtons (), 1, 4, 1, 1);
 		grid.Attach (Gtk.Label.New (Translations.GetString ("pixels")), 2, 4, 1, 1);
 
 		grid.Attach (axonometricAnglePicker, 0, 5, 3, 1);
@@ -127,6 +127,7 @@ public sealed partial class CanvasGridSettingsDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		// --- References to keep
 

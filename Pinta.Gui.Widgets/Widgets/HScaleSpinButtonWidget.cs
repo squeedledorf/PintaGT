@@ -76,17 +76,12 @@ public sealed partial class HScaleSpinButtonWidget
 		spinButton.SetActivatesDefault (true);
 		spinButton.AddController (spinButtonKeyController);
 
-		Gtk.Button resetButton = Gtk.Button.NewFromIconName (Resources.StandardIcons.EditUndo);
-		resetButton.TooltipText = Translations.GetString ("Reset");
-		resetButton.WidthRequest = 28;
-		resetButton.HeightRequest = 24;
-		resetButton.CanFocus = true;
-		resetButton.UseUnderline = true;
+		Gtk.Button resetButton = GtkExtensions.CreateResetButton ();
 		resetButton.OnClicked += HandleResetButtonClicked;
 
 		Gtk.Box valueControls = Gtk.Box.New (Gtk.Orientation.Horizontal, SPACING);
 		valueControls.Append (hScale);
-		valueControls.Append (spinButton);
+		valueControls.Append (spinButton.WithStackedStepButtons ());
 		valueControls.Append (resetButton);
 
 		// --- Initialization (Gtk.Box)
@@ -135,6 +130,19 @@ public sealed partial class HScaleSpinButtonWidget
 	/// </summary>
 	public void AddTrackCssClass (string cssClass)
 		=> h_scale.AddCssClass (cssClass);
+
+	/// <summary>
+	/// The value Reset returns to, marked with a tick above the slider as in Paint.NET.
+	/// Set it after the range. Without it, Reset returns to the value the widget opened with.
+	/// </summary>
+	public double DefaultValue {
+		get => initial_value;
+		set {
+			initial_value = value;
+			h_scale.ClearMarks ();
+			h_scale.AddMark (value, Gtk.PositionType.Top, null);
+		}
+	}
 
 	public int MaximumValue {
 		get => max_value;

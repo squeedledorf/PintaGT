@@ -200,10 +200,10 @@ public sealed partial class LevelsDialog
 		Gtk.Box vboxInput = GtkExtensions.Box (
 			verticalSpaced,
 			[
-				spinInHigh,
+				spinInHigh.WithStackedStepButtons (),
 				colorPanelInHigh,
 				colorPanelInLow,
-				spinInLow
+				spinInLow.WithStackedStepButtons ()
 			]
 		);
 
@@ -218,12 +218,12 @@ public sealed partial class LevelsDialog
 		Gtk.Box vboxOutput = GtkExtensions.Box (
 			verticalSpaced,
 			[
-				spinOutHigh,
+				spinOutHigh.WithStackedStepButtons (),
 				colorPanelOutHigh,
-				spinOutGamma,
+				spinOutGamma.WithStackedStepButtons (),
 				colorPanelOutMid,
 				colorPanelOutLow,
-				spinOutLow
+				spinOutLow.WithStackedStepButtons ()
 			]
 		);
 
@@ -282,6 +282,7 @@ public sealed partial class LevelsDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		Gtk.Box hboxLayout = GtkExtensions.Box (
 			horizontalSpaced,

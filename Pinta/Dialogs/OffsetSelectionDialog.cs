@@ -56,10 +56,12 @@ public sealed partial class OffsetSelectionDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		offset_spinbox.Label = Translations.GetString ("Offset");
 		offset_spinbox.MinimumValue = -100;
 		offset_spinbox.MaximumValue = 100;
+		offset_spinbox.DefaultValue = 0;
 
 		Gtk.Box contentArea = this.GetContentAreaBox ();
 		contentArea.WidthRequest = 400;

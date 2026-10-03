@@ -57,17 +57,13 @@ public sealed partial class AnglePickerWidget
 		numericSpin.OnValueChanged += HandleSpinValueChanged;
 		numericSpin.SetActivatesDefaultImmediate (true);
 
-		Gtk.Button resetButton = Gtk.Button.NewFromIconName (Resources.StandardIcons.GoPrevious);
-		resetButton.WidthRequest = 28;
-		resetButton.HeightRequest = 24;
-		resetButton.CanFocus = true;
-		resetButton.UseUnderline = true;
+		Gtk.Button resetButton = GtkExtensions.CreateResetButton ();
 		resetButton.Valign = Gtk.Align.Start;
 		resetButton.OnClicked += HandleButtonClicked;
 
 		Gtk.Box controlsBox = Gtk.Box.New (Gtk.Orientation.Horizontal, SPACING);
 		controlsBox.Append (anglePickerGraphic);
-		controlsBox.Append (numericSpin);
+		controlsBox.Append (numericSpin.WithStackedStepButtons ());
 		controlsBox.Append (resetButton);
 
 		// --- Initialization (Gtk.Box)
