@@ -299,6 +299,7 @@ public sealed partial class ColorPickerDialog
 	{
 		Gtk.Entry hexEntry = Gtk.Entry.New ();
 		hexEntry.MaxWidthChars = 10;
+		hexEntry.ActivatesDefault = true;
 		hexEntry.OnChanged += HexEntry_OnChanged;
 
 		Gtk.Label hexLabel = Gtk.Label.New (Translations.GetString ("Hex"));

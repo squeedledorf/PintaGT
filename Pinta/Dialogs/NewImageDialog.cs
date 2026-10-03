@@ -248,8 +248,11 @@ public sealed partial class NewImageDialog
 		height_entry.Buffer!.Text = initialSize.Height.ToString ();
 
 		width_entry.Buffer!.Text = initialSize.Width.ToString ();
-		width_entry.GrabFocus ();
-		width_entry.SelectRegion (0, (int) width_entry.TextLength);
+		// Select the width once the dialog is up, so typing replaces it (focusing the window clears an earlier selection).
+		OnMap += (_, _) => {
+			width_entry.GrabFocus ();
+			width_entry.SelectRegion (0, -1);
+		};
 
 		has_clipboard = hasClipboard;
 		clipboard_size = initialSize;

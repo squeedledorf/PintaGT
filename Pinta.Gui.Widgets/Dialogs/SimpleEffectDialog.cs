@@ -103,7 +103,28 @@ public sealed partial class SimpleEffectDialog
 		// Keep reference to effect data, so it can be used for handling conditional widgets
 		dialog.effect_data = effectData;
 
+		// Like Paint.NET, start with the first value field focused and selected, so typing replaces it.
+		dialog.OnMap += (_, _) => {
+			if (FindFirstSpinButton (contentAreaBox) is not Gtk.SpinButton spin)
+				return;
+			spin.GrabFocus ();
+			spin.SelectRegion (0, -1);
+		};
+
 		return dialog;
+	}
+
+	private static Gtk.SpinButton? FindFirstSpinButton (Gtk.Widget parent)
+	{
+		for (Gtk.Widget? child = parent.GetFirstChild (); child is not null; child = child.GetNextSibling ()) {
+			if (!child.Visible)
+				continue;
+			if (child is Gtk.SpinButton spin)
+				return spin;
+			if (FindFirstSpinButton (child) is Gtk.SpinButton nested)
+				return nested;
+		}
+		return null;
 	}
 
 	/// <summary>
