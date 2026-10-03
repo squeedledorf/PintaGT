@@ -249,7 +249,9 @@ public sealed class GradientTool : BaseTool
 
 		var gr = CreateGradientRenderer ();
 
-		if (is_reversed) {
+		gr.Reversed = is_reversed;
+
+		if (is_reversed && !gr.AlphaOnly) {
 			gr.StartColor = palette.SecondaryColor.ToColorBgra ();
 			gr.EndColor = palette.PrimaryColor.ToColorBgra ();
 		} else {

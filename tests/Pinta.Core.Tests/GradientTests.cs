@@ -300,4 +300,32 @@ internal sealed class GradientTests
 			}
 		);
 	}
+
+	[TestCase (false)]
+	[TestCase (true)]
+	public void AlphaOnly_Renderer_Reverses_Alpha_Ramp (bool reversed)
+	{
+		// Two opaque colours give a 255 -> 0 ramp in transparency mode; swapping them can't reverse it, Reversed must.
+		using Cairo.ImageSurface surface = CairoExtensions.CreateImageSurface (Cairo.Format.Argb32, 10, 1);
+		surface.GetPixelData ().Fill (ColorBgra.Black);
+		surface.MarkDirty ();
+
+		GradientRenderers.LinearClamped renderer = new (alphaOnly: true, new UserBlendOps.NormalBlendOp ()) {
+			StartColor = ColorBgra.Black,
+			EndColor = ColorBgra.White,
+			StartPoint = new (0, 0),
+			EndPoint = new (9, 0),
+			AlphaBlending = false,
+			Reversed = reversed,
+		};
+		renderer.BeforeRender ();
+		renderer.Render (surface, [new RectangleI (0, 0, 10, 1)]);
+
+		byte first = surface.GetColorBgra (new PointI (0, 0)).A;
+		byte last = surface.GetColorBgra (new PointI (9, 0)).A;
+
+		using var _ = Assert.EnterMultipleScope ();
+		Assert.That (first, Is.EqualTo (reversed ? 0 : 255));
+		Assert.That (last, Is.EqualTo (reversed ? 255 : 0));
+	}
 }

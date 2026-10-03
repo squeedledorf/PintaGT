@@ -141,7 +141,8 @@ public sealed class EraserTool : BaseBrushTool
 		switch (eraser_type) {
 
 			case EraserType.Normal:
-				MaskNormal (stroke_mask, lastPointD, newPointD);
+				// End on the integer point like the start, or a 1 px dab lands on a pixel corner and smears into 4.
+				MaskNormal (stroke_mask, lastPointD, (PointD) newPoint);
 				break;
 
 			case EraserType.Smooth:

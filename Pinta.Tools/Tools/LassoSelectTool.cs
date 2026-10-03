@@ -92,14 +92,12 @@ public sealed class LassoSelectTool : BaseTool
 			document.PreviousSelection = document.Selection.Clone ();
 		}
 
-		if (IsPolygonMode) {
-			PointD p = document.ClampToImageSize (e.PointDouble);
+		// Both modes keep the press point, so a freeform outline starts where the mouse went down.
+		PointD p = document.ClampToImageSize (e.PointDouble);
 
-			lasso_polygon.Add (new IntPoint ((long) p.X, (long) p.Y));
+		lasso_polygon.Add (new IntPoint ((long) p.X, (long) p.Y));
 
-			ApplySelection (document);
-		}
-
+		ApplySelection (document);
 	}
 
 	private void ApplySelection (Document document)

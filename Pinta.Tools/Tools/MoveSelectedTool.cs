@@ -44,14 +44,11 @@ public sealed class MoveSelectedTool : BaseTransformTool
 
 	public override string Name => Translations.GetString ("Move Selected Pixels");
 	public override string Icon => Pinta.Resources.Icons.ToolMove;
-	// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS.
 	public override string StatusBarText => Translations.GetString (
 		"Left click and drag the selection to move selected content." +
-		"\nHold {0} to scale instead of move." +
 		"\nRight click and drag the selection to rotate selected content." +
 		"\nHold Shift to rotate in steps." +
-		"\nUse arrow keys to move selected content by a single pixel.",
-		system_manager.CtrlLabel ());
+		"\nUse arrow keys to move selected content by a single pixel.");
 
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon (Pinta.Resources.Icons.ToolMoveCursor), 0, 0, null);
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_M);
