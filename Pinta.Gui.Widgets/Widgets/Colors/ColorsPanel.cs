@@ -175,6 +175,8 @@ public sealed partial class ColorsPanel
 		// Rebuilt on every open so palettes saved or copied into the folder show up.
 		paletteButton.SetCreatePopupFunc (_ => FillPaletteMenu (paletteMenu));
 		paletteButton.TooltipText = Translations.GetString ("Palettes");
+		paletteButton.Direction = Gtk.ArrowType.Down;
+		PdnMenus.Attach (paletteButton);
 
 		Gtk.Box paletteRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 		add_color.Valign = Gtk.Align.Center;
@@ -236,13 +238,9 @@ public sealed partial class ColorsPanel
 		hex_entry.OnChanged += (_, _) => {
 			if (updating)
 				return;
-			string text = hex_entry.GetText ().TrimStart ('#');
-			if (Color.FromHex (text) is not Color c)
-				return;
 			// The box shows RRGGBB; keep the current opacity unless one was typed.
-			if (text.Length is 3 or 6)
-				c = c with { A = ActiveColor.A };
-			SetSlotColor (true, c, addToRecent: false);
+			if (Color.FromHex (hex_entry.GetText (), ActiveColor.A) is Color c)
+				SetSlotColor (true, c, addToRecent: false);
 		};
 
 		Gtk.CenterBox hexRow = Gtk.CenterBox.New ();
@@ -397,7 +395,8 @@ public sealed partial class ColorsPanel
 			new PaletteColors (palette.PrimaryColor, palette.SecondaryColor),
 			primarySelected,
 			true,
-			Translations.GetString ("Choose Colors"));
+			// Paint.NET titles the dialog after the slot it was opened from.
+			primarySelected ? Translations.GetString ("Primary Color") : Translations.GetString ("Secondary Color"));
 
 		Gtk.ResponseType response = await dialog.RunAsync ();
 		return response == Gtk.ResponseType.Ok ? (PaletteColors) dialog.Colors : null;
@@ -459,11 +458,19 @@ public sealed partial class ColorsPanel
 		if (!isActive)
 			return;
 
-		// The notch: a small white triangle cut into the bottom edge.
+		// The notch: a small white triangle cut into the bottom edge, outlined so it shows on white too.
 		double cx = r.X + r.Width / 2;
 		double bottom = r.Bottom - 1;
 		ReadOnlySpan<PointD> notch = [new (cx - 5, bottom), new (cx, bottom - 6), new (cx + 5, bottom)];
 		g.FillPolygonal (notch, new Color (1, 1, 1));
+		g.Save ();
+		g.SetSourceColor (new Color (0, 0, 0));
+		g.LineWidth = 1;
+		g.MoveTo (notch[0].X, notch[0].Y);
+		g.LineTo (notch[1].X, notch[1].Y);
+		g.LineTo (notch[2].X, notch[2].Y);
+		g.Stroke ();
+		g.Restore ();
 	}
 
 	private static void DrawSwapIcon (Context g)
@@ -541,25 +548,33 @@ public sealed partial class ColorsPanel
 				.Where (f => PintaCore.PaletteFormats.GetFormatByFilename (f) is PaletteDescriptor d && !d.IsWriteOnly ())
 				.Order (StringComparer.CurrentCultureIgnoreCase);
 			foreach (string file in files)
-				palettes.Append (System.IO.Path.GetFileNameWithoutExtension (file), $"colorspanel.load-palette({GLib.Variant.NewString (file).Print (false)})");
+				palettes.AppendItem (MenuItem (System.IO.Path.GetFileNameWithoutExtension (file), $"colorspanel.load-palette({GLib.Variant.NewString (file).Print (false)})", Resources.Icons.WindowColors));
 		}
-		menu.AppendSection (null, palettes);
+		if (palettes.GetNItems () > 0) // An empty section still leaves a gap at the top.
+			menu.AppendSection (null, palettes);
 
 		// Paint.NET's labels and sections; Pinta's Open... and Set Number of Colors go in a last section.
 		EditActions edit = PintaCore.Actions.Edit;
 		Gio.Menu fileCommands = Gio.Menu.New ();
-		fileCommands.Append (Translations.GetString ("Save Current Palette As..."), edit.SavePalette.FullName);
-		fileCommands.Append (Translations.GetString ("Open Palettes Folder"), "colorspanel.open-palettes-folder");
+		fileCommands.AppendItem (MenuItem (Translations.GetString ("Save Current Palette As..."), edit.SavePalette.FullName, Resources.StandardIcons.DocumentSaveAs));
+		fileCommands.AppendItem (MenuItem (Translations.GetString ("Open Palettes Folder"), "colorspanel.open-palettes-folder", Resources.StandardIcons.DocumentOpen));
 		menu.AppendSection (null, fileCommands);
 
 		Gio.Menu reset = Gio.Menu.New ();
-		reset.Append (Translations.GetString ("Reset to Default Palette"), edit.ResetPalette.FullName);
+		reset.AppendItem (MenuItem (Translations.GetString ("Reset to Default Palette"), edit.ResetPalette.FullName, Resources.StandardIcons.EditUndo));
 		menu.AppendSection (null, reset);
 
 		Gio.Menu extras = Gio.Menu.New ();
 		extras.AppendItem (edit.LoadPalette.CreateMenuItem ());
 		extras.AppendItem (edit.ResizePalette.CreateMenuItem ());
 		menu.AppendSection (null, extras);
+	}
+
+	private static Gio.MenuItem MenuItem (string label, string action, string iconName)
+	{
+		Gio.MenuItem item = Gio.MenuItem.New (label, action);
+		item.SetIcon (Gio.ThemedIcon.New (iconName));
+		return item;
 	}
 
 	private void LoadPaletteFile (string path)
