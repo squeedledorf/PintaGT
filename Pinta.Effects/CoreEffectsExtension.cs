@@ -97,6 +97,10 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.RegisterEffect (new VignetteEffect (services));
 		PintaCore.Effects.RegisterEffect (new VoronoiDiagramEffect (services));
 		PintaCore.Effects.RegisterEffect (new ZoomBlurEffect (services));
+		PintaCore.Effects.RegisterEffect (new BokehBlurEffect (services));
+		PintaCore.Effects.RegisterEffect (new SketchBlurEffect (services));
+		PintaCore.Effects.RegisterEffect (new SquareBlurEffect (services));
+		PintaCore.Effects.RegisterEffect (new SurfaceBlurEffect (services));
 	}
 
 	public void Uninitialize ()
@@ -154,6 +158,10 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.UnregisterInstanceOfEffect<VignetteEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfEffect<VoronoiDiagramEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfEffect<ZoomBlurEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<BokehBlurEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<SketchBlurEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<SquareBlurEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<SurfaceBlurEffect> ();
 	}
 	#endregion
 }

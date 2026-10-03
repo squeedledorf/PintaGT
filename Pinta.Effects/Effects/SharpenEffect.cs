@@ -42,14 +42,24 @@ public sealed class SharpenEffect : BaseEffect
 
 	protected override void Render (ImageSurface source, ImageSurface destination, RectangleI roi)
 	{
+		// Threshold is a percentage of the channel range.
+		int threshold = (int) Math.Round (Data.Threshold * 255 / 100);
 		LocalHistogram.RenderRect (Apply, Data.Amount, source, destination, roi);
+
+		ColorBgra Apply (ColorBgra src, int area, Span<int> hb, Span<int> hg, Span<int> hr, Span<int> ha)
+		{
+			ColorBgra median = LocalHistogram.GetPercentile (50, area, hb, hg, hr, ha);
+			return IsBelowThreshold (src, median, threshold) ? src : ColorBgra.Lerp (src, median, -0.5f);
+		}
 	}
 
-	private static ColorBgra Apply (ColorBgra src, int area, Span<int> hb, Span<int> hg, Span<int> hr, Span<int> ha)
-	{
-		ColorBgra median = LocalHistogram.GetPercentile (50, area, hb, hg, hr, ha);
-		return ColorBgra.Lerp (src, median, -0.5f);
-	}
+	/// <summary>Pixels whose largest channel difference from the local median is within the threshold stay as they are.</summary>
+	public static bool IsBelowThreshold (ColorBgra src, ColorBgra median, int threshold)
+		=> threshold > 0
+		&& Math.Abs (src.B - median.B) <= threshold
+		&& Math.Abs (src.G - median.G) <= threshold
+		&& Math.Abs (src.R - median.R) <= threshold
+		&& Math.Abs (src.A - median.A) <= threshold;
 }
 
 public sealed class SharpenData : EffectData
@@ -57,5 +67,9 @@ public sealed class SharpenData : EffectData
 	[Caption ("Amount")]
 	[MinimumValue (1), MaximumValue (20)]
 	public int Amount { get; set; } = 2;
+
+	[Caption ("Threshold")]
+	[MinimumValue (0), MaximumValue (100)]
+	public double Threshold { get; set; } = 0;
 }
 

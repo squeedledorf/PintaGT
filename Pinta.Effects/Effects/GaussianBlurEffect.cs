@@ -58,6 +58,17 @@ public sealed class GaussianBlurEffect : BaseEffect
 		return weights.MoveToImmutable ();
 	}
 
+	/// <summary>
+	/// Below the top quality, only source pixels on a coarser grid (every n-th row and column)
+	/// are sampled: faster, and the result is a smooth but less detailed blur, like blurring a
+	/// downscaled copy. The grid is fixed to the image rather than to the kernel, so it cannot
+	/// show up as a repeating pattern. At least four grid steps fit in the radius.
+	/// </summary>
+	public static int QualityStride (int radius, int quality)
+		=> Math.Max (1, Math.Min (MaxQuality + 1 - quality, radius / 4));
+
+	public const int MaxQuality = 4;
+
 	public override void Render (ImageSurface src, ImageSurface dest, ReadOnlySpan<RectangleI> rois)
 	{
 		if (Data.Radius == 0)
@@ -65,14 +76,21 @@ public sealed class GaussianBlurEffect : BaseEffect
 
 		int r = Data.Radius;
 		ImmutableArray<int> w = CreateGaussianBlurRow (r);
+		int stride = QualityStride (r, Data.Quality);
 		int wlen = w.Length;
+		GammaBoost gamma = new (Data.GammaBoost);
+
+		// Without a boost, truncate exactly like the original integer code did,
+		// since Glow, Pencil Sketch and Soften Portrait build on this output.
+		byte ToChannel (double value)
+			=> gamma.IsIdentity ? (byte) Math.Clamp ((long) value, 0, 255) : gamma.Inverse (value);
 
 		Span<long> waSums = stackalloc long[wlen];
 		Span<long> wcSums = stackalloc long[wlen];
 		Span<long> aSums = stackalloc long[wlen];
-		Span<long> bSums = stackalloc long[wlen];
-		Span<long> gSums = stackalloc long[wlen];
-		Span<long> rSums = stackalloc long[wlen];
+		Span<double> bSums = stackalloc double[wlen];
+		Span<double> gSums = stackalloc double[wlen];
+		Span<double> rSums = stackalloc double[wlen];
 
 		// Cache these for a massive performance boost
 		int src_width = src.Width;
@@ -89,9 +107,9 @@ public sealed class GaussianBlurEffect : BaseEffect
 				long waSum = 0;
 				long wcSum = 0;
 				long aSum = 0;
-				long bSum = 0;
-				long gSum = 0;
-				long rSum = 0;
+				double bSum = 0;
+				double gSum = 0;
+				double rSum = 0;
 
 				var dst_row = dst_data.Slice (y * src_width, src_width);
 
@@ -104,13 +122,13 @@ public sealed class GaussianBlurEffect : BaseEffect
 					gSums[wx] = 0;
 					rSums[wx] = 0;
 
-					if (srcX < 0 || srcX >= src_width)
+					if (srcX < 0 || srcX >= src_width || srcX % stride != 0)
 						continue;
 
 					for (int wy = 0; wy < wlen; ++wy) {
 						int srcY = y + wy - r;
 
-						if (srcY < 0 || srcY >= src_height)
+						if (srcY < 0 || srcY >= src_height || srcY % stride != 0)
 							continue;
 
 						PointI pixelPosition = new (srcX, srcY);
@@ -125,9 +143,9 @@ public sealed class GaussianBlurEffect : BaseEffect
 
 						if (c.A > 0) {
 							aSums[wx] += wp * c.A;
-							bSums[wx] += wp * c.B;
-							gSums[wx] += wp * c.G;
-							rSums[wx] += wp * c.R;
+							bSums[wx] += wp * gamma[c.B];
+							gSums[wx] += wp * gamma[c.G];
+							rSums[wx] += wp * gamma[c.R];
 						}
 					}
 
@@ -146,9 +164,9 @@ public sealed class GaussianBlurEffect : BaseEffect
 					dst_row[rect.Left] = ColorBgra.Zero;
 				} else {
 					byte alpha = (byte) (aSum / waSum);
-					byte blue = (byte) (bSum / wcSum);
-					byte green = (byte) (gSum / wcSum);
-					byte red = (byte) (rSum / wcSum);
+					byte blue = ToChannel (bSum / wcSum);
+					byte green = ToChannel (gSum / wcSum);
+					byte red = ToChannel (rSum / wcSum);
 
 					dst_row[rect.Left] = ColorBgra.FromBgra (blue, green, red, alpha).ToPremultipliedAlpha ();
 				}
@@ -192,11 +210,11 @@ public sealed class GaussianBlurEffect : BaseEffect
 
 					int srcX = x + wx - r;
 
-					if (srcX >= 0 && srcX < src_width) {
+					if (srcX >= 0 && srcX < src_width && srcX % stride == 0) {
 						for (int wy = 0; wy < wlen; ++wy) {
 							int srcY = y + wy - r;
 
-							if (srcY < 0 || srcY >= src_height)
+							if (srcY < 0 || srcY >= src_height || srcY % stride != 0)
 								continue;
 
 							ColorBgra c = src.GetColorBgra (src_data, src_width, new (srcX, srcY)).ToStraightAlpha ();
@@ -209,9 +227,9 @@ public sealed class GaussianBlurEffect : BaseEffect
 
 							if (c.A > 0) {
 								aSums[wx] += wp * (long) c.A;
-								bSums[wx] += wp * (long) c.B;
-								gSums[wx] += wp * (long) c.G;
-								rSums[wx] += wp * (long) c.R;
+								bSums[wx] += wp * gamma[c.B];
+								gSums[wx] += wp * gamma[c.G];
+								rSums[wx] += wp * gamma[c.R];
 							}
 						}
 
@@ -230,9 +248,9 @@ public sealed class GaussianBlurEffect : BaseEffect
 						dst_row[x] = ColorBgra.Zero;
 					} else {
 						byte alpha = (byte) (aSum / waSum);
-						byte blue = (byte) (bSum / wcSum);
-						byte green = (byte) (gSum / wcSum);
-						byte red = (byte) (rSum / wcSum);
+						byte blue = ToChannel (bSum / wcSum);
+						byte green = ToChannel (gSum / wcSum);
+						byte red = ToChannel (rSum / wcSum);
 
 						dst_row[x] = ColorBgra.FromBgra (blue, green, red, alpha).ToPremultipliedAlpha ();
 					}
@@ -247,6 +265,14 @@ public sealed class GaussianBlurEffect : BaseEffect
 		[Caption ("Radius")]
 		[MinimumValue (0), MaximumValue (200)]
 		public int Radius { get; set; } = 2;
+
+		[Caption ("Gamma Boost")]
+		[MinimumValue ((int) Effects.GammaBoost.Min), MaximumValue ((int) Effects.GammaBoost.Max)]
+		public double GammaBoost { get; set; } = 0;
+
+		[Caption ("Quality")]
+		[MinimumValue (1), MaximumValue (MaxQuality)]
+		public int Quality { get; set; } = MaxQuality;
 
 		[Skip]
 		public override bool IsDefault => Radius == 0;
