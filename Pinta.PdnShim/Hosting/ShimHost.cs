@@ -28,6 +28,9 @@ public static class ShimHost
 	/// <summary>The current palette, as straight-alpha BGRA.</summary>
 	public static Func<IReadOnlyList<ColorBgra>> CurrentPalette { get; set; }
 
+	/// <summary>The image on the clipboard, if any (straight-alpha BGRA).</summary>
+	public static Func<DecodedImage> ClipboardImage { get; set; }
+
 	/// <summary>Opens a URL in the browser.</summary>
 	public static Action<string> LaunchUrl { get; set; }
 

@@ -23,6 +23,12 @@ internal sealed class PdnPluginsExtension : IExtension
 		ShimHost.EncodePng = EncodePng;
 		ShimHost.UserDataDirectory = PintaCore.Settings.GetUserSettingsDirectory ();
 
+		// Plugins read the clipboard from render threads, so keep a copy of the current image.
+		Gdk.Clipboard clipboard = GdkExtensions.GetDefaultClipboard ();
+		clipboard.OnChanged += (_, _) => RefreshClipboard (clipboard);
+		RefreshClipboard (clipboard);
+		ShimHost.ClipboardImage = () => clipboard_image;
+
 		list_command = new Command ("PdnPlugins", Translations.GetString ("Paint.NET Plugins..."), null, Resources.Icons.AddinsManage);
 		list_command.Activated += (_, _) => PluginListDialog.Show ();
 		PintaCore.Chrome.Application.AddCommand (list_command);
@@ -37,23 +43,45 @@ internal sealed class PdnPluginsExtension : IExtension
 
 	public void Uninitialize () => PluginHost.UnregisterAll ();
 
+	private static volatile DecodedImage? clipboard_image;
+
+	private static async void RefreshClipboard (Gdk.Clipboard clipboard)
+	{
+		try {
+			using Gdk.Texture? texture = await clipboard.ReadTextureAsync ();
+			if (texture is null) {
+				clipboard_image = null;
+				return;
+			}
+			using Cairo.ImageSurface surface = texture.ToSurface ();
+			clipboard_image = ToDecoded (surface);
+		} catch (Exception) {
+			clipboard_image = null;
+		}
+	}
+
 	private static DecodedImage? Decode (byte[] bytes)
 	{
 		try {
 			using GLib.Bytes glibBytes = GLib.Bytes.New (bytes);
 			using Gdk.Texture texture = Gdk.Texture.NewFromBytes (glibBytes);
 			using Cairo.ImageSurface surface = texture.ToSurface ();
-			int w = surface.Width, h = surface.Height;
-			byte[] bgra = new byte[w * h * 4];
-			ReadOnlySpan<byte> data = surface.GetData ();
-			for (int y = 0; y < h; y++)
-				PixelConvert.ToStraight (
-					MemoryMarshal.Cast<byte, uint> (data.Slice (y * surface.Stride, w * 4)),
-					MemoryMarshal.Cast<byte, uint> (bgra.AsSpan (y * w * 4, w * 4)));
-			return new DecodedImage (w, h, bgra);
+			return ToDecoded (surface);
 		} catch (Exception) {
 			return null;
 		}
+	}
+
+	private static DecodedImage ToDecoded (Cairo.ImageSurface surface)
+	{
+		int w = surface.Width, h = surface.Height;
+		byte[] bgra = new byte[w * h * 4];
+		ReadOnlySpan<byte> data = surface.GetData ();
+		for (int y = 0; y < h; y++)
+			PixelConvert.ToStraight (
+				MemoryMarshal.Cast<byte, uint> (data.Slice (y * surface.Stride, w * 4)),
+				MemoryMarshal.Cast<byte, uint> (bgra.AsSpan (y * w * 4, w * 4)));
+		return new DecodedImage (w, h, bgra);
 	}
 
 	private static byte[] EncodePng (DecodedImage image)

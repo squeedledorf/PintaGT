@@ -40,6 +40,8 @@ public sealed unsafe class MemoryBlock : IDisposable
 		NativeMemory.Clear ((void*) Pointer, (nuint) bytes);
 		Length = bytes;
 		owned = true;
+		// Surfaces are often left to the finalizer (plugins rarely dispose them); let the GC see their size.
+		if (bytes > 0) GC.AddMemoryPressure (bytes);
 	}
 
 	public MemoryBlock (MemoryBlock parentBlock, long offset, long length)
@@ -82,7 +84,10 @@ public sealed unsafe class MemoryBlock : IDisposable
 	{
 		if (IsDisposed) return;
 		IsDisposed = true;
-		if (owned) NativeMemory.AlignedFree ((void*) Pointer);
+		if (owned) {
+			NativeMemory.AlignedFree ((void*) Pointer);
+			if (Length > 0) GC.RemoveMemoryPressure (Length);
+		}
 		Pointer = 0;
 		GC.SuppressFinalize (this);
 	}

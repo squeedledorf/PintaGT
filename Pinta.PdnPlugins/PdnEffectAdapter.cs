@@ -93,11 +93,18 @@ internal sealed class PdnEffectAdapter : BaseEffect
 
 	public override BaseEffect Clone ()
 	{
-		PdnEffectAdapter clone = (PdnEffectAdapter) base.Clone ();
 		RenderEnvironment env = RenderEnvironment.Capture ();
-		clone.session = new RenderSession (clone.Info, clone.Data.Token ?? DefaultToken (env), env);
+		// Remember the defaults like a used token, so later renders (and Repeat) skip building them again.
+		Data.Token ??= DefaultToken (env);
+		PdnEffectAdapter clone = (PdnEffectAdapter) base.Clone ();
+		clone.session = new RenderSession (clone.Info, clone.Data.Token, env);
+		// A new render replaces the previous one (live preview restarts): let plugins that poll IsCancelRequested stop.
+		latest_session?.Cancel ();
+		latest_session = clone.session;
 		return clone;
 	}
+
+	private RenderSession? latest_session;
 
 	private EffectConfigToken? DefaultToken (RenderEnvironment env)
 	{
@@ -199,7 +206,7 @@ internal sealed class RenderSession
 	private Exception? init_error;
 	private volatile bool first_tile_done;
 
-	private object effect = null!;
+	private volatile object? effect;
 	private bool single_threaded;
 	private bool first_tile_barrier;
 	private Surface dst_surface = null!;
@@ -213,8 +220,27 @@ internal sealed class RenderSession
 		this.env = env;
 	}
 
+	private volatile bool cancelled;
+
+	/// <summary>Called on the UI thread; never waits for the plugin.</summary>
+	public void Cancel ()
+	{
+		cancelled = true;
+		Signal (effect);
+	}
+
+	private static void Signal (object? instance)
+	{
+		switch (instance) {
+			case Effect classic: classic.SignalCancelRequest (); break;
+			case BitmapEffect bitmap: bitmap.SignalCancel (); break;
+		}
+	}
+
 	public void Render (Cairo.ImageSurface src, Cairo.ImageSurface dst, Rectangle tile)
 	{
+		if (cancelled)
+			return;
 		EnsureInitialized (src);
 
 		Rectangle[] rois = RoiUtil.Clip (tile, env.SelectionScans);
@@ -276,6 +302,8 @@ internal sealed class RenderSession
 		dst_args = new RenderArgs (dst_surface);
 
 		effect = info.CreateInstance (env, src_surface);
+		if (cancelled)
+			Signal (effect);
 		switch (effect) {
 			case Effect classic:
 				EffectFlags flags = classic.Options.Flags;
@@ -298,7 +326,7 @@ internal sealed class RenderSession
 			classic.Render (token, dst_args, src_args, rois, 0, rois.Length);
 			return;
 		}
-		BitmapEffect bitmap = (BitmapEffect) effect;
+		BitmapEffect bitmap = (BitmapEffect) effect!;
 		foreach (Rectangle roi in rois)
 			bitmap.Render (dst_surface, roi);
 	}
@@ -318,7 +346,7 @@ internal sealed class RenderSession
 }
 
 /// <summary>The services plugins look up through Effect.Services.</summary>
-internal sealed class PdnServices : IServiceProvider, PaintDotNet.AppModel.IShellService, PaintDotNet.AppModel.IPalettesService, PaintDotNet.AppModel.IAppInfoService, PaintDotNet.AppModel.IEnumLocalizerFactory
+internal sealed class PdnServices : IServiceProvider, PaintDotNet.AppModel.IShellService, PaintDotNet.AppModel.IPalettesService, PaintDotNet.AppModel.IAppInfoService, PaintDotNet.AppModel.IEnumLocalizerFactory, PaintDotNet.AppModel.IClipboardService
 {
 	public static PdnServices Instance { get; } = new ();
 

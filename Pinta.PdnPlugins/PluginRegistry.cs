@@ -29,8 +29,6 @@ internal static class PluginRegistry
 	private static readonly List<PluginReport> reports = [];
 	private static readonly object sync = new ();
 
-	public static event EventHandler? Changed;
-
 	public static IReadOnlyList<PluginReport> Reports {
 		get { lock (sync) return reports.ToArray (); }
 	}
@@ -40,7 +38,6 @@ internal static class PluginRegistry
 		lock (sync)
 			reports.Add (report);
 		Console.Error.WriteLine ($"Paint.NET plugin {report.Status}: {System.IO.Path.GetFileName (report.File)} {report.TypeName} {report.Message}".TrimEnd ());
-		Changed?.Invoke (null, EventArgs.Empty);
 	}
 
 	/// <summary>Records an exception thrown by a plugin while it was running (first one per plugin per minute is enough).</summary>
