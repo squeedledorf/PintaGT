@@ -236,7 +236,7 @@ public sealed partial class ColorsPanel
 			if (Color.FromHex (text) is not Color c)
 				return;
 			// The box shows RRGGBB; keep the current opacity unless one was typed.
-			if (text.Length <= 6)
+			if (text.Length is 3 or 6)
 				c = c with { A = ActiveColor.A };
 			SetSlotColor (true, c, addToRecent: false);
 		};
@@ -467,8 +467,6 @@ public sealed partial class ColorsPanel
 		double bottom = r.Bottom - 1;
 		ReadOnlySpan<PointD> notch = [new (cx - 5, bottom), new (cx, bottom - 6), new (cx + 5, bottom)];
 		g.FillPolygonal (notch, new Color (1, 1, 1));
-		g.LineWidth = 1;
-		g.DrawPolygonal (notch, new Color (0, 0, 0), LineCap.Butt);
 	}
 
 	private static void DrawSwapIcon (Context g)
