@@ -56,6 +56,9 @@ public class GdkPixbufFormat : IImageImporter, IImageExporter
 			file,
 			filetype);
 
+		if (ReadDpi (file) is double dpi)
+			newDocument.Dpi = dpi;
+
 		Layer layer = newDocument.Layers.AddNewLayer (Translations.GetString ("Background"));
 
 		using Context g = new (layer.Surface);
@@ -76,18 +79,50 @@ public class GdkPixbufFormat : IImageImporter, IImageExporter
 		}
 	}
 
+	/// <summary>
+	/// The resolution stored in a PNG or JPEG header, which gdk-pixbuf does not report.
+	/// </summary>
+	private static double? ReadDpi (Gio.File file)
+	{
+		try {
+			using GioStream stream = new (file.Read (cancellable: null));
+			byte[] header = new byte[64 * 1024];
+			int length = stream.ReadAtLeast (header, header.Length, throwOnEndOfStream: false);
+			return ImageDpi.Read (header.AsSpan (0, length));
+		} catch (GLib.GException) {
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Writes the flattened image. Formats with a Save Configuration dialog override this.
+	/// </summary>
 	protected virtual void DoSave (
-		Pixbuf pb,
+		ImageSurface flattenedImage,
+		Document document,
 		Gio.File file,
-		string fileType,
 		Gtk.Window parent)
 	{
+		// Note that some pixbuf formats will throw an error when saving an RGBA pixbuf
+		// if the image format doesn't actually store alpha
+		// (e.g. glycin does this for JPEG - bug #1774)
+		using Pixbuf pb = flattenedImage.ToPixbuf (includeAlpha: supports_alpha);
 		using Gio.OutputStream stream = file.Replace ();
 		try {
-			pb.SaveToStreamv (stream, fileType,
+			pb.SaveToStreamv (stream, filetype,
 					optionKeys: [],
 					optionValues: [],
 					cancellable: null);
+		} finally {
+			stream.Close (null);
+		}
+	}
+
+	protected static void WriteFile (Gio.File file, byte[] data)
+	{
+		using Gio.OutputStream stream = file.Replace ();
+		try {
+			stream.WriteAll (data, out _, cancellable: null);
 		} finally {
 			stream.Close (null);
 		}
@@ -99,10 +134,6 @@ public class GdkPixbufFormat : IImageImporter, IImageExporter
 		Gtk.Window parent)
 	{
 		using ImageSurface flattenedImage = document.GetFlattenedImage ();
-		// Note that some pixbuf formats will throw an error when saving an RGBA pixbuf
-		// if the image format doesn't actually store alpha
-		// (e.g. glycin does this for JPEG - bug #1774)
-		using Pixbuf pb = flattenedImage.ToPixbuf (includeAlpha: supports_alpha);
-		DoSave (pb, file, filetype, parent);
+		DoSave (flattenedImage, document, file, parent);
 	}
 }

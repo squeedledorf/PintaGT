@@ -5,6 +5,9 @@ public static class SettingNames
 	internal const string DEFAULT_IMAGE_TYPE = "default-image-type";
 
 	internal const string JPG_QUALITY = "jpg-quality";
+	internal const string PNG_BIT_DEPTH = "png-bit-depth";
+	internal const string PNG_DITHERING_LEVEL = "png-dithering-level";
+	internal const string PNG_TRANSPARENCY_THRESHOLD = "png-transparency-threshold";
 
 	internal const string SELECTION_COMBINE_MODE = "selection-combine-mode";
 

@@ -1,5 +1,5 @@
 //
-// ModifyCompressionAction.cs
+// SaveConfigurationAction.cs
 //
 // Author:
 //       Jonathan Pobst <monkey@jpobst.com>
@@ -28,33 +28,28 @@ using Pinta.Core;
 
 namespace Pinta.Actions;
 
-internal sealed class ModifyCompressionAction : IActionHandler
+internal sealed class SaveConfigurationAction : IActionHandler
 {
 	private readonly FileActions file;
-	internal ModifyCompressionAction (FileActions file)
+	internal SaveConfigurationAction (FileActions file)
 	{
 		this.file = file;
 	}
 
 	void IActionHandler.Initialize ()
 	{
-		file.ModifyCompression += Activated;
+		file.SaveConfiguration += Activated;
 	}
 
 	void IActionHandler.Uninitialize ()
 	{
-		file.ModifyCompression -= Activated;
+		file.SaveConfiguration -= Activated;
 	}
 
-	private void Activated (object? sender, ModifyCompressionEventArgs e)
+	private void Activated (object? sender, SaveConfigurationEventArgs e)
 	{
-		JpegCompressionDialog dlg = JpegCompressionDialog.New (e.Quality, e.ParentWindow);
-
-		if (dlg.RunBlocking () == Gtk.ResponseType.Ok)
-			e.Quality = dlg.CompressionLevel;
-		else
-			e.Cancel = true;
-
+		SaveConfigurationDialog dlg = SaveConfigurationDialog.New (e);
+		dlg.RunBlocking ();
 		dlg.Destroy ();
 	}
 }

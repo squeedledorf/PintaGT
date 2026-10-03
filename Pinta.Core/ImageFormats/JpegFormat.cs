@@ -25,45 +25,32 @@
 // THE SOFTWARE.
 
 using System;
-
+using Cairo;
 using GdkPixbuf;
 
 namespace Pinta.Core;
 
 public sealed class JpegFormat : GdkPixbufFormat
 {
-	//The default JPG compression quality to use when no saved setting is loaded. This will usually
-	//occur when Pinta is first run on a machine, although there are other possible cases as well.
-	private const int DefaultQuality = 95;
-
 	public JpegFormat ()
 		: base ("jpeg", supportsAlpha: false)
 	{
 	}
 
-	protected override void DoSave (Pixbuf pb, Gio.File file, string fileType, Gtk.Window parent)
+	protected override void DoSave (ImageSurface flattenedImage, Document document, Gio.File file, Gtk.Window parent)
 	{
-		//Load the JPG compression quality, but use the default value if there is no saved value.
-		int level = PintaCore.Settings.GetSetting<int> (SettingNames.JPG_QUALITY, DefaultQuality);
+		SaveConfiguration config = SaveConfiguration.Load (PintaCore.Settings);
 
-		//Check to see if the Document has been saved before.
-		if (!PintaCore.Workspace.ActiveDocument.HasBeenSavedInSession) {
-			//Show the user the JPG export compression quality dialog, with the default
-			//value being the one loaded in (or the default value if it was not saved).
-			level = PintaCore.Actions.File.RaiseModifyCompression (level, parent);
+		using Pixbuf pb = flattenedImage.ToPixbuf (includeAlpha: false);
+		byte[] Encode (SaveConfiguration c)
+			=> ImageDpi.Write (pb.SaveToBuffer ("jpeg", ["quality"], [c.JpegQuality.ToString ()]), document.Dpi);
 
-			if (level == -1)
-				throw new OperationCanceledException ();
-		}
+		// As in Paint.NET, the Save Configuration dialog comes up on the first save to this file in the session.
+		if (!document.HasBeenSavedInSession)
+			config = PintaCore.Actions.File.RaiseSaveConfiguration ("jpeg", flattenedImage, config, Encode, parent)
+				?? throw new OperationCanceledException ();
 
-		//Store the "previous" JPG compression quality value (before saving with it).
-		PintaCore.Settings.PutSetting (SettingNames.JPG_QUALITY, level);
-
-		using var stream = file.Replace ();
-		try {
-			pb.SaveToStreamv (stream, fileType, ["quality"], [level.ToString ()], null);
-		} finally {
-			stream.Close (null);
-		}
+		config.Store (PintaCore.Settings);
+		WriteFile (file, Encode (config));
 	}
 }
