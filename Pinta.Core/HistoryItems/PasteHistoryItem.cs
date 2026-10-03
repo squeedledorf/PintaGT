@@ -57,7 +57,14 @@ public sealed class PasteHistoryItem : BaseHistoryItem
 		Swap ();
 
 		PintaCore.Workspace.Invalidate ();
-		PintaCore.Tools.SetCurrentTool ("MoveSelectedTool");
+
+		// A History click undoes or redoes every step in between, so only switch to the Move tool
+		// if the floating pixels are still there once the jump is done.
+		GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT, () => {
+			if (PintaCore.Workspace.HasOpenDocuments && PintaCore.Workspace.ActiveDocument.Layers.ShowSelectionLayer)
+				PintaCore.Tools.SetCurrentTool ("MoveSelectedTool");
+			return false;
+		});
 	}
 
 	public override void Undo ()
