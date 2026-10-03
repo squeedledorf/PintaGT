@@ -6,6 +6,8 @@ PintaGT is a fork of [Pinta](https://github.com/PintaProject/Pinta) reworked to 
 
 PintaGT is an independent project. It is not affiliated with, endorsed by, or connected to Paint.NET or its developer. "Paint.NET" is used here only to describe the style of interface the fork imitates.
 
+PintaGT is also not affiliated with or endorsed by the Pinta project or its developers. It is an unofficial fork; please don't report PintaGT problems to Pinta.
+
 PintaGT is a personal project, maintained when I have time. It is not a supported product. Issues and pull requests are welcome, but there is no promise they will be answered.
 
 Much of PintaGT's code was written with the help of AI coding tools, then reviewed, built and tested before it was committed.
