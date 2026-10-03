@@ -40,8 +40,8 @@ internal static class PluginListDialog
 		list.SelectionMode = Gtk.SelectionMode.None;
 		list.AddCssClass ("boxed-list");
 
-		// Problems first, as in Paint.NET's plugin errors list.
-		foreach (PluginReport r in reports.OrderBy (r => r.Status == PluginStatus.Loaded).ThenBy (r => Path.GetFileName (r.File)).ThenBy (r => r.TypeName))
+		// Errors first, as in Paint.NET's plugin errors list, then unsupported plugins, then the loaded ones.
+		foreach (PluginReport r in reports.OrderByDescending (r => r.Status).ThenBy (r => Path.GetFileName (r.File)).ThenBy (r => r.TypeName))
 			list.Append (Row (r));
 
 		Gtk.ScrolledWindow scroll = Gtk.ScrolledWindow.New ();

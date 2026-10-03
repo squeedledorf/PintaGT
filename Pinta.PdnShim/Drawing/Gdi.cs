@@ -447,7 +447,8 @@ namespace System.Drawing
 				SetMatrix (pc, 0, 0);
 				path (pc);
 				pc.IdentityMatrix ();
-				pc.FillExtents (out double x1, out double y1, out double x2, out double y2);
+				// Path extents, not fill extents: a line has no fill area but still needs its rectangle drawn.
+				pc.PathExtents (out double x1, out double y1, out double x2, out double y2);
 				extents = RectangleF.FromLTRB ((float) x1, (float) y1, (float) x2, (float) y2);
 			}
 			float scale = MathF.Sqrt (MathF.Abs (transform.GetDeterminant ()));
@@ -1055,7 +1056,7 @@ namespace System.Drawing.Drawing2D
 			using Cairo.ImageSurface probe = new (Cairo.Format.A8, 1, 1);
 			using Cairo.Context cr = new (probe);
 			AddTo (cr);
-			cr.FillExtents (out double x1, out double y1, out double x2, out double y2);
+			cr.PathExtents (out double x1, out double y1, out double x2, out double y2);
 			return RectangleF.FromLTRB ((float) x1, (float) y1, (float) x2, (float) y2);
 		}
 

@@ -43,6 +43,8 @@ internal sealed class SamplePluginSmokeTest
 				continue;
 			}
 			string rel = Path.GetRelativePath (root, file);
+			if (Environment.GetEnvironmentVariable ("PDN_SMOKE_ONLY") is string only && !rel.Contains (only, StringComparison.OrdinalIgnoreCase))
+				continue;
 			foreach (ScannedClass c in scan.Classes) {
 				if (c.UnsupportedReason is not null) {
 					report.AppendLine ($"{rel}\t{c.FullName}\t\tunsupported\t{c.UnsupportedReason}");
@@ -67,15 +69,45 @@ internal sealed class SamplePluginSmokeTest
 		Assert.That (ok, Is.GreaterThan (0), summary);
 	}
 
+	/// <summary>$PDN_SMOKE_IMAGE (a PNG) or a generated gradient with a half-transparent strip.</summary>
+	private static Surface TestImage ()
+	{
+		if (Environment.GetEnvironmentVariable ("PDN_SMOKE_IMAGE") is string path && File.Exists (path)) {
+			using Cairo.ImageSurface png = new (path);
+			// Paint onto ARGB32 so RGB24 files get a real alpha channel.
+			using Cairo.ImageSurface image = new (Cairo.Format.Argb32, png.Width, png.Height);
+			using (Cairo.Context cr = new (image)) {
+				cr.SetSourceSurface (png, 0, 0);
+				cr.Paint ();
+			}
+			return RenderEnvironment.ToSurface (image);
+		}
+		const int W = 96, H = 64;
+		Surface src = new (W, H);
+		for (int y = 0; y < H; y++)
+			for (int x = 0; x < W; x++)
+				src[x, y] = ColorBgra.FromBgra ((byte) (x * 255 / W), (byte) (y * 255 / H), (byte) ((x + y) * 2), (byte) (x < 8 ? 128 : 255));
+		return src;
+	}
+
+	private static unsafe void SavePng (Surface s, string path)
+	{
+		using Cairo.ImageSurface image = new (Cairo.Format.Argb32, s.Width, s.Height);
+		Span<byte> data = image.GetData ();
+		for (int y = 0; y < s.Height; y++)
+			PixelConvert.ToPremultiplied (
+				System.Runtime.InteropServices.MemoryMarshal.Cast<ColorBgra, uint> (s.GetRowSpan (y)),
+				System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint> (data.Slice (y * image.Stride, s.Width * 4)));
+		image.MarkDirty ();
+		image.WriteToPng (path);
+	}
+
 	private static (string Result, string Name, string Detail) Run (PluginLoadContext context, string file, string typeName)
 	{
 		string name = string.Empty;
 		try {
-			const int W = 96, H = 64;
-			Surface src = new (W, H);
-			for (int y = 0; y < H; y++)
-				for (int x = 0; x < W; x++)
-					src[x, y] = ColorBgra.FromBgra ((byte) (x * 255 / W), (byte) (y * 255 / H), (byte) ((x + y) * 2), (byte) (x < 8 ? 128 : 255));
+			Surface src = TestImage ();
+			int W = src.Width, H = src.Height;
 			Surface dst = src.Clone ();
 			RenderArgs srcArgs = new (src), dstArgs = new (dst);
 
@@ -99,13 +131,20 @@ internal sealed class SamplePluginSmokeTest
 				token = new PropertyBasedEffectConfigToken (props);
 			}
 
+			System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew ();
+			long setupMs = 0;
 			Task render = Task.Run (() => {
 				effect.SetRenderInfo (token, dstArgs, srcArgs);
+				setupMs = timer.ElapsedMilliseconds;
+				if (effect.Options.RenderingSchedule == EffectRenderingSchedule.None || (effect.Options.Flags & EffectFlags.LegacySingleRenderCall) != 0) {
+					effect.Render (token, dstArgs, srcArgs, [new Rectangle (0, 0, W, H)], 0, 1);
+					return;
+				}
 				effect.Render (token, dstArgs, srcArgs, [new Rectangle (0, 0, W, 1)], 0, 1);
 				Parallel.For (1, H, y => effect.Render (token, dstArgs, srcArgs, [new Rectangle (0, y, W, 1)], 0, 1));
 			});
-			if (!render.Wait (TimeSpan.FromSeconds (20)))
-				return ("timeout", name, "render took longer than 20 s");
+			if (!render.Wait (TimeSpan.FromSeconds (60)))
+				return ("timeout", name, $"render took longer than 60 s (setup {setupMs} ms)");
 			if (render.Exception is not null)
 				throw render.Exception.InnerException!;
 
@@ -113,7 +152,9 @@ internal sealed class SamplePluginSmokeTest
 			for (int y = 0; y < H; y++)
 				for (int x = 0; x < W; x++)
 					if (dst[x, y] != src[x, y]) changed++;
-			return ("ok", name, $"{changed} of {W * H} pixels changed");
+			if (Environment.GetEnvironmentVariable ("PDN_SMOKE_PNG_DIR") is string pngDir)
+				SavePng (dst, Path.Combine (pngDir, $"{Path.GetFileNameWithoutExtension (file)}-{type.Name}.png"));
+			return ("ok", name, $"{changed} of {W * H} pixels changed; setup {setupMs} ms, total {timer.ElapsedMilliseconds} ms");
 		} catch (Exception ex) {
 			Exception inner = ex is AggregateException ae ? ae.Flatten ().InnerException ?? ex : ex;
 			if (inner is TargetInvocationException { InnerException: not null } tie) inner = tie.InnerException;

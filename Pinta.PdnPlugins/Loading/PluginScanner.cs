@@ -29,11 +29,20 @@ internal static class PluginScanner
 			return new ScannedAssembly (path, false, []);
 
 		MetadataReader md = pe.GetMetadataReader ();
-		bool referencesPdn = md.AssemblyReferences
-			.Select (h => md.GetString (md.GetAssemblyReference (h).Name))
-			.Any (n => n.StartsWith ("PaintDotNet", StringComparison.OrdinalIgnoreCase));
-		if (!referencesPdn)
+		string[] references = md.AssemblyReferences.Select (h => md.GetString (md.GetAssemblyReference (h).Name)).ToArray ();
+		if (!references.Any (n => n.StartsWith ("PaintDotNet", StringComparison.OrdinalIgnoreCase)))
 			return new ScannedAssembly (path, false, []);
+
+		// Plugins that bring their own Direct3D wrapper run their effect on the GPU even when they derive from a CPU base.
+		string? directX = references.FirstOrDefault (n => n.StartsWith ("SharpDX", StringComparison.OrdinalIgnoreCase) || n.StartsWith ("Vortice", StringComparison.OrdinalIgnoreCase) || n.StartsWith ("ComputeSharp", StringComparison.OrdinalIgnoreCase));
+
+		// P/Invoke into a native DLL of the plugin's own (a Windows build of FFTW, LCMS, ...) can never load here.
+		// Calls into Windows system DLLs are left alone: they are often optional (CodeLab's string lookups).
+		string? nativeLibrary = md.MethodDefinitions
+			.Select (h => md.GetMethodDefinition (h))
+			.Where (m => (m.Attributes & MethodAttributes.PinvokeImpl) != 0 && !m.GetImport ().Module.IsNil)
+			.Select (m => md.GetString (md.GetModuleReference (m.GetImport ().Module).Name))
+			.FirstOrDefault (module => !IsWindowsSystemLibrary (module));
 
 		// Local types that derive from a WinForms form or a Paint.NET config dialog mean a custom settings UI.
 		bool hasCustomDialog = md.TypeDefinitions.Any (h => {
@@ -55,10 +64,21 @@ internal static class PluginScanner
 				reason = "uses its own Windows Forms settings dialog";
 			if (reason is null && baseType.Contains ("BitmapEffect") && hasCustomDialog)
 				reason = "uses its own Windows Forms settings dialog";
+			if (reason is null && directX is not null)
+				reason = $"renders with Direct3D ({directX})";
+			if (reason is null && nativeLibrary is not null)
+				reason = $"needs the Windows native library {nativeLibrary}";
 			string ns = md.GetString (td.Namespace);
 			classes.Add (new ScannedClass ((ns.Length > 0 ? ns + "." : "") + md.GetString (td.Name), baseType, reason));
 		}
 		return new ScannedAssembly (path, true, classes);
+	}
+
+	private static bool IsWindowsSystemLibrary (string module)
+	{
+		string m = module.ToLowerInvariant ();
+		if (m.EndsWith (".dll")) m = m[..^4];
+		return m is "kernel32" or "user32" or "gdi32" or "gdiplus" or "shell32" or "ole32" or "oleaut32" or "advapi32" or "comctl32" or "uxtheme" or "dwmapi" or "msvcrt" or "ntdll" or "combase" or "shlwapi" or "winmm";
 	}
 
 	/// <summary>Null if the base type is runnable, otherwise why not.</summary>
