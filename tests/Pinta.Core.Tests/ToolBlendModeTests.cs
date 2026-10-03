@@ -43,11 +43,20 @@ internal sealed class ToolBlendModeTests
 		Assert.That (result.B, Is.EqualTo (0));
 	}
 
+	// Paint.NET's Xor: matching opaque pixels turn black, not transparent (Cairo's Porter-Duff XOR).
+	[Test]
+	public void PaintWithBlendMode_Xor_MatchingPixelsTurnOpaqueBlack ()
+	{
+		ColorBgra red = ColorBgra.FromBgra (0, 0, 255, 255);
+		Assert.That (PaintOnePixel (BlendMode.Xor, red, red), Is.EqualTo (ColorBgra.FromBgra (0, 0, 0, 255)));
+	}
+
 	// The modes Cairo lacks are blended in software with Paint.NET's ops.
 	[TestCase (BlendMode.Additive)]
 	[TestCase (BlendMode.Reflect)]
 	[TestCase (BlendMode.Glow)]
 	[TestCase (BlendMode.Negation)]
+	[TestCase (BlendMode.Xor)]
 	public void PaintWithBlendMode_SoftwareModes_MatchTheirOp (BlendMode mode)
 	{
 		ColorBgra bottom = ColorBgra.FromBgra (40, 120, 200, 255);

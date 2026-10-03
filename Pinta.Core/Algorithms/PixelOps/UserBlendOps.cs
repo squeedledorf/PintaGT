@@ -70,6 +70,8 @@ public sealed partial class UserBlendOps
 
 	/// <summary>
 	/// The pixel op for the Paint.NET modes that Cairo has no operator for, or null for the others.
+	/// Xor is here too: Paint.NET's Xor is a bitwise XOR of the colors, while Cairo's XOR is the
+	/// Porter-Duff operator, which turns opaque-over-opaque transparent.
 	/// </summary>
 	public static UserBlendOp? GetSoftwareBlendOp (BlendMode mode)
 		=> mode switch {
@@ -77,6 +79,7 @@ public sealed partial class UserBlendOps
 			BlendMode.Reflect => new ReflectBlendOp (),
 			BlendMode.Glow => new GlowBlendOp (),
 			BlendMode.Negation => new NegationBlendOp (),
+			BlendMode.Xor => new XorBlendOp (),
 			_ => null,
 		};
 }

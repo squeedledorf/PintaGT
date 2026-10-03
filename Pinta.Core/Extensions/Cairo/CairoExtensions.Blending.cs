@@ -53,7 +53,7 @@ partial class CairoExtensions
 
 	/// <summary>
 	/// Paints the current source with a layer blend mode, as <see cref="Context.PaintWithAlpha"/> does.
-	/// Cairo has no operator for Paint.NET's Additive, Reflect, Glow and Negation, so those are
+	/// Cairo has no operator for Paint.NET's Additive, Reflect, Glow, Negation and (bitwise) Xor, so those are
 	/// blended in software, which needs an image surface as the target and leaves the operator as it was.
 	/// </summary>
 	public static void PaintWithBlendMode (
