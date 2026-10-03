@@ -135,7 +135,9 @@ public sealed partial class ColorsPanel
 		AddDrag (wheel, PickFromWheel);
 
 		value_bar = Gtk.DrawingArea.New ();
-		value_bar.SetSizeRequest (VALUE_BAR_WIDTH, WHEEL_SIZE);
+		// Starts a little lower so the More button floating above it does not cover it.
+		value_bar.SetSizeRequest (VALUE_BAR_WIDTH, WHEEL_SIZE - 8);
+		value_bar.Valign = Gtk.Align.End;
 		value_bar.SetDrawFunc ((_, g, w, h) => DrawValueBar (g, w, h));
 		value_bar.TooltipText = Translations.GetString ("Brightness");
 		AddDrag (value_bar, PickFromValueBar);
@@ -227,20 +229,21 @@ public sealed partial class ColorsPanel
 		hex_entry = Gtk.Entry.New ();
 		hex_entry.MaxWidthChars = 8;
 		hex_entry.WidthChars = 8;
-		hex_entry.Hexpand = true;
-		hex_entry.Halign = Gtk.Align.End;
 		hex_entry.OnChanged += (_, _) => {
 			if (updating)
 				return;
-			if (Color.FromHex (hex_entry.GetText ()) is Color c)
-				SetSlotColor (true, c, addToRecent: false);
+			string text = hex_entry.GetText ().TrimStart ('#');
+			if (Color.FromHex (text) is not Color c)
+				return;
+			// The box shows RRGGBB; keep the current opacity unless one was typed.
+			if (text.Length <= 6)
+				c = c with { A = ActiveColor.A };
+			SetSlotColor (true, c, addToRecent: false);
 		};
 
-		Gtk.Box hexRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 4);
-		Gtk.Label hexLabel = Gtk.Label.New (Translations.GetString ("Hex:"));
-		hexLabel.Xalign = 0;
-		hexRow.Append (hexLabel);
-		hexRow.Append (hex_entry);
+		Gtk.CenterBox hexRow = Gtk.CenterBox.New ();
+		hexRow.SetStartWidget (Gtk.Label.New (Translations.GetString ("Hex:")));
+		hexRow.SetEndWidget (hex_entry);
 
 		details = Gtk.Box.New (Gtk.Orientation.Vertical, 0);
 		details.Append (Heading (Translations.GetString ("RGB")));
@@ -333,7 +336,7 @@ public sealed partial class ColorsPanel
 			foreach (ColorPickerSlider slider in sliders)
 				slider.Color = active;
 			if (!hex_entry.IsEditingText ())
-				hex_entry.SetText (active.ToHex ());
+				hex_entry.SetText (active.ToHex (addAlpha: false));
 		} finally {
 			updating = false;
 		}
