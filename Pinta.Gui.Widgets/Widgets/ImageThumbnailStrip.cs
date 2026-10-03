@@ -63,9 +63,12 @@ public sealed partial class ImageThumbnailStrip
 		// The wheel scrolls the list sideways, as in Paint.NET.
 		Gtk.EventControllerScroll scrollController = Gtk.EventControllerScroll.New (Gtk.EventControllerScrollFlags.BothAxes);
 		scrollController.SetPropagationPhase (Gtk.PropagationPhase.Capture);
-		scrollController.OnScroll += (_, args) => {
+		scrollController.OnScroll += (controller, args) => {
 			double delta = args.Dx != 0 ? args.Dx : args.Dy;
-			ScrollBy (delta * (thumbnail_height + 2 * PADDING));
+			// A wheel reports notches; a touchpad already reports pixels.
+			if (controller.GetUnit () == Gdk.ScrollUnit.Wheel)
+				delta *= thumbnail_height + 2 * PADDING;
+			ScrollBy (delta);
 			return true;
 		};
 		scrolledWindow.AddController (scrollController);
