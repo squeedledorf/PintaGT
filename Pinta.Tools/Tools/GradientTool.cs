@@ -62,6 +62,8 @@ public sealed class GradientTool : BaseTool
 		workspace = services.GetService<IWorkspaceService> ();
 
 		handle = new LineHandle (workspace);
+
+		selected_type = (GradientType) Math.Clamp (Settings.GetSetting (SettingNames.GRADIENT_TYPE, 0), 0, (int) GradientType.SpiralCounterclockwise);
 	}
 
 	public override string Name => Translations.GetString ("Gradient");
@@ -78,7 +80,8 @@ public sealed class GradientTool : BaseTool
 	protected override bool ShowSelectionQualityButton => true;
 	protected override bool ShowFinishButton => true;
 	protected override bool CanFinish => handle.Active;
-	private GradientType SelectedGradientType => GradientDropDown.SelectedItem.GetTagOrDefault (GradientType.Linear);
+	private GradientType SelectedGradientType => selected_type;
+	private GradientRepeatMode SelectedRepeatMode => (GradientRepeatMode) RepeatPicker.SelectedIndex;
 	private GradientColorMode SelectedGradientColorMode => ColorModeDropDown.SelectedItem.GetTagOrDefault (GradientColorMode.Color);
 	public override IEnumerable<IToolHandle> Handles => [handle];
 
@@ -86,11 +89,12 @@ public sealed class GradientTool : BaseTool
 	{
 		base.OnBuildToolBar (tb);
 
-		tb.Append (GradientLabel);
-		tb.Append (GradientDropDown);
-		tb.Append (GtkExtensions.CreateToolBarSeparator ());
-		tb.Append (ModeLabel);
+		// Paint.NET: the seven gradient types as a row of toggle buttons, then the colour and repeat mode dropdowns.
+		foreach (Gtk.ToggleButton button in TypeButtons)
+			tb.Append (button);
+		tb.Append (TypeSeparator);
 		tb.Append (ColorModeDropDown);
+		tb.Append (RepeatPicker.Button);
 	}
 
 	protected override void OnBlendModeChanged ()
@@ -198,8 +202,10 @@ public sealed class GradientTool : BaseTool
 	{
 		base.OnSaveSettings (settings);
 
-		if (gradient_button is not null)
-			settings.PutSetting (SettingNames.GRADIENT_TYPE, gradient_button.SelectedIndex);
+		if (type_buttons is not null)
+			settings.PutSetting (SettingNames.GRADIENT_TYPE, (int) selected_type);
+		if (repeat_picker is not null)
+			settings.PutSetting (REPEAT_MODE_SETTING, repeat_picker.SelectedIndex);
 		if (color_mode_button is not null)
 			settings.PutSetting (SettingNames.GRADIENT_COLOR_MODE, color_mode_button.SelectedIndex);
 	}
@@ -242,15 +248,23 @@ public sealed class GradientTool : BaseTool
 
 	private GradientRenderer CreateGradientRenderer ()
 	{
-		var op = new UserBlendOps.NormalBlendOp ();
-		bool alpha_only = SelectedGradientColorMode == GradientColorMode.Transparency;
+		GradientRenderer renderer = CreateGradientRenderer (SelectedGradientType, SelectedGradientColorMode == GradientColorMode.Transparency);
+		renderer.RepeatMode = SelectedRepeatMode;
+		return renderer;
+	}
 
-		return SelectedGradientType switch {
+	private static GradientRenderer CreateGradientRenderer (GradientType type, bool alpha_only)
+	{
+		var op = new UserBlendOps.NormalBlendOp ();
+
+		return type switch {
 			GradientType.Linear => new GradientRenderers.LinearClamped (alpha_only, op),
 			GradientType.LinearReflected => new GradientRenderers.LinearReflected (alpha_only, op),
 			GradientType.Radial => new GradientRenderers.Radial (alpha_only, op),
 			GradientType.Diamond => new GradientRenderers.LinearDiamond (alpha_only, op),
 			GradientType.Conical => new GradientRenderers.Conical (alpha_only, op),
+			GradientType.SpiralClockwise => new GradientRenderers.Spiral (clockwise: true, alpha_only, op),
+			GradientType.SpiralCounterclockwise => new GradientRenderers.Spiral (clockwise: false, alpha_only, op),
 			_ => throw new InvalidOperationException ("Unknown gradient type."),
 		};
 	}
@@ -335,30 +349,119 @@ public sealed class GradientTool : BaseTool
 		}
 	}
 
-	private Gtk.Label? gradient_label;
-	private ToolBarDropDownButton? gradient_button;
-	private Gtk.Label? color_mode_label;
+	private const string REPEAT_MODE_SETTING = "gradient-repeat-mode";
+
+	private GradientType selected_type;
+	private Gtk.ToggleButton[]? type_buttons;
+	private Gtk.Separator? type_sep;
+	private GlyphPicker? repeat_picker;
 	private ToolBarDropDownButton? color_mode_button;
 
-	private Gtk.Label GradientLabel => gradient_label ??= Gtk.Label.New (string.Format (" {0}: ", Translations.GetString ("Gradient")));
-	private ToolBarDropDownButton GradientDropDown {
+	private Gtk.Separator TypeSeparator => type_sep ??= GtkExtensions.CreateToolBarSeparator ();
+
+	private Gtk.ToggleButton[] TypeButtons {
 		get {
-			if (gradient_button == null) {
-				gradient_button = ToolBarDropDownButton.New ();
+			if (type_buttons is not null)
+				return type_buttons;
 
-				gradient_button.AddItem (Translations.GetString ("Linear Gradient"), Pinta.Resources.Icons.GradientLinear, GradientType.Linear);
-				gradient_button.AddItem (Translations.GetString ("Linear Reflected Gradient"), Pinta.Resources.Icons.GradientLinearReflected, GradientType.LinearReflected);
-				gradient_button.AddItem (Translations.GetString ("Linear Diamond Gradient"), Pinta.Resources.Icons.GradientDiamond, GradientType.Diamond);
-				gradient_button.AddItem (Translations.GetString ("Radial Gradient"), Pinta.Resources.Icons.GradientRadial, GradientType.Radial);
-				gradient_button.AddItem (Translations.GetString ("Conical Gradient"), Pinta.Resources.Icons.GradientConical, GradientType.Conical);
+			(GradientType Type, string Name)[] types = [
+				(GradientType.Linear, Translations.GetString ("Linear Gradient")),
+				(GradientType.LinearReflected, Translations.GetString ("Linear Reflected Gradient")),
+				(GradientType.Diamond, Translations.GetString ("Linear Diamond Gradient")),
+				(GradientType.Radial, Translations.GetString ("Radial Gradient")),
+				(GradientType.Conical, Translations.GetString ("Conical Gradient")),
+				(GradientType.SpiralClockwise, Translations.GetString ("Spiral Gradient (Clockwise)")),
+				(GradientType.SpiralCounterclockwise, Translations.GetString ("Spiral Gradient (Counterclockwise)")),
+			];
 
-				gradient_button.SelectedIndex = Settings.GetSetting (SettingNames.GRADIENT_TYPE, 0);
-				gradient_button.SelectedItemChanged += HandleGradientTypeChanged;
+			type_buttons = new Gtk.ToggleButton[types.Length];
+			Gtk.ToggleButton? group = null;
+
+			for (int i = 0; i < types.Length; i++) {
+				GradientType type = types[i].Type;
+				Gtk.ToggleButton button = Gtk.ToggleButton.New ();
+				button.Child = Gtk.Image.NewFromPaintable (CreateTypeGlyph (type));
+				button.TooltipText = types[i].Name;
+				button.HasFrame = false;
+				button.CanFocus = false;
+				button.FocusOnClick = false;
+				if (group is null)
+					group = button;
+				else
+					button.SetGroup (group);
+				button.Active = type == selected_type;
+				button.OnToggled += (_, _) => {
+					if (!button.Active)
+						return;
+					selected_type = type;
+					HandleGradientTypeChanged (button, EventArgs.Empty);
+				};
+				type_buttons[i] = button;
 			}
 
-			return gradient_button;
+			return type_buttons;
 		}
 	}
+
+	/// <summary>A framed black-to-white preview of the gradient type, drawn by its own renderer.</summary>
+	private static Gdk.Texture CreateTypeGlyph (GradientType type)
+	{
+		const int size = 16;
+		bool spiral = type is GradientType.SpiralClockwise or GradientType.SpiralCounterclockwise;
+		GradientRenderer renderer = CreateGradientRenderer (type, alpha_only: false);
+		renderer.StartColor = ColorBgra.Black;
+		renderer.EndColor = ColorBgra.White;
+		renderer.StartPoint = new PointD (type == GradientType.Linear ? 1 : size / 2, size / 2);
+		renderer.EndPoint = spiral ? new PointD (size / 2, 1) : new PointD (size - 2, size / 2);
+		renderer.RepeatMode = spiral ? GradientRepeatMode.RepeatWrapped : GradientRepeatMode.NoRepeat;
+		renderer.BeforeRender ();
+
+		using ImageSurface surface = CairoExtensions.CreateImageSurface (Format.Argb32, size, size);
+		renderer.Render (surface, [new RectangleI (1, 1, size - 3, size - 3)]);
+
+		using (Context g = new (surface)) {
+			g.Rectangle (0.5, 0.5, size - 1, size - 1);
+			g.SetSourceColor (new Color (0.45, 0.45, 0.45));
+			g.LineWidth = 1;
+			g.Stroke ();
+		}
+
+		return surface.ToTexture ();
+	}
+
+	private GlyphPicker RepeatPicker {
+		get {
+			if (repeat_picker is null) {
+				repeat_picker = new GlyphPicker ([
+					new (Translations.GetString ("No Repeat"), CreateRepeatGlyph (GradientRepeatMode.NoRepeat)),
+					new (Translations.GetString ("Repeat Wrapped"), CreateRepeatGlyph (GradientRepeatMode.RepeatWrapped)),
+					new (Translations.GetString ("Repeat Reflected"), CreateRepeatGlyph (GradientRepeatMode.RepeatReflected)),
+				], columns: 1, showNameOnButton: true, showNamesInList: true);
+
+				repeat_picker.SelectedIndex = Settings.GetSetting (REPEAT_MODE_SETTING, 0);
+				repeat_picker.Changed += HandleGradientTypeChanged;
+			}
+
+			return repeat_picker;
+		}
+	}
+
+	/// <summary>The gradient's profile: a ramp that levels off, a sawtooth, or a triangle wave.</summary>
+	private static Gdk.Texture CreateRepeatGlyph (GradientRepeatMode mode)
+		=> GlyphPicker.CreateGlyph (16, 16, g => {
+			PointD[] points = mode switch {
+				GradientRepeatMode.RepeatWrapped => [new (2, 14), new (7, 2), new (8, 14), new (14, 2)],
+				GradientRepeatMode.RepeatReflected => [new (2, 14), new (8, 2), new (14, 14)],
+				_ => [new (2, 14), new (4, 14), new (12, 2), new (14, 2)],
+			};
+			g.MoveTo (points[0].X, points[0].Y);
+			foreach (PointD p in points[1..])
+				g.LineTo (p.X, p.Y);
+			g.SetSourceColor (GlyphPicker.GlyphStroke);
+			g.LineWidth = 1.5;
+			g.LineJoin = LineJoin.Round;
+			g.Stroke ();
+		});
 
 	void HandleGradientTypeChanged (object? sender, EventArgs e)
 	{
@@ -374,7 +477,6 @@ public sealed class GradientTool : BaseTool
 		}
 	}
 
-	private Gtk.Label ModeLabel => color_mode_label ??= Gtk.Label.New (string.Format (" {0}: ", Translations.GetString ("Mode")));
 	private ToolBarDropDownButton ColorModeDropDown {
 		get {
 			if (color_mode_button == null) {
@@ -397,6 +499,8 @@ public sealed class GradientTool : BaseTool
 		LinearReflected,
 		Diamond,
 		Radial,
-		Conical
+		Conical,
+		SpiralClockwise,
+		SpiralCounterclockwise,
 	}
 }

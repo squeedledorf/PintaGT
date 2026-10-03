@@ -12,6 +12,14 @@ using Cairo;
 
 namespace Pinta.Core;
 
+/// <summary>How a gradient continues beyond its end point, as in Paint.NET's Repeat Mode.</summary>
+public enum GradientRepeatMode
+{
+	NoRepeat,
+	RepeatWrapped,
+	RepeatReflected,
+}
+
 public abstract class GradientRenderer
 {
 	private readonly BinaryPixelOp normal_blend_op;
@@ -89,6 +97,29 @@ public abstract class GradientRenderer
 	}
 
 	public abstract byte ComputeByteLerp (int x, int y);
+
+	public GradientRepeatMode RepeatMode { get; set; }
+
+	/// <summary>
+	/// Maps a position along the gradient (0 at the start point, 1 at the end point) to 0..1 according to the repeat mode:
+	/// clamped, sawtooth (hard edge at every repeat) or triangle wave (mirrored at every repeat).
+	/// </summary>
+	public static double ApplyRepeat (double t, GradientRepeatMode mode)
+	{
+		switch (mode) {
+			case GradientRepeatMode.RepeatWrapped:
+				return t - Math.Floor (t);
+			case GradientRepeatMode.RepeatReflected:
+				double m = t - 2 * Math.Floor (t / 2); // 0..2
+				return m > 1 ? 2 - m : m;
+			default:
+				return Math.Clamp (t, 0, 1);
+		}
+	}
+
+	/// <summary>The lerp byte for a position along the gradient, after applying <see cref="RepeatMode"/>.</summary>
+	protected byte ToByteLerp (double t)
+		=> (byte) (ApplyRepeat (t, RepeatMode) * 255f);
 
 	private AlphaBounds ComputeAlphaBounds ()
 	{

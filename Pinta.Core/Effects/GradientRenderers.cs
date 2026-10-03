@@ -41,7 +41,7 @@ public static class GradientRenderers
 		}
 
 		protected virtual byte BoundLerp (double t)
-			=> (byte) (Math.Clamp (t, 0, 1) * 255f);
+			=> ToByteLerp (t);
 
 		public override void BeforeRender ()
 		{
@@ -73,7 +73,7 @@ public static class GradientRenderers
 		}
 
 		protected override byte BoundLerp (double t)
-			=> (byte) (Math.Clamp (Math.Abs (t), 0, 1) * 255f);
+			=> ToByteLerp (Math.Abs (t));
 	}
 
 	public sealed class LinearClamped : LinearStraight
@@ -137,18 +137,10 @@ public static class GradientRenderers
 			int dx = x - start_x;
 			int dy = y - start_y;
 
-			double result =
-				inv_distance_scale == 0
-				? 1.0
-				: Mathematics.Magnitude<double> (dx, dy) * inv_distance_scale;
+			if (inv_distance_scale == 0)
+				return byte.MaxValue;
 
-			if (result < 0.0)
-				return 0;
-
-			return
-				result > 1.0
-				? (byte) 255
-				: (byte) (result * 255f);
+			return ToByteLerp (Mathematics.Magnitude<double> (dx, dy) * inv_distance_scale);
 		}
 	}
 
@@ -196,6 +188,53 @@ public static class GradientRenderers
 			};
 
 			return Math.Clamp (Math.Abs (effective), 0, 1);
+		}
+	}
+	/// <summary>
+	/// Paint.NET's Spiral gradients: one turn around the start point plus the distance from it (in units of the
+	/// start-end distance) gives the position along the gradient, so the colours wind outwards in a spiral.
+	/// </summary>
+	public sealed class Spiral : GradientRenderer
+	{
+		private readonly bool clockwise;
+		private double inv_length;
+		private double start_angle;
+
+		public Spiral (bool clockwise, bool alphaOnly, BinaryPixelOp normalBlendOp) : base (alphaOnly, normalBlendOp)
+		{
+			this.clockwise = clockwise;
+		}
+
+		public override void BeforeRender ()
+		{
+			double length = StartPoint.Distance (EndPoint);
+			inv_length = length == 0 ? 0 : 1 / length;
+			start_angle = Math.Atan2 (EndPoint.Y - StartPoint.Y, EndPoint.X - StartPoint.X);
+
+			base.BeforeRender ();
+		}
+
+		public override byte ComputeByteLerp (int x, int y)
+		{
+			if (inv_length == 0)
+				return byte.MaxValue;
+
+			double dx = x - StartPoint.X;
+			double dy = y - StartPoint.Y;
+
+			// Screen y points down, so atan2 grows clockwise on screen.
+			double turn = (Math.Atan2 (dy, dx) - start_angle) / (2 * Math.PI);
+			if (clockwise)
+				turn = -turn;
+			turn -= Math.Floor (turn);
+
+			double t = turn + Math.Sqrt (dx * dx + dy * dy) * inv_length;
+
+			// One turn shifts t by 1, which a period-2 reflection turns into a seam; reflect twice per length instead.
+			if (RepeatMode == GradientRepeatMode.RepeatReflected)
+				t *= 2;
+
+			return ToByteLerp (t);
 		}
 	}
 }
