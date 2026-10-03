@@ -71,14 +71,14 @@ public abstract class SelectTool : BaseTool
 	}
 
 	/// <summary>
-	/// As in Paint.NET, Enter or Esc in a selection tool deselects.
+	/// As in Paint.NET, Enter in a selection tool deselects.
+	/// Esc is left alone: Paint.NET 5.2's docs list only Enter and Ctrl+D for deselecting.
 	/// </summary>
 	internal static bool TryDeselectOnKey (ToolKeyEventArgs e)
 	{
 		switch (e.Key.Value) {
 			case Gdk.Constants.KEY_Return:
 			case Gdk.Constants.KEY_KP_Enter:
-			case Gdk.Constants.KEY_Escape:
 				break;
 			default:
 				return false;
