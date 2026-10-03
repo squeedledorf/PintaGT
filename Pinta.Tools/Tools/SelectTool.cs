@@ -108,7 +108,8 @@ public abstract class SelectTool : BaseTool
 		hist = new SelectionHistoryItem (workspace, Icon, Name);
 		hist.TakeSnapshot ();
 
-		if (handle.BeginDrag (e.PointDouble, document.ImageSize))
+		// Hidden handles (no selection, or an inverted one) can't be grabbed.
+		if (handle.Active && handle.BeginDrag (e.PointDouble, document.ImageSize))
 			return;
 
 		// Start drawing a new rectangle.
@@ -267,6 +268,7 @@ public abstract class SelectTool : BaseTool
 	{
 		DocumentSelection selection = document.Selection;
 		handle.Rectangle = selection.HandleBounds;
-		ShowHandles (document.Selection.Visible && tools.CurrentTool == this);
+		// An empty HandleBounds (e.g. after Invert Selection) has no rectangle to resize.
+		ShowHandles (document.Selection.Visible && tools.CurrentTool == this && selection.HandleBounds is { Width: > 0, Height: > 0 });
 	}
 }
