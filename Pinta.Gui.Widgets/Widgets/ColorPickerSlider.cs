@@ -75,7 +75,8 @@ public sealed partial class ColorPickerSlider
 
 	private void Configure (Component component, int initialWidth)
 	{
-		gradient_slider.SetSizeRequest (initialWidth, this.GetHeight ());
+		// At least a 14px gradient between the paddings, however compact the entry beside it is.
+		gradient_slider.SetSizeRequest (initialWidth, Math.Max (this.GetHeight (), PADDING_HEIGHT * 2 + 14));
 		gradient_slider.SetDrawFunc ((_, context, width, height) => {
 			DrawGradient (context, width, height, CreateGradient (color, component));
 		});
@@ -240,7 +241,7 @@ public sealed partial class ColorPickerSlider
 			X: PADDING_WIDTH + drawSize.Width,
 			Y: PADDING_HEIGHT + drawSize.Height);
 
-		int bsize = drawSize.Height / 2;
+		int bsize = Math.Max (1, drawSize.Height / 2); // 0 would never advance the checker loop below
 
 		// Draw transparency background
 		context.FillRectangle (
