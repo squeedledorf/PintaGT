@@ -16,7 +16,9 @@ menubar > item {
     border-radius: 0;
 }
 
-menubar > item:hover, menubar > item:selected {
+/* Lit while hovered, or while its menu is open (the focus is then inside its popover). An item the
+   bar left :selected after the menu closed stays plain. */
+menubar > item:hover, menubar > item:selected:focus-within {
     background-color: alpha(#0078d7, 0.18);
 }
 
@@ -42,6 +44,67 @@ popover.menu modelbutton {
 
 popover.menu modelbutton:hover, popover.menu modelbutton:selected {
     background-color: alpha(#0078d7, 0.18);
+}
+
+/* Win32 submenu arrow: a small solid triangle pointing right. */
+popover.menu modelbutton arrow.right {
+    -gtk-icon-source: -gtk-icontheme("pinta-pan-down-symbolic");
+    -gtk-icon-transform: rotate(-90deg);
+    -gtk-icon-size: 8px;
+    min-width: 8px;
+    min-height: 8px;
+    opacity: 1;
+}
+
+/* Menu check and radio items both show a plain tick when on and nothing when off (View > units). */
+popover.menu modelbutton check, popover.menu modelbutton radio {
+    min-width: 13px;
+    min-height: 13px;
+    padding: 0;
+    -gtk-icon-size: 13px;
+    border: none;
+    background: none;
+    box-shadow: none;
+    color: inherit;
+}
+
+popover.menu modelbutton check:checked, popover.menu modelbutton radio:checked {
+    -gtk-icon-source: -gtk-icontheme("pinta-check-tick-symbolic");
+}
+
+/* The Alt+T Tool list: a square drop list with compact rows. */
+#tool_toolbar popover > contents {
+    padding: 2px;
+    border-radius: 0;
+    box-shadow: 0 0 0 1px alpha(@window_fg_color, 0.3), 2px 2px 3px alpha(black, 0.2);
+}
+
+#tool_toolbar popover > arrow {
+    background: none;
+    border: none;
+    min-width: 0;
+    min-height: 0;
+}
+
+#tool_toolbar popover list.navigation-sidebar {
+    padding: 0;
+}
+
+#tool_toolbar popover list.navigation-sidebar > row {
+    min-height: 0;
+    margin: 0;
+    padding: 2px 6px;
+    border-radius: 0;
+}
+
+#tool_toolbar popover list.navigation-sidebar > row:hover {
+    background-color: alpha(#0078d7, 0.1);
+}
+
+#tool_toolbar popover list.navigation-sidebar > row:selected {
+    background-color: alpha(#0078d7, 0.22);
+    box-shadow: inset 0 0 0 1px #0078d7;
+    color: inherit;
 }
 
 /* Short, light Windows-style tooltips. */
@@ -171,8 +234,9 @@ button label, menubutton label, dropdown label {
     background-color: alpha(@window_fg_color, 0.25);
 }
 
-/* Small filled triangles on dropdowns instead of chevrons. */
-#tool_toolbar arrow, #statusbar arrow, .pdn-panel arrow, .pdn-top arrow {
+/* Small filled triangles on dropdowns instead of chevrons. Only the dropdowns of the top rows:
+   the menus' popovers hang under .pdn-top too, and their submenu arrows point right (below). */
+#tool_toolbar arrow, #statusbar arrow, .pdn-panel arrow, .pdn-top menubutton > button arrow, .pdn-top dropdown arrow {
     -gtk-icon-source: -gtk-icontheme("pinta-pan-down-symbolic");
     -gtk-icon-size: 8px;
     min-width: 8px;
@@ -499,4 +563,322 @@ menubutton.pdn-flat-button > button {
     min-height: 20px;
     padding: 1px 2px;
     border-radius: 0;
+}
+
+/* ---------------------------------------------------------------------------------------
+   Dialogs and prompts (Levels, Curves, Resize, Layer Properties, New Image, unsaved changes...)
+   as Win32 dialogs: square 23px push buttons with a blue frame on the default button, white
+   square fields, small arrow glyphs on the spin buttons, square check boxes, plain prompts.
+   --------------------------------------------------------------------------------------- */
+
+window.dialog, window.messagedialog {
+    border-radius: 0;
+}
+
+/* Push buttons (the image buttons inside fields are styled below). */
+window.dialog button.text-button,
+window.messagedialog .response-area > button {
+    min-width: 59px;
+    min-height: 23px;
+    padding: 0 8px;
+    border-radius: 0;
+    font-weight: normal;
+    color: @window_fg_color;
+    background-color: mix(@view_bg_color, @view_fg_color, 0.08);
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.35);
+    outline: none;
+}
+
+window.dialog button.text-button:hover,
+window.messagedialog .response-area > button:hover {
+    background-color: alpha(#0078d7, 0.1);
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+window.dialog button.text-button:active,
+window.messagedialog .response-area > button:active {
+    background-color: alpha(#0078d7, 0.22);
+    box-shadow: inset 0 0 0 1px #005499;
+}
+
+/* The default button (OK) keeps the plain face; only its frame turns blue, as in Windows. */
+window.dialog button.text-button.suggested-action, window.messagedialog .response-area > button.suggested-action,
+window.messagedialog .response-area > button.destructive-action {
+    color: @window_fg_color;
+    background-color: mix(@view_bg_color, @view_fg_color, 0.08);
+}
+
+window.dialog button.text-button.suggested-action, window.messagedialog .response-area > button.suggested-action {
+    box-shadow: inset 0 0 0 1px #0078d7, inset 0 0 0 2px alpha(#0078d7, 0.35);
+}
+
+window.dialog button.text-button:focus-visible, window.messagedialog .response-area > button:focus-visible {
+    box-shadow: inset 0 0 0 2px #0078d7;
+}
+
+window.dialog button.text-button:disabled, window.messagedialog .response-area > button:disabled {
+    filter: none;
+    color: alpha(@window_fg_color, 0.4);
+    background-color: mix(@view_bg_color, @view_fg_color, 0.04);
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.15);
+}
+
+/* Square icon buttons (the reset arrows beside the sliders). */
+window.dialog button.image-button {
+    min-width: 21px;
+    min-height: 21px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+
+window.dialog button.image-button:hover {
+    background-color: alpha(#0078d7, 0.1);
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+window.dialog button.image-button:disabled {
+    filter: opacity(0.4);
+}
+
+/* Fields: white, square, a 1px grey frame that turns blue with the focus. */
+window.dialog entry, window.dialog spinbutton, window.messagedialog entry {
+    min-height: 21px;
+    padding: 0 0 0 3px;
+    border-radius: 0;
+    background-color: @view_bg_color;
+    color: @view_fg_color;
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.4);
+    outline: none;
+}
+
+window.dialog entry:hover, window.dialog spinbutton:hover {
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.7);
+}
+
+window.dialog entry:focus-within, window.dialog spinbutton:focus-within, window.messagedialog entry:focus-within {
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+window.dialog entry:disabled, window.dialog spinbutton:disabled {
+    filter: none;
+    color: alpha(@view_fg_color, 0.45);
+    background-color: mix(@view_bg_color, @view_fg_color, 0.04);
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.2);
+}
+
+window.dialog spinbutton > text {
+    min-height: 0;
+    padding: 0 2px 0 0;
+}
+
+/* Spin buttons: two narrow arrow cells at the right end of the field, not big -/+ buttons.
+   The theme's -/+ images are hidden and the triangles drawn as the cell background. */
+window.dialog spinbutton > button.image-button {
+    min-width: 13px;
+    min-height: 0;
+    margin: 1px 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: -gtk-icontheme("pinta-pan-down-symbolic") no-repeat center / 8px 8px;
+    color: alpha(@view_fg_color, 0.8);
+}
+
+window.dialog spinbutton > button.image-button.up {
+    margin-right: 1px;
+    background-image: -gtk-icontheme("pinta-pan-up-symbolic");
+}
+
+window.dialog spinbutton > button.image-button > image {
+    opacity: 0;
+}
+
+window.dialog spinbutton > button.image-button:hover {
+    background-color: alpha(#0078d7, 0.15);
+}
+
+window.dialog spinbutton > button.image-button:active {
+    background-color: alpha(#0078d7, 0.3);
+}
+
+window.dialog spinbutton > button.image-button:disabled {
+    filter: opacity(0.35);
+}
+
+/* Drop-down lists (Blend Mode, Resampling, Preset...): a square box with a small triangle. */
+window.dialog dropdown > button, window.dialog combobox > box > button, window.dialog menubutton > button {
+    min-height: 21px;
+    padding: 0 4px 0 6px;
+    border-radius: 0;
+    font-weight: normal;
+    color: @window_fg_color;
+    background-color: mix(@view_bg_color, @view_fg_color, 0.04);
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.4);
+}
+
+window.dialog dropdown > button:hover, window.dialog combobox > box > button:hover, window.dialog menubutton > button:hover {
+    background-color: alpha(#0078d7, 0.1);
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+window.dialog dropdown label, window.dialog combobox label, window.dialog menubutton label {
+    font-weight: normal;
+}
+
+window.dialog dropdown arrow, window.dialog combobox arrow, window.dialog menubutton arrow {
+    -gtk-icon-source: -gtk-icontheme("pinta-pan-down-symbolic");
+    -gtk-icon-size: 8px;
+    min-width: 8px;
+    min-height: 8px;
+    opacity: 1;
+}
+
+/* Square check boxes with a plain tick, and small round radio buttons with a dark dot. */
+window.dialog checkbutton, window.messagedialog checkbutton {
+    padding: 1px 2px;
+    border-radius: 0;
+    outline: none;
+}
+
+window.dialog check, window.dialog radio, window.messagedialog check {
+    min-width: 13px;
+    min-height: 13px;
+    padding: 0;
+    -gtk-icon-size: 13px;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.75);
+    color: alpha(@view_fg_color, 1.25);
+}
+
+window.dialog check, window.messagedialog check {
+    border-radius: 0;
+}
+
+window.dialog check:checked, window.messagedialog check:checked {
+    background-color: @view_bg_color;
+    -gtk-icon-source: -gtk-icontheme("pinta-check-tick-symbolic");
+}
+
+window.dialog radio:checked {
+    background-color: @view_bg_color;
+    background-image: radial-gradient(circle, alpha(@view_fg_color, 0.9) 3px, transparent 3.5px);
+    -gtk-icon-source: none;
+}
+
+window.dialog check:hover, window.dialog radio:not(:checked):hover {
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+/* Track bars: a thin groove with an upright blue thumb, no filled part. */
+window.dialog scale {
+    padding: 8px 6px;
+}
+
+window.dialog scale > trough {
+    min-height: 2px;
+    border-radius: 0;
+    background-color: alpha(@view_fg_color, 0.25);
+}
+
+window.dialog scale > trough > highlight {
+    min-height: 2px;
+    background: none;
+}
+
+window.dialog scale > trough > slider {
+    min-width: 8px;
+    min-height: 20px;
+    margin: -9px -4px;
+    border-radius: 0;
+    background-color: #0078d7;
+    box-shadow: none;
+    outline: none;
+}
+
+window.dialog scale > trough > slider:hover, window.dialog scale:active > trough > slider {
+    background-color: #005499;
+}
+
+window.dialog scale:disabled > trough > slider {
+    background-color: alpha(@view_fg_color, 0.35);
+}
+
+window.dialog .heading {
+    font-weight: normal;
+}
+
+/* Prompts: plain 9pt text and a horizontal row of push buttons on a grey strip at the bottom. */
+window.messagedialog .message-area {
+    padding-top: 16px;
+    padding-bottom: 6px;
+}
+
+window.messagedialog .message-area.has-heading.has-body {
+    border-spacing: 6px;
+}
+
+window.messagedialog .message-area > .heading-bin, window.messagedialog .message-area > .body,
+window.messagedialog .message-area > .child {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+window.messagedialog .title-2, window.messagedialog .title-4 {
+    font-size: 9pt;
+    font-weight: normal;
+}
+
+window.messagedialog .response-area {
+    padding: 10px;
+    border-spacing: 8px;
+    background-color: mix(@window_bg_color, @window_fg_color, 0.05);
+    border-top: 1px solid alpha(@window_fg_color, 0.1);
+}
+
+/* Classic canvas scroll bars: a 17px grey groove with a square grey thumb. */
+tabview scrolledwindow > scrollbar {
+    background-color: mix(@window_bg_color, @window_fg_color, 0.04);
+    border: none;
+}
+
+tabview scrolledwindow > scrollbar.vertical {
+    border-left: 1px solid alpha(@window_fg_color, 0.1);
+}
+
+tabview scrolledwindow > scrollbar.horizontal {
+    border-top: 1px solid alpha(@window_fg_color, 0.1);
+}
+
+tabview scrolledwindow > scrollbar > range > trough {
+    margin: 0;
+    border-radius: 0;
+    background: none;
+}
+
+tabview scrolledwindow > scrollbar > range > trough > slider {
+    min-width: 13px;
+    min-height: 13px;
+    margin: 2px;
+    border: none;
+    border-radius: 0;
+    background-color: alpha(@window_fg_color, 0.28);
+}
+
+tabview scrolledwindow > scrollbar.vertical > range > trough > slider {
+    min-height: 24px;
+}
+
+tabview scrolledwindow > scrollbar.horizontal > range > trough > slider {
+    min-width: 24px;
+}
+
+tabview scrolledwindow > scrollbar > range > trough > slider:hover {
+    background-color: alpha(@window_fg_color, 0.4);
+}
+
+tabview scrolledwindow > scrollbar > range > trough > slider:active {
+    background-color: alpha(@window_fg_color, 0.55);
 }
