@@ -26,6 +26,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Cairo;
 using ClipperLib;
 
@@ -397,6 +401,55 @@ public sealed class DocumentSelection
 		];
 
 		return newPolygon;
+	}
+
+	/// <summary>
+	/// Edit > Copy Selection: the selection geometry as the JSON text Paint.NET puts on the clipboard,
+	/// {"polygonList": ["x,y,x,y,...", ...]} with each polygon closed by repeating its first point.
+	/// </summary>
+	public static string ToPolygonListJson (IEnumerable<List<IntPoint>> polygons)
+	{
+		JsonArray list = [];
+		foreach (List<IntPoint> polygon in polygons) {
+			if (polygon.Count == 0)
+				continue;
+			IEnumerable<IntPoint> closed = polygon[0] == polygon[^1] ? polygon : polygon.Append (polygon[0]);
+			list.Add (string.Join (",", closed.SelectMany (p => new[] { p.X, p.Y }).Select (v => v.ToString (CultureInfo.InvariantCulture))));
+		}
+		return new JsonObject { ["polygonList"] = list }.ToJsonString (new JsonSerializerOptions { WriteIndented = true });
+	}
+
+	/// <summary>
+	/// Edit > Paste Selection: parses the JSON written by <see cref="ToPolygonListJson"/> (or by Paint.NET).
+	/// Returns null if the text is not a polygon list.
+	/// </summary>
+	public static List<List<IntPoint>>? ParsePolygonListJson (string? text)
+	{
+		if (string.IsNullOrWhiteSpace (text))
+			return null;
+
+		try {
+			if (JsonNode.Parse (text)?["polygonList"] is not JsonArray list)
+				return null;
+
+			List<List<IntPoint>> result = [];
+			foreach (JsonNode? node in list) {
+				double[] values = (node?.GetValue<string> () ?? "")
+					.Split (',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+					.Select (v => double.Parse (v, NumberStyles.Float, CultureInfo.InvariantCulture))
+					.ToArray ();
+				if (values.Length % 2 != 0)
+					return null;
+				List<IntPoint> polygon = [];
+				for (int i = 0; i < values.Length; i += 2)
+					polygon.Add (new IntPoint ((long) Math.Round (values[i]), (long) Math.Round (values[i + 1])));
+				if (polygon.Count >= 3)
+					result.Add (polygon);
+			}
+			return result.Count > 0 ? result : null;
+		} catch (Exception e) when (e is JsonException or FormatException or InvalidOperationException or OverflowException) {
+			return null;
+		}
 	}
 
 	/// <summary>

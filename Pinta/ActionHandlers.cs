@@ -134,6 +134,12 @@ public sealed class ActionHandlers
 		PintaCore.Actions.Edit.CopyMerged.Sensitive = enable;
 		PintaCore.Actions.Edit.Cut.Sensitive = enable;
 		PintaCore.Actions.Edit.PasteIntoNewLayer.Sensitive = enable;
+		PintaCore.Actions.Edit.CopySelection.Sensitive = enable && HasVisibleSelection ();
+		PintaCore.Actions.Edit.PasteSelectionReplace.Sensitive = enable;
+		PintaCore.Actions.Edit.PasteSelectionUnion.Sensitive = enable;
+		PintaCore.Actions.Edit.PasteSelectionExclude.Sensitive = enable;
+		PintaCore.Actions.Edit.PasteSelectionIntersect.Sensitive = enable;
+		PintaCore.Actions.Edit.PasteSelectionXor.Sensitive = enable;
 		PintaCore.Actions.Edit.EraseSelection.Sensitive = enable;
 		PintaCore.Actions.Edit.FillSelection.Sensitive = enable;
 		PintaCore.Actions.Edit.InvertSelection.Sensitive = enable;
