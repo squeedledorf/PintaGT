@@ -24,7 +24,7 @@ public sealed class FragmentEffect : BaseEffect
 		=> true;
 
 	public override string Name
-		=> Translations.GetString ("Fragment");
+		=> Translations.GetString ("Fragment Blur");
 
 	public override bool IsConfigurable
 		=> true;

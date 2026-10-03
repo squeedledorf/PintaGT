@@ -20,7 +20,7 @@ public sealed class OutlineEdgeEffect : BaseEffect
 
 	public sealed override bool IsTileable => true;
 
-	public override string Name => Translations.GetString ("Outline Edge");
+	public override string Name => Translations.GetString ("Outline");
 
 	public override bool IsConfigurable => true;
 

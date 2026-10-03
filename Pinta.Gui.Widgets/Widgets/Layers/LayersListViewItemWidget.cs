@@ -96,7 +96,7 @@ public sealed partial class LayersListViewItem
 
 		UpdateLayerPropertiesHistoryItem historyItem = new (
 			visible ? Resources.StandardIcons.ViewReveal : Resources.StandardIcons.ViewConceal,
-			visible ? Translations.GetString ("Show Layer") : Translations.GetString ("Hide Layer"),
+			Translations.GetString ("Layer Visibility"),
 			doc.Layers.IndexOf (UserLayer),
 			initial,
 			updated);
@@ -168,9 +168,9 @@ public sealed partial class LayersListViewItemWidget
 
 		SetOrientation (Gtk.Orientation.Horizontal);
 
-		Append (visibleButton);
-		Append (itemLabel);
 		Append (itemThumbnail);
+		Append (itemLabel);
+		Append (visibleButton);
 
 		// --- References to keep
 

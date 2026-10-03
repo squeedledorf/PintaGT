@@ -20,11 +20,11 @@ public sealed class MedianEffect : BaseEffect
 
 	public sealed override bool IsTileable => true;
 
-	public override string Name => Translations.GetString ("Median");
+	public override string Name => Translations.GetString ("Median Blur");
 
 	public override bool IsConfigurable => true;
 
-	public override string EffectMenuCategory => Translations.GetString ("Noise");
+	public override string EffectMenuCategory => Translations.GetString ("Blurs");
 
 	public MedianData Data => (MedianData) EffectData!;  // NRT - Set in constructor
 

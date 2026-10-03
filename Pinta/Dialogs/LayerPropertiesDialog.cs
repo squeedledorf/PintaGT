@@ -49,6 +49,8 @@ public sealed partial class LayerPropertiesDialog
 
 	private WorkspaceManager workspace = null!; // NRT - set by factory method
 
+	private bool initializing;
+
 	[MemberNotNull (nameof (layer_name_entry))]
 	[MemberNotNull (nameof (visibility_checkbox))]
 	[MemberNotNull (nameof (opacity_slider))]
@@ -59,7 +61,7 @@ public sealed partial class LayerPropertiesDialog
 		const int spacing = 6;
 
 		Gtk.Label nameLabel = Gtk.Label.New (Translations.GetString ("Name:"));
-		nameLabel.Halign = Gtk.Align.End;
+		nameLabel.Halign = Gtk.Align.Start;
 
 		Gtk.Entry layerNameEntry = Gtk.Entry.New ();
 		layerNameEntry.Hexpand = true;
@@ -85,13 +87,14 @@ public sealed partial class LayerPropertiesDialog
 		Gtk.Label opacityLabel = Gtk.Label.New (Translations.GetString ("Opacity:"));
 		opacityLabel.Halign = Gtk.Align.End;
 
-		Gtk.SpinButton opacitySpinner = Gtk.SpinButton.NewWithRange (0, 100, 1);
+		// Opacity is shown as 0-255, as in Paint.NET.
+		Gtk.SpinButton opacitySpinner = Gtk.SpinButton.NewWithRange (0, 255, 1);
 		opacitySpinner.Adjustment!.PageIncrement = 10;
 		opacitySpinner.ClimbRate = 1;
 		opacitySpinner.OnValueChanged += OnOpacitySpinnerChanged;
 		opacitySpinner.SetActivatesDefaultImmediate (true);
 
-		Gtk.Scale opacitySlider = Gtk.Scale.NewWithRange (Gtk.Orientation.Horizontal, 0, 100, 1);
+		Gtk.Scale opacitySlider = Gtk.Scale.NewWithRange (Gtk.Orientation.Horizontal, 0, 255, 1);
 		opacitySlider.Digits = 0;
 		opacitySlider.Adjustment!.PageIncrement = 10;
 		opacitySlider.Hexpand = true;
@@ -99,20 +102,20 @@ public sealed partial class LayerPropertiesDialog
 		opacitySlider.OnValueChanged += OnOpacitySliderChanged;
 
 		Gtk.Box opacityBox = Gtk.Box.New (Gtk.Orientation.Horizontal, spacing);
-		opacityBox.Append (opacitySpinner);
 		opacityBox.Append (opacitySlider);
+		opacityBox.Append (opacitySpinner);
 
 		Gtk.Grid grid = Gtk.Grid.New ();
 		grid.RowSpacing = spacing;
 		grid.ColumnSpacing = spacing;
 		grid.ColumnHomogeneous = false;
-		grid.Attach (nameLabel, 0, 0, 1, 1);
-		grid.Attach (layerNameEntry, 1, 0, 1, 1);
-		grid.Attach (visibilityCheckbox, 1, 1, 1, 1);
-		grid.Attach (blendLabel, 0, 2, 1, 1);
-		grid.Attach (blendComboBox, 1, 2, 1, 1);
-		grid.Attach (opacityLabel, 0, 3, 1, 1);
-		grid.Attach (opacityBox, 1, 3, 1, 1);
+		grid.Attach (nameLabel, 0, 0, 2, 1);
+		grid.Attach (layerNameEntry, 0, 1, 2, 1);
+		grid.Attach (opacityLabel, 0, 2, 1, 1);
+		grid.Attach (opacityBox, 1, 2, 1, 1);
+		grid.Attach (blendLabel, 0, 3, 1, 1);
+		grid.Attach (blendComboBox, 1, 3, 1, 1);
+		grid.Attach (visibilityCheckbox, 0, 4, 2, 1);
 
 		// --- Initialization (Gtk.Window)
 
@@ -168,10 +171,13 @@ public sealed partial class LayerPropertiesDialog
 			currentLayerOpacity,
 			currentLayerBlendMode);
 
+		// Don't let the rounded 0-255 value overwrite the layer's exact opacity unless the user changes it.
+		initializing = true;
 		layer_name_entry.SetText (initialProperties.Name);
 		visibility_checkbox.Active = !initialProperties.Hidden;
-		opacity_spinner.Value = Math.Round (initialProperties.Opacity * 100);
-		opacity_slider.SetValue (Math.Round (initialProperties.Opacity * 100));
+		opacity_spinner.Value = Math.Round (initialProperties.Opacity * 255);
+		opacity_slider.SetValue (Math.Round (initialProperties.Opacity * 255));
+		initializing = false;
 
 		var allBlendmodes = UserBlendOps.GetAllBlendModeNames ().ToImmutableArray ();
 		var index = allBlendmodes.IndexOf (UserBlendOps.GetBlendModeName (currentLayerBlendMode));
@@ -236,10 +242,13 @@ public sealed partial class LayerPropertiesDialog
 
 	private void UpdateOpacity ()
 	{
+		if (initializing)
+			return;
+
 		Document doc = workspace.ActiveDocument;
 
 		//TODO check redraws are being throttled.
-		current_layer_opacity = opacity_spinner.Value / 100d;
+		current_layer_opacity = opacity_spinner.Value / 255d;
 
 		doc.Layers.CurrentUserLayer.Opacity = current_layer_opacity;
 

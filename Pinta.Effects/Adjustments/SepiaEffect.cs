@@ -71,7 +71,7 @@ public sealed class SepiaEffect : BaseEffect
 
 	public sealed class SepiaData : EffectData
 	{
-		[MinimumValue (0), MaximumValue (100)]
+		[Caption ("Intensity"), MinimumValue (0), MaximumValue (100)]
 		public int Strength { get; set; } = 100;
 	}
 }

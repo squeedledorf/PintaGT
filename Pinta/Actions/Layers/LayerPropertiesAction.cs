@@ -104,13 +104,13 @@ internal sealed class LayerPropertiesAction : IActionHandler
 		}
 
 		if (updated.Name != initial.Name) {
-			message = Translations.GetString ("Rename Layer");
+			message = Translations.GetString ("Layer Name");
 			icon = Resources.Icons.LayerProperties;
 			count++;
 		}
 
 		if (updated.Hidden != initial.Hidden) {
-			message = initial.Hidden ? Translations.GetString ("Show Layer") : Translations.GetString ("Hide Layer");
+			message = Translations.GetString ("Layer Visibility");
 			icon = initial.Hidden ? Resources.StandardIcons.ViewReveal : Resources.StandardIcons.ViewConceal;
 			count++;
 		}

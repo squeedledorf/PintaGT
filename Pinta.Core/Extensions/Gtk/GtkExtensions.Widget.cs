@@ -203,19 +203,13 @@ partial class GtkExtensions
 
 
 	/// <summary>
-	/// Returns the Cancel / Ok button pair in the correct order for the current platform.
+	/// Adds the OK / Cancel button pair, with OK first on every platform (as in Paint.NET).
 	/// This can be used with the Gtk.Dialog constructor.
 	/// </summary>
 	public static void AddCancelOkButtons (this Gtk.Dialog dialog)
 	{
-		Gtk.Widget ok_button;
-		if (PintaCore.System.OperatingSystem == OS.Windows) {
-			ok_button = dialog.AddButton (Translations.GetString ("_OK"), (int) Gtk.ResponseType.Ok);
-			dialog.AddButton (Translations.GetString ("_Cancel"), (int) Gtk.ResponseType.Cancel);
-		} else {
-			dialog.AddButton (Translations.GetString ("_Cancel"), (int) Gtk.ResponseType.Cancel);
-			ok_button = dialog.AddButton (Translations.GetString ("_OK"), (int) Gtk.ResponseType.Ok);
-		}
+		Gtk.Widget ok_button = dialog.AddButton (Translations.GetString ("_OK"), (int) Gtk.ResponseType.Ok);
+		dialog.AddButton (Translations.GetString ("_Cancel"), (int) Gtk.ResponseType.Cancel);
 
 		ok_button.AddCssClass (AdwaitaStyles.SuggestedAction);
 	}

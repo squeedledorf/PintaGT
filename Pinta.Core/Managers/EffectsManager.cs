@@ -42,6 +42,9 @@ public sealed class EffectsManager
 	private readonly ActionManager action_manager;
 	private readonly ChromeManager chrome_manager;
 	private readonly LivePreviewManager live_preview_manager;
+
+	private BaseEffect? last_effect;
+
 	internal EffectsManager (
 		ActionManager actionManager,
 		ChromeManager chromeManager,
@@ -54,6 +57,28 @@ public sealed class EffectsManager
 		action_manager = actionManager;
 		chrome_manager = chromeManager;
 		live_preview_manager = livePreviewManager;
+
+		action_manager.Effects.RepeatEffect.Activated += (o, args) => RepeatLastEffect ();
+	}
+
+	private async void RepeatLastEffect ()
+	{
+		if (last_effect is null || live_preview_manager.IsEnabled)
+			return;
+
+		await live_preview_manager.Start (last_effect, skipDialog: true);
+	}
+
+	private async void ApplyEffect (BaseEffect effect)
+	{
+		if (live_preview_manager.IsEnabled)
+			return;
+
+		if (!await live_preview_manager.Start (effect))
+			return;
+
+		last_effect = effect;
+		action_manager.Effects.SetRepeatableEffect (effect.Name);
 	}
 
 	/// <summary>
@@ -83,7 +108,7 @@ public sealed class EffectsManager
 				? [] // If no key is specified, don't use an accelerated menu item
 				: [adjustment.AdjustmentMenuKeyModifiers + adjustment.AdjustmentMenuKey]);
 
-		action.Activated += (o, args) => { live_preview_manager.Start (adjustment); };
+		action.Activated += async (o, args) => { await live_preview_manager.Start (adjustment); };
 
 		action_manager.Adjustments.Actions.Add (action);
 
@@ -118,7 +143,7 @@ public sealed class EffectsManager
 			effect.Icon);
 
 		chrome_manager.Application.AddCommand (action);
-		action.Activated += (o, args) => live_preview_manager.Start (effect);
+		action.Activated += (o, args) => ApplyEffect (effect);
 
 		action_manager.Effects.AddEffect (effect.EffectMenuCategory, action);
 
@@ -138,6 +163,11 @@ public sealed class EffectsManager
 			return;
 
 		string category = effects_categories[effectType];
+
+		if (last_effect?.GetType () == effectType) {
+			last_effect = null;
+			action_manager.Effects.ClearRepeatableEffect ();
+		}
 
 		effects.Remove (effectType);
 		action_manager.Effects.RemoveEffect (category, action);

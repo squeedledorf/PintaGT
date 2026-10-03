@@ -383,7 +383,6 @@ public sealed partial class SimpleEffectDialog
 
 		Gtk.Label label = Gtk.Label.New (caption);
 		label.Halign = Gtk.Align.Start;
-		label.AddCssClass (AdwaitaStyles.Title4);
 
 		Gtk.Box combinedWidget = Gtk.Box.New (Gtk.Orientation.Vertical, 6);
 		combinedWidget.Append (label);
@@ -631,7 +630,6 @@ public sealed partial class SimpleEffectDialog
 		Random random = new ();
 
 		Gtk.Label sectionLabel = Gtk.Label.New (null);
-		sectionLabel.AddCssClass (AdwaitaStyles.Title4);
 		sectionLabel.Hexpand = false;
 		sectionLabel.Halign = Gtk.Align.Start;
 		sectionLabel.SetText (caption);
@@ -646,7 +644,7 @@ public sealed partial class SimpleEffectDialog
 			});
 		};
 
-		Gtk.Button reseedButton = Gtk.Button.NewWithLabel (Translations.GetString ("Reseed"));
+		Gtk.Button reseedButton = Gtk.Button.NewWithMnemonic (Translations.GetString ("_Randomize"));
 		reseedButton.WidthRequest = 88;
 		reseedButton.CanFocus = true;
 		reseedButton.UseUnderline = true;
