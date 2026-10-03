@@ -84,6 +84,19 @@ public readonly record struct Color (
 		}
 	}
 
+	/// <summary>
+	/// For a hex box that shows RRGGBB, as Paint.NET's does: RRGGBB keeps <paramref name="alpha"/>,
+	/// RRGGBBAA (pasted) sets it. The 3 and 4 digit shorthands are refused, since they are what the box
+	/// holds halfway through typing six digits ("FF00" would otherwise make the colour transparent).
+	/// </summary>
+	public static Color? FromHex (string hex, double alpha)
+	{
+		string digits = hex.TrimStart ('#');
+		if (digits.Length is not (6 or 8) || FromHex (digits) is not Color c)
+			return null;
+		return digits.Length == 6 ? c with { A = alpha } : c;
+	}
+
 	/// <param name="hex">
 	/// Hexadecimal color representation without the hash symbol
 	/// </param>
