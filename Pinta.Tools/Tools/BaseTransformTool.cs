@@ -44,6 +44,10 @@ public abstract class BaseTransformTool : BaseTool
 	// Width in window pixels of the corridor just outside the frame where a drag rotates.
 	private const double ROTATE_CORRIDOR = 16;
 
+	// The centre of rotation sits where a reflexive move drag starts, so a press only grabs it once
+	// the pointer has rested on it this long; a press that comes sooner moves the pixels.
+	private const int PIVOT_DWELL_MS = 400;
+
 	private static Gdk.Cursor? rotate_cursor;
 	private static Gdk.Cursor? nub_cursor;
 
@@ -61,6 +65,9 @@ public abstract class BaseTransformTool : BaseTool
 	private DragMode mode = DragMode.None;
 	private int active_nub;
 	private bool using_mouse = false;
+	private long pivot_hover_since = -1; // Environment.TickCount64 when the pointer reached the pivot, or -1.
+	private uint pivot_dwell_timer = 0;
+	private PointD last_hover_point;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="BaseTransformTool"/> class.
@@ -311,7 +318,8 @@ public abstract class BaseTransformTool : BaseTool
 				return (DragMode.Scale, i);
 		}
 
-		if (pivot_handle.ContainsPoint (windowPoint))
+		if (pivot_handle.ContainsPoint (windowPoint) && pivot_hover_since >= 0
+			&& Environment.TickCount64 - pivot_hover_since >= PIVOT_DWELL_MS)
 			return (DragMode.Pivot, 0);
 
 		PointD[] outline = frame.GetCorners ().Select (document.Workspace.CanvasPointToView).ToArray ();
@@ -323,6 +331,8 @@ public abstract class BaseTransformTool : BaseTool
 
 	private void UpdateCursor (Document document, PointD windowPoint)
 	{
+		TrackPivotHover (document, windowPoint);
+
 		Gdk.Cursor? cursor = HitTest (document, windowPoint).Item1 switch {
 			DragMode.Rotate => RotateCursor,
 			DragMode.Scale or DragMode.Pivot => nub_cursor ??= GdkExtensions.CursorFromName (Pinta.Resources.StandardCursors.Grab),
@@ -331,6 +341,34 @@ public abstract class BaseTransformTool : BaseTool
 
 		if (cursor != CurrentCursor)
 			SetCursor (cursor);
+	}
+
+	/// <summary>
+	/// Starts the dwell clock when the pointer reaches the pivot, and shows the grab cursor once it runs out.
+	/// </summary>
+	private void TrackPivotHover (Document document, PointD windowPoint)
+	{
+		last_hover_point = windowPoint;
+
+		if (!pivot_handle.Active || !pivot_handle.ContainsPoint (windowPoint)) {
+			pivot_hover_since = -1;
+			return;
+		}
+
+		if (pivot_hover_since >= 0)
+			return;
+
+		pivot_hover_since = Environment.TickCount64;
+
+		if (pivot_dwell_timer != 0)
+			GLib.Source.Remove (pivot_dwell_timer);
+
+		pivot_dwell_timer = GLib.Functions.TimeoutAdd (GLib.Constants.PRIORITY_DEFAULT, PIVOT_DWELL_MS, () => {
+			pivot_dwell_timer = 0;
+			if (IsActiveTool () && mode == DragMode.None && workspace.HasOpenDocuments && workspace.ActiveDocument == document)
+				UpdateCursor (document, last_hover_point);
+			return false;
+		});
 	}
 
 	/// <summary>
