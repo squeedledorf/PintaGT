@@ -37,13 +37,13 @@ public sealed class AddinActions
 	{
 		AddinManager = new Command (
 			"AddinManager",
-			Translations.GetString ("Add-in Manager..."),
+			Translations.GetString ("Plugins..."),
 			null,
 			Resources.Icons.AddinsManage);
 	}
 
 	/// <summary>
-	/// Adds a new item to the Add-ins menu.
+	/// Adds a new item to the add-ins section of the Help menu.
 	/// </summary>
 	public void AddMenuItem (Gio.MenuItem item)
 	{
@@ -51,7 +51,7 @@ public sealed class AddinActions
 	}
 
 	/// <summary>
-	/// Removes an item from the Add-ins menu.
+	/// Removes an item from the add-ins section of the Help menu.
 	/// </summary>
 	public void RemoveMenuItem (Gio.MenuItem item)
 	{

@@ -40,7 +40,6 @@ public sealed class ActionManager
 	public HelpActions Help { get; }
 	public AddinActions Addins { get; }
 
-	private readonly SystemManager system;
 	private readonly ChromeManager chrome;
 	public ActionManager (
 		ChromeManager chrome,
@@ -64,8 +63,8 @@ public sealed class ActionManager
 
 		// --- Action handlers that depend on other handlers
 
-		FileActions file = new (system, app);
-		HelpActions help = new (system, app);
+		FileActions file = new (system, app, window);
+		HelpActions help = new (system, app, addins);
 		ImageActions image = new (tools, workspace, view);
 		LayerActions layers = new (chrome, imageFormats, recentFiles, tools, workspace, image);
 
@@ -83,61 +82,49 @@ public sealed class ActionManager
 		Help = help;
 		Addins = addins;
 
-		this.system = system;
 		this.chrome = chrome;
 	}
 
 	public void CreateToolBar (Gtk.Box toolbar)
 	{
-		toolbar.Append (File.New.CreateToolBarItem ());
-		toolbar.Append (File.Open.CreateToolBarItem ());
-		toolbar.Append (File.Save.CreateToolBarItem ());
-		// Printing is disabled for now until it is fully functional.
-#if false
-		toolbar.AppendItem (File.Print.CreateToolBarItem ());
-#endif
-		toolbar.Append (GtkExtensions.CreateToolBarSeparator ());
-
-		// Cut/Copy/Paste comes before Undo/Redo on Windows
-		if (system.OperatingSystem == OS.Windows) {
-			toolbar.Append (Edit.Cut.CreateToolBarItem ());
-			toolbar.Append (Edit.Copy.CreateToolBarItem ());
-			toolbar.Append (Edit.Paste.CreateToolBarItem ());
-			toolbar.Append (GtkExtensions.CreateToolBarSeparator ());
-			toolbar.Append (Edit.Undo.CreateToolBarItem ());
-			toolbar.Append (Edit.Redo.CreateToolBarItem ());
-		} else {
-			toolbar.Append (Edit.Undo.CreateToolBarItem ());
-			toolbar.Append (Edit.Redo.CreateToolBarItem ());
-			toolbar.Append (GtkExtensions.CreateToolBarSeparator ());
-			toolbar.Append (Edit.Cut.CreateToolBarItem ());
-			toolbar.Append (Edit.Copy.CreateToolBarItem ());
-			toolbar.Append (Edit.Paste.CreateToolBarItem ());
-		}
-
-		toolbar.Append (GtkExtensions.CreateToolBarSeparator ());
-		toolbar.Append (Image.CropToSelection.CreateToolBarItem ());
-		toolbar.Append (Edit.Deselect.CreateToolBarItem ());
+		foreach (Gtk.Widget item in CreateToolBarItems ())
+			toolbar.Append (item);
 	}
 
 	public void CreateHeaderToolBar (Adw.HeaderBar header)
 	{
-		header.PackStart (File.New.CreateToolBarItem ());
-		header.PackStart (File.Open.CreateToolBarItem ());
-		header.PackStart (File.Save.CreateToolBarItem ());
+		foreach (Gtk.Widget item in CreateToolBarItems ())
+			header.PackStart (item);
+	}
 
-		header.PackStart (GtkExtensions.CreateToolBarSeparator ());
-		header.PackStart (Edit.Undo.CreateToolBarItem ());
-		header.PackStart (Edit.Redo.CreateToolBarItem ());
+	// Paint.NET order: New, Open, Save | Cut, Copy, Paste, Crop, Deselect | Undo, Redo | Pixel Grid, Rulers
+	private Gtk.Widget[] CreateToolBarItems () => [
+		File.New.CreateToolBarItem (),
+		File.Open.CreateToolBarItem (),
+		File.Save.CreateToolBarItem (),
+		// Printing is disabled for now until it is fully functional.
+		GtkExtensions.CreateToolBarSeparator (),
+		Edit.Cut.CreateToolBarItem (),
+		Edit.Copy.CreateToolBarItem (),
+		Edit.Paste.CreateToolBarItem (),
+		Image.CropToSelection.CreateToolBarItem (),
+		Edit.Deselect.CreateToolBarItem (),
+		GtkExtensions.CreateToolBarSeparator (),
+		Edit.Undo.CreateToolBarItem (),
+		Edit.Redo.CreateToolBarItem (),
+		GtkExtensions.CreateToolBarSeparator (),
+		CreateToggleToolBarItem (View.PixelGrid),
+		CreateToggleToolBarItem (View.Rulers),
+	];
 
-		header.PackStart (GtkExtensions.CreateToolBarSeparator ());
-		header.PackStart (Edit.Cut.CreateToolBarItem ());
-		header.PackStart (Edit.Copy.CreateToolBarItem ());
-		header.PackStart (Edit.Paste.CreateToolBarItem ());
-
-		header.PackStart (GtkExtensions.CreateToolBarSeparator ());
-		header.PackStart (Image.CropToSelection.CreateToolBarItem ());
-		header.PackStart (Edit.Deselect.CreateToolBarItem ());
+	// A toggle button reflects the boolean state of the action, unlike the plain button from CreateToolBarItem.
+	private static Gtk.ToggleButton CreateToggleToolBarItem (ToggleCommand command)
+	{
+		Gtk.ToggleButton button = Gtk.ToggleButton.New ();
+		button.ActionName = command.FullName;
+		button.IconName = command.IconName;
+		button.TooltipText = command.Label;
+		return button;
 	}
 
 	public void CreateStatusBar (Gtk.Box statusbar, WorkspaceManager workspaceManager)

@@ -67,14 +67,14 @@ public sealed class ImageActions
 
 		Resize = new Command (
 			"resize",
-			Translations.GetString ("Resize Image..."),
+			Translations.GetString ("Resize..."),
 			null,
 			Resources.Icons.ImageResize,
 			shortcuts: ["<Primary>R"]);
 
 		CanvasSize = new Command (
 			"canvassize",
-			Translations.GetString ("Resize Canvas..."),
+			Translations.GetString ("Canvas Size..."),
 			null,
 			Resources.Icons.ImageResizeCanvas,
 			shortcuts: ["<Primary><Shift>R"]);
@@ -138,10 +138,14 @@ public sealed class ImageActions
 		Gio.Menu flatten_section = Gio.Menu.New ();
 		flatten_section.AppendItem (Flatten.CreateMenuItem ());
 
+		// Auto Crop is a Pinta extra, kept in its own section after the Paint.NET items.
+		Gio.Menu auto_crop_section = Gio.Menu.New ();
+		auto_crop_section.AppendItem (AutoCrop.CreateMenuItem ());
+
 		menu.AppendItem (CropToSelection.CreateMenuItem ());
-		menu.AppendItem (AutoCrop.CreateMenuItem ());
 		menu.AppendItem (Resize.CreateMenuItem ());
 		menu.AppendItem (CanvasSize.CreateMenuItem ());
+		menu.AppendSection (null, auto_crop_section);
 		menu.AppendSection (null, flip_section);
 		menu.AppendSection (null, rotate_section);
 		menu.AppendSection (null, flatten_section);

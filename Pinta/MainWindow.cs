@@ -116,6 +116,8 @@ internal sealed class MainWindow
 		key_controller.OnKeyReleased += HandleGlobalKeyRelease;
 		window_shell.Window.AddController (key_controller);
 
+		PintaCore.Actions.View.PixelGrid.Toggled += PixelGrid_Toggled;
+
 		// TODO: These need to be [re]moved when we redo zoom support
 		PintaCore.Actions.View.ZoomToWindow.Activated += ZoomToWindow_Activated;
 		PintaCore.Actions.View.ZoomToSelection.Activated += ZoomToSelection_Activated;
@@ -252,6 +254,12 @@ internal sealed class MainWindow
 			}
 		}
 
+		// Enter deselects (Paint.NET), once the tool has had a chance to use it.
+		if (IsPlainEnter (args) && PintaCore.Actions.Edit.Deselect.Sensitive) {
+			PintaCore.Actions.Edit.Deselect.Activate ();
+			return true;
+		}
+
 		// If the canvas/tool didn't consume it, see if its a toolbox shortcut
 		if (!args.State.HasModifierKey () && PintaCore.Tools.SetCurrentTool (args.GetKey ()))
 			return true;
@@ -266,6 +274,15 @@ internal sealed class MainWindow
 
 		// We return 'false' to indicate that nobody consumed it
 		return false;
+	}
+
+	private static bool IsPlainEnter (Gtk.EventControllerKey.KeyPressedSignalArgs args)
+	{
+		if (args.State.HasModifierKey ())
+			return false;
+
+		uint key = args.Keyval;
+		return key == Gdk.Constants.KEY_Return || key == Gdk.Constants.KEY_KP_Enter || key == Gdk.Constants.KEY_ISO_Enter;
 	}
 
 	private void HandleGlobalKeyRelease (
@@ -367,7 +384,6 @@ internal sealed class MainWindow
 	private void CreateMainMenu ()
 	{
 		bool usingMenuBar = IsUsingMenuBar ();
-		bool isMac = PintaCore.System.OperatingSystem == OS.Mac;
 
 		// When using a header bar, the View, Image, Effects, and Adjustments menus
 		// are shown as menu buttons in the toolbar (see CreateMainToolBar ())
@@ -375,9 +391,11 @@ internal sealed class MainWindow
 		Gio.Menu fileMenu = Gio.Menu.New ();
 		Gio.Menu editMenu = Gio.Menu.New ();
 		Gio.Menu imageMenu = Gio.Menu.New ();
+		Gio.Menu layersMenu = Gio.Menu.New ();
 		Gio.Menu adjustmentsMenu = Gio.Menu.New ();
 		Gio.Menu effectsMenu = Gio.Menu.New ();
-		Gio.Menu addinsMenu = Gio.Menu.New ();
+		// Paint.NET has no Window menu. Its commands stay registered (and keep the
+		// document list and window title updated), but the menu itself is not shown.
 		Gio.Menu windowMenu = Gio.Menu.New ();
 		Gio.Menu helpMenu = Gio.Menu.New ();
 		Gio.Menu padSection = Gio.Menu.New ();
@@ -391,11 +409,12 @@ internal sealed class MainWindow
 		if (usingMenuBar) {
 			menuBar.AppendSubmenu (Translations.GetString ("_View"), viewMenu);
 			menuBar.AppendSubmenu (Translations.GetString ("_Image"), imageMenu);
+		}
+		menuBar.AppendSubmenu (Translations.GetString ("_Layers"), layersMenu);
+		if (usingMenuBar) {
 			menuBar.AppendSubmenu (Translations.GetString ("_Adjustments"), adjustmentsMenu);
 			menuBar.AppendSubmenu (Translations.GetString ("Effe_cts"), effectsMenu);
 		}
-		menuBar.AppendSubmenu (Translations.GetString ("A_dd-ins"), addinsMenu);
-		menuBar.AppendSubmenu (Translations.GetString ("_Window"), windowMenu);
 		menuBar.AppendSubmenu (Translations.GetString ("_Help"), helpMenu);
 
 		// --- Global initializations
@@ -413,23 +432,10 @@ internal sealed class MainWindow
 		PintaCore.Actions.Edit.RegisterActions (app, editMenu);
 		PintaCore.Actions.View.RegisterActions (app, viewMenu);
 		PintaCore.Actions.Image.RegisterActions (app, imageMenu);
-		PintaCore.Actions.Layers.RegisterActions (app);
-		PintaCore.Actions.Addins.RegisterActions (app, addinsMenu);
+		PintaCore.Actions.Layers.RegisterActions (app, layersMenu);
 		PintaCore.Actions.Window.RegisterActions (app, windowMenu);
+		// This also registers the add-in manager and mounts the add-ins section inside Help.
 		PintaCore.Actions.Help.RegisterActions (app, helpMenu);
-
-		// When using a header bar, show preferences in the main menu.
-		// Otherwise, add it to the Edit menu (except for macOS, which shows this in the App menu).
-		if (!usingMenuBar || !isMac) {
-			Gio.Menu prefsSection = Gio.Menu.New ();
-			prefsSection.AppendItem (PintaCore.Actions.App.Preferences.CreateMenuItem ());
-
-			if (!usingMenuBar) {
-				menuBar.AppendSection (null, prefsSection);
-			} else {
-				editMenu.AppendSection (null, prefsSection);
-			}
-		}
 
 		PintaCore.Chrome.InitializeMainMenu (adjustmentsMenu, effectsMenu);
 
@@ -479,7 +485,6 @@ internal sealed class MainWindow
 	private void CreateToolToolBar ()
 	{
 		Gtk.Box tool_toolbar = window_shell.CreateToolBar ("tool_toolbar");
-		tool_toolbar.HeightRequest = 48;
 
 		PintaCore.Chrome.InitializeToolToolBar (tool_toolbar);
 	}
@@ -488,9 +493,27 @@ internal sealed class MainWindow
 	{
 		Gtk.Box statusbar = window_shell.CreateStatusBar ("statusbar");
 
+		// Tool hint at the left, as in Paint.NET: the active tool's icon and "Name: hint".
+		Gtk.Image tool_icon = Gtk.Image.New ();
+		statusbar.Append (tool_icon);
+
+		Gtk.Label tool_hint = Gtk.Label.New (string.Empty);
+		tool_hint.Xalign = 0.0f;
+		tool_hint.Hexpand = true;
+		tool_hint.Halign = Gtk.Align.Fill;
+		tool_hint.Ellipsize = Pango.EllipsizeMode.End;
+		tool_hint.SingleLineMode = true;
+		statusbar.Append (tool_hint);
+
+		PintaCore.Chrome.StatusBarTextChanged += (_, e) => {
+			string text = e.Text.Trim ().ReplaceLineEndings (" ");
+			tool_hint.SetText (text);
+			tool_hint.TooltipText = text;
+		};
+		PintaCore.Tools.ToolActivated += (_, e) => tool_icon.SetFromIconName (e.Tool.Icon);
+
+		// The palette stays here until the Colors window replaces it.
 		StatusBarColorPaletteWidget widget = StatusBarColorPaletteWidget.New (PintaCore.Chrome, PintaCore.Palette, PintaCore.System);
-		widget.Hexpand = true;
-		widget.Halign = Gtk.Align.Fill;
 
 		statusbar.Append (widget);
 
@@ -531,13 +554,13 @@ internal sealed class MainWindow
 		canvas_pad.Initialize (dock);
 		PintaCore.Chrome.InitializeImageTabsNotebook (canvas_pad.Notebook);
 
+		// History pad (above Layers, as in Paint.NET)
+		HistoryPad history_pad = new (PintaCore.Actions.Edit);
+		history_pad.Initialize (dock);
+
 		// Layer pad
 		LayersPad layers_pad = new (PintaCore.Actions.Layers);
 		layers_pad.Initialize (dock);
-
-		// History pad
-		HistoryPad history_pad = new (PintaCore.Actions.Edit);
-		history_pad.Initialize (dock);
 
 		container.Append (dock);
 	}
@@ -626,6 +649,25 @@ internal sealed class MainWindow
 		}
 
 		return true;
+	}
+
+	private (bool Show, int Width, int Height) grid_before_pixel_grid;
+
+	// The pixel grid reuses the canvas grid with 1x1 cells, and restores the previous grid when turned off.
+	private void PixelGrid_Toggled (bool active, bool interactive)
+	{
+		CanvasGridManager grid = PintaCore.CanvasGrid;
+
+		if (active) {
+			grid_before_pixel_grid = (grid.ShowGrid, grid.CellWidth, grid.CellHeight);
+			grid.CellWidth = 1;
+			grid.CellHeight = 1;
+			grid.ShowGrid = true;
+		} else {
+			grid.ShowGrid = grid_before_pixel_grid.Show;
+			grid.CellWidth = grid_before_pixel_grid.Width;
+			grid.CellHeight = grid_before_pixel_grid.Height;
+		}
 	}
 
 	private void ZoomToSelection_Activated (object sender, EventArgs e)

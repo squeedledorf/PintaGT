@@ -1,5 +1,3 @@
-using Pinta.Core;
-
 namespace Pinta;
 
 internal static class SettingNames
@@ -48,6 +46,6 @@ internal static class SettingDefaults
 {
 	public const string LANGUAGE = "";
 
-	// On macOS the global menubar should be used by default.
-	internal static bool MenuBarShown () => SystemManager.GetOperatingSystem () == OS.Mac;
+	// The classic menu bar is shown by default on every OS (Paint.NET layout).
+	internal static bool MenuBarShown () => true;
 }

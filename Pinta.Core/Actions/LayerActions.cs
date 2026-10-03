@@ -41,6 +41,14 @@ public sealed class LayerActions
 	public Command MoveLayerUp { get; }
 	public Command MoveLayerDown { get; }
 	public Command Properties { get; }
+	public Command ToggleVisibility { get; }
+	public Command Rotate180 { get; }
+	public Command GoToTopLayer { get; }
+	public Command GoToLayerAbove { get; }
+	public Command GoToLayerBelow { get; }
+	public Command GoToBottomLayer { get; }
+	public Command MoveLayerToTop { get; }
+	public Command MoveLayerToBottom { get; }
 
 	private readonly ChromeManager chrome;
 	private readonly ImageConverterManager image_formats;
@@ -86,7 +94,7 @@ public sealed class LayerActions
 
 		ImportFromFile = new Command (
 			"importfromfile",
-			Translations.GetString ("Import from File..."),
+			Translations.GetString ("Import From File..."),
 			null,
 			Resources.Icons.LayerImport);
 
@@ -94,21 +102,20 @@ public sealed class LayerActions
 			"fliplayerhorizontal",
 			Translations.GetString ("Flip Horizontal"),
 			null,
-			Resources.Icons.LayerFlipHorizontal,
-			shortcuts: ["<Primary>F"]);
+			Resources.Icons.LayerFlipHorizontal);
 
 		FlipVertical = new Command (
 			"fliplayervertical",
 			Translations.GetString ("Flip Vertical"),
 			null,
-			Resources.Icons.LayerFlipVertical,
-			shortcuts: ["<Shift>F"]);
+			Resources.Icons.LayerFlipVertical);
 
 		RotateZoom = new Command (
 			"RotateZoom",
-			Translations.GetString ("Rotate / Zoom Layer..."),
+			Translations.GetString ("Rotate / Zoom..."),
 			null,
-			Resources.Icons.LayerRotateZoom);
+			Resources.Icons.LayerRotateZoom,
+			shortcuts: ["<Primary><Shift>Z"]);
 
 		MoveLayerUp = new Command (
 			"movelayerup",
@@ -129,6 +136,59 @@ public sealed class LayerActions
 			Resources.Icons.LayerProperties,
 			shortcuts: ["F4"]);
 
+		ToggleVisibility = new Command (
+			"togglelayervisibility",
+			Translations.GetString ("Toggle Layer Visibility"),
+			null,
+			Resources.StandardIcons.ViewReveal,
+			shortcuts: ["<Primary>comma"]);
+
+		Rotate180 = new Command (
+			"rotatelayer180",
+			Translations.GetString ("Rotate 180°"),
+			null,
+			Resources.Icons.ImageRotate180);
+
+		GoToTopLayer = new Command (
+			"gototoplayer",
+			Translations.GetString ("Go to Top Layer"),
+			null,
+			null,
+			shortcuts: ["<Primary><Alt>Page_Up"]);
+
+		GoToLayerAbove = new Command (
+			"gotolayerabove",
+			Translations.GetString ("Go to Layer Above"),
+			null,
+			null,
+			shortcuts: ["<Alt>Page_Up"]);
+
+		GoToLayerBelow = new Command (
+			"gotolayerbelow",
+			Translations.GetString ("Go to Layer Below"),
+			null,
+			null,
+			shortcuts: ["<Alt>Page_Down"]);
+
+		GoToBottomLayer = new Command (
+			"gotobottomlayer",
+			Translations.GetString ("Go to Bottom Layer"),
+			null,
+			null,
+			shortcuts: ["<Primary><Alt>Page_Down"]);
+
+		MoveLayerToTop = new Command (
+			"movelayertotop",
+			Translations.GetString ("Move Layer to Top"),
+			null,
+			Resources.StandardIcons.LayerMoveUp);
+
+		MoveLayerToBottom = new Command (
+			"movelayertobottom",
+			Translations.GetString ("Move Layer to Bottom"),
+			null,
+			Resources.StandardIcons.LayerMoveDown);
+
 		this.chrome = chrome;
 		image_formats = imageFormats;
 		recent_files = recentFiles;
@@ -137,8 +197,47 @@ public sealed class LayerActions
 		this.image = image;
 	}
 
-	public void RegisterActions (Gtk.Application app)
+	public void RegisterActions (Gtk.Application app, Gio.Menu menu)
 	{
+		// Paint.NET Layers menu order.
+		Gio.Menu add_section = Gio.Menu.New ();
+		add_section.AppendItem (AddNewLayer.CreateMenuItem ());
+		add_section.AppendItem (DeleteLayer.CreateMenuItem ());
+		add_section.AppendItem (DuplicateLayer.CreateMenuItem ());
+		add_section.AppendItem (MergeLayerDown.CreateMenuItem ());
+		add_section.AppendItem (ToggleVisibility.CreateMenuItem ());
+
+		Gio.Menu import_section = Gio.Menu.New ();
+		import_section.AppendItem (ImportFromFile.CreateMenuItem ());
+
+		Gio.Menu transform_section = Gio.Menu.New ();
+		transform_section.AppendItem (FlipHorizontal.CreateMenuItem ());
+		transform_section.AppendItem (FlipVertical.CreateMenuItem ());
+		transform_section.AppendItem (Rotate180.CreateMenuItem ());
+		transform_section.AppendItem (RotateZoom.CreateMenuItem ());
+
+		Gio.Menu go_to_section = Gio.Menu.New ();
+		go_to_section.AppendItem (GoToTopLayer.CreateMenuItem ());
+		go_to_section.AppendItem (GoToLayerAbove.CreateMenuItem ());
+		go_to_section.AppendItem (GoToLayerBelow.CreateMenuItem ());
+		go_to_section.AppendItem (GoToBottomLayer.CreateMenuItem ());
+
+		Gio.Menu move_section = Gio.Menu.New ();
+		move_section.AppendItem (MoveLayerToTop.CreateMenuItem ());
+		move_section.AppendItem (MoveLayerUp.CreateMenuItem ());
+		move_section.AppendItem (MoveLayerDown.CreateMenuItem ());
+		move_section.AppendItem (MoveLayerToBottom.CreateMenuItem ());
+
+		Gio.Menu properties_section = Gio.Menu.New ();
+		properties_section.AppendItem (Properties.CreateMenuItem ());
+
+		menu.AppendSection (null, add_section);
+		menu.AppendSection (null, import_section);
+		menu.AppendSection (null, transform_section);
+		menu.AppendSection (null, go_to_section);
+		menu.AppendSection (null, move_section);
+		menu.AppendSection (null, properties_section);
+
 		app.AddCommands ([
 			AddNewLayer,
 			DeleteLayer,
@@ -153,7 +252,16 @@ public sealed class LayerActions
 			Properties,
 
 			MoveLayerDown,
-			MoveLayerUp]);
+			MoveLayerUp,
+
+			ToggleVisibility,
+			Rotate180,
+			GoToTopLayer,
+			GoToLayerAbove,
+			GoToLayerBelow,
+			GoToBottomLayer,
+			MoveLayerToTop,
+			MoveLayerToBottom]);
 	}
 
 	public void RegisterHandlers ()
@@ -167,6 +275,14 @@ public sealed class LayerActions
 		FlipHorizontal.Activated += HandlePintaCoreActionsLayersFlipHorizontalActivated;
 		FlipVertical.Activated += HandlePintaCoreActionsLayersFlipVerticalActivated;
 		ImportFromFile.Activated += HandlePintaCoreActionsLayersImportFromFileActivated;
+		ToggleVisibility.Activated += HandleToggleVisibilityActivated;
+		Rotate180.Activated += HandleRotate180Activated;
+		GoToTopLayer.Activated += (_, _) => GoToLayer (doc => doc.Layers.UserLayers.Count - 1);
+		GoToLayerAbove.Activated += (_, _) => GoToLayer (doc => doc.Layers.CurrentUserLayerIndex + 1);
+		GoToLayerBelow.Activated += (_, _) => GoToLayer (doc => doc.Layers.CurrentUserLayerIndex - 1);
+		GoToBottomLayer.Activated += (_, _) => GoToLayer (_ => 0);
+		MoveLayerToTop.Activated += HandleMoveLayerToTopActivated;
+		MoveLayerToBottom.Activated += HandleMoveLayerToBottomActivated;
 
 		workspace.LayerAdded += EnableOrDisableLayerActions;
 		workspace.LayerRemoved += EnableOrDisableLayerActions;
@@ -187,9 +303,116 @@ public sealed class LayerActions
 		bool canMergeDown = activeDoc?.Layers.CurrentUserLayerIndex > 0;
 		MergeLayerDown.Sensitive = canMergeDown;
 		MoveLayerDown.Sensitive = canMergeDown;
+		MoveLayerToBottom.Sensitive = canMergeDown;
+		GoToLayerBelow.Sensitive = canMergeDown;
+		GoToBottomLayer.Sensitive = canMergeDown;
 
-		MoveLayerUp.Sensitive = activeDoc != null
+		bool canMoveUp = activeDoc != null
 			&& activeDoc.Layers.CurrentUserLayerIndex < activeDoc.Layers.UserLayers.Count - 1;
+		MoveLayerUp.Sensitive = canMoveUp;
+		MoveLayerToTop.Sensitive = canMoveUp;
+		GoToLayerAbove.Sensitive = canMoveUp;
+		GoToTopLayer.Sensitive = canMoveUp;
+
+		ToggleVisibility.Sensitive = activeDoc != null;
+		Rotate180.Sensitive = activeDoc != null;
+	}
+
+	private void GoToLayer (Func<Document, int> getIndex)
+	{
+		Document? doc = workspace.ActiveDocumentOrDefault;
+		if (doc is null)
+			return;
+
+		int index = getIndex (doc);
+		if (index < 0 || index >= doc.Layers.UserLayers.Count || index == doc.Layers.CurrentUserLayerIndex)
+			return;
+
+		// Changing the selected layer is not recorded in the history.
+		doc.Layers.SetCurrentUserLayer (index);
+	}
+
+	private void HandleToggleVisibilityActivated (object sender, EventArgs e)
+	{
+		Document doc = workspace.ActiveDocument;
+
+		tools.Commit ();
+
+		UserLayer layer = doc.Layers.CurrentUserLayer;
+		bool hide = !layer.Hidden;
+
+		LayerProperties initial = new (layer.Name, layer.Hidden, layer.Opacity, layer.BlendMode);
+		LayerProperties updated = new (layer.Name, hide, layer.Opacity, layer.BlendMode);
+
+		UpdateLayerPropertiesHistoryItem historyItem = new (
+			hide ? Resources.StandardIcons.ViewConceal : Resources.StandardIcons.ViewReveal,
+			hide ? Translations.GetString ("Hide Layer") : Translations.GetString ("Show Layer"),
+			doc.Layers.CurrentUserLayerIndex,
+			initial,
+			updated);
+
+		historyItem.Redo ();
+
+		doc.History.PushNewItem (historyItem);
+		doc.Workspace.Invalidate ();
+	}
+
+	private void HandleRotate180Activated (object sender, EventArgs e)
+	{
+		Document doc = workspace.ActiveDocument;
+
+		tools.Commit ();
+
+		int index = doc.Layers.CurrentUserLayerIndex;
+		UserLayer layer = doc.Layers.CurrentUserLayer;
+		layer.FlipHorizontal ();
+		layer.FlipVertical ();
+		doc.Workspace.Invalidate ();
+
+		CompoundHistoryItem hist = new (
+			Resources.Icons.ImageRotate180,
+			Translations.GetString ("Rotate Layer 180°"));
+		hist.Push (new InvertHistoryItem (InvertType.FlipLayerHorizontal, index));
+		hist.Push (new InvertHistoryItem (InvertType.FlipLayerVertical, index));
+		doc.History.PushNewItem (hist);
+	}
+
+	private void HandleMoveLayerToTopActivated (object sender, EventArgs e)
+	{
+		Document doc = workspace.ActiveDocument;
+
+		tools.Commit ();
+
+		CompoundHistoryItem hist = new (
+			Resources.StandardIcons.LayerMoveUp,
+			Translations.GetString ("Move Layer to Top"));
+
+		while (doc.Layers.CurrentUserLayerIndex < doc.Layers.UserLayers.Count - 1) {
+			int index = doc.Layers.CurrentUserLayerIndex;
+			hist.Push (new SwapLayersHistoryItem (string.Empty, string.Empty, index, index + 1));
+			doc.Layers.MoveCurrentLayerUp ();
+		}
+
+		doc.History.PushNewItem (hist);
+	}
+
+	private void HandleMoveLayerToBottomActivated (object sender, EventArgs e)
+	{
+		Document doc = workspace.ActiveDocument;
+
+		tools.Commit ();
+
+		CompoundHistoryItem hist = new (
+			Resources.StandardIcons.LayerMoveDown,
+			Translations.GetString ("Move Layer to Bottom"));
+
+		while (doc.Layers.CurrentUserLayerIndex > 0) {
+			int index = doc.Layers.CurrentUserLayerIndex;
+			hist.Push (new SwapLayersHistoryItem (string.Empty, string.Empty, index, index - 1));
+			doc.Layers.MoveCurrentLayerDown ();
+		}
+
+		doc.History.PushNewItem (hist);
 	}
 
 	private Gtk.FileFilter CreateImagesFileFilter ()

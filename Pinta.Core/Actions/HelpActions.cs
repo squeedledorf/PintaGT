@@ -37,13 +37,15 @@ public sealed class HelpActions
 
 	private readonly SystemManager system;
 	private readonly AppActions app;
+	private readonly AddinActions addins;
 	public HelpActions (
 		SystemManager system,
-		AppActions app)
+		AppActions app,
+		AddinActions addins)
 	{
 		Contents = new Command (
 			"contents",
-			Translations.GetString ("Contents"),
+			Translations.GetString ("Documentation"),
 			null,
 			Resources.StandardIcons.HelpBrowser,
 			shortcuts: ["F1"]);
@@ -56,7 +58,7 @@ public sealed class HelpActions
 
 		Bugs = new Command (
 			"bugs",
-			Translations.GetString ("File a Bug"),
+			Translations.GetString ("Send Feedback or Bug Report..."),
 			null,
 			Resources.Icons.HelpBug);
 
@@ -68,30 +70,48 @@ public sealed class HelpActions
 
 		this.system = system;
 		this.app = app;
+		this.addins = addins;
 	}
 	public void RegisterActions (Gtk.Application application, Gio.Menu menu)
 	{
-		menu.AppendItem (Contents.CreateMenuItem ());
+		bool isMac = system.OperatingSystem == OS.Mac;
 
-		menu.AppendItem (app.KeyboardShortcuts.CreateMenuItem ());
+		// Paint.NET order: Documentation, feedback | links | About.
+		// Keyboard Shortcuts, Translate, the add-in manager ("Plugins") and Settings are Pinta extras.
+		Gio.Menu docs_section = Gio.Menu.New ();
+		docs_section.AppendItem (Contents.CreateMenuItem ());
+		docs_section.AppendItem (Bugs.CreateMenuItem ());
 
-		menu.AppendItem (Website.CreateMenuItem ());
-		menu.AppendItem (Bugs.CreateMenuItem ());
-		menu.AppendItem (Translate.CreateMenuItem ());
+		Gio.Menu links_section = Gio.Menu.New ();
+		links_section.AppendItem (Website.CreateMenuItem ());
+		links_section.AppendItem (app.KeyboardShortcuts.CreateMenuItem ());
+		links_section.AppendItem (Translate.CreateMenuItem ());
+
+		// Third-party add-ins append their items after the Plugins item.
+		Gio.Menu addins_section = Gio.Menu.New ();
+		addins.RegisterActions (application, addins_section);
+
+		menu.AppendSection (null, docs_section);
+		menu.AppendSection (null, links_section);
+		menu.AppendSection (null, addins_section);
+
+		// Settings and About are part of the application menu on macOS.
+		if (!isMac) {
+			// Settings lives here until the menu bar gets its own Settings button.
+			Gio.Menu settings_section = Gio.Menu.New ();
+			settings_section.AppendItem (app.Preferences.CreateMenuItem ());
+			menu.AppendSection (null, settings_section);
+
+			Gio.Menu about_section = Gio.Menu.New ();
+			about_section.AppendItem (app.About.CreateMenuItem ());
+			menu.AppendSection (null, about_section);
+		}
 
 		application.AddCommands ([
 			Contents,
 			Website,
 			Bugs,
 			Translate]);
-
-		// This is part of the application menu on macOS.
-		if (system.OperatingSystem != OS.Mac) {
-
-			var about_section = Gio.Menu.New ();
-			menu.AppendSection (null, about_section);
-			about_section.AppendItem (app.About.CreateMenuItem ());
-		}
 	}
 
 	public void RegisterHandlers ()

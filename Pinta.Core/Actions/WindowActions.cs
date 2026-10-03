@@ -35,6 +35,8 @@ public sealed class WindowActions
 
 	public Command SaveAll { get; }
 	public Command CloseAll { get; }
+	public Command NextImage { get; }
+	public Command PreviousImage { get; }
 
 	private readonly WorkspaceManager workspace;
 	public WindowActions (WorkspaceManager workspace)
@@ -44,7 +46,7 @@ public sealed class WindowActions
 			Translations.GetString ("Save All"),
 			null,
 			Resources.StandardIcons.DocumentSave,
-			shortcuts: ["<Ctrl><Alt>A"]);
+			shortcuts: ["<Primary><Alt>S"]);
 
 		CloseAll = new Command (
 			"CloseAll",
@@ -52,6 +54,23 @@ public sealed class WindowActions
 			null,
 			Resources.StandardIcons.WindowClose,
 			shortcuts: ["<Primary><Shift>W"]);
+
+		NextImage = new Command (
+			"NextImage",
+			Translations.GetString ("Next Image"),
+			null,
+			null,
+			shortcuts: ["<Primary>Tab", "<Primary>Page_Down"]);
+
+		PreviousImage = new Command (
+			"PreviousImage",
+			Translations.GetString ("Previous Image"),
+			null,
+			null,
+			shortcuts: ["<Primary><Shift>Tab", "<Primary><Shift>ISO_Left_Tab", "<Primary>Page_Up"]);
+
+		NextImage.Activated += (_, _) => CycleActiveDocument (1);
+		PreviousImage.Activated += (_, _) => CycleActiveDocument (-1);
 
 		// TODO: Make `Command`
 		active_doc_action = Gio.SimpleAction.NewStateful (
@@ -89,13 +108,24 @@ public sealed class WindowActions
 
 		app.AddCommands ([
 			SaveAll,
-			CloseAll]);
+			CloseAll,
+			NextImage,
+			PreviousImage]);
 
 		app.AddAction (active_doc_action);
 
-		// Assign accelerators up to Alt-9 for the active documents.
+		// Assign accelerators up to Ctrl-9 / Alt-9 for the active documents.
 		for (int i = 0; i < 9; ++i)
-			app.SetAccelsForAction (BuildActionId (i), [$"<Alt>{i + 1}"]);
+			app.SetAccelsForAction (BuildActionId (i), [$"<Primary>{i + 1}", $"<Alt>{i + 1}"]);
+	}
+
+	private void CycleActiveDocument (int step)
+	{
+		int count = workspace.OpenDocuments.Count;
+		if (count < 2)
+			return;
+
+		workspace.SetActiveDocument ((workspace.ActiveDocumentIndex + step + count) % count);
 	}
 
 	private void AddDocumentMenuItem (int idx)

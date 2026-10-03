@@ -46,10 +46,10 @@ public sealed class AppActions
 			Resources.StandardIcons.HelpAbout);
 		Preferences = new Command (
 			"preferences",
-			Translations.GetString ("Preferences..."),
+			Translations.GetString ("Settings"),
 			null,
 			Resources.StandardIcons.Preferences,
-			shortcuts: ["<Primary>comma"]);
+			shortcuts: ["<Alt>X"]);
 		KeyboardShortcuts = new Command (
 			"keyboardshortcuts",
 			Translations.GetString ("Keyboard Shortcuts"),
@@ -57,7 +57,7 @@ public sealed class AppActions
 			shortcuts: ["<Primary>question"]);
 		Exit = new Command (
 			"quit",
-			Translations.GetString ("Quit"),
+			Translations.GetString ("Exit"),
 			null,
 			Resources.StandardIcons.ApplicationExit,
 			shortcuts: ["<Primary>Q"]);

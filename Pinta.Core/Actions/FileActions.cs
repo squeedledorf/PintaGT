@@ -52,7 +52,8 @@ public sealed class FileActions
 
 	private readonly SystemManager system;
 	private readonly AppActions app;
-	public FileActions (SystemManager system, AppActions app)
+	private readonly WindowActions window;
+	public FileActions (SystemManager system, AppActions app, WindowActions window)
 	{
 		New = new Command (
 			"new",
@@ -64,7 +65,7 @@ public sealed class FileActions
 
 		NewScreenshot = new Command (
 			"NewScreenshot",
-			Translations.GetString ("New Screenshot..."),
+			Translations.GetString ("From Screenshot..."),
 			null,
 			Resources.StandardIcons.ViewFullscreen);
 
@@ -81,7 +82,7 @@ public sealed class FileActions
 			Translations.GetString ("Close"),
 			null,
 			Resources.StandardIcons.WindowClose,
-			shortcuts: ["<Primary>W"]);
+			shortcuts: ["<Primary>W", "<Primary>F4"]);
 
 		Save = new Command (
 			"save",
@@ -105,25 +106,39 @@ public sealed class FileActions
 
 		this.system = system;
 		this.app = app;
+		this.window = window;
 	}
 
 	public void RegisterActions (Gtk.Application application, Gio.Menu menu)
 	{
 		bool isMac = system.OperatingSystem == OS.Mac;
 
+		// Paint.NET order: New, Open, Acquire | Save, Save As, Save All | Close | Exit
+		Gio.Menu acquire_menu = Gio.Menu.New ();
+		acquire_menu.AppendItem (NewScreenshot.CreateMenuItem ());
+
+		Gio.Menu open_section = Gio.Menu.New ();
+		open_section.AppendItem (New.CreateMenuItem ());
+		open_section.AppendItem (Open.CreateMenuItem ());
+		open_section.AppendSubmenu (Translations.GetString ("Acquire"), acquire_menu);
+
 		Gio.Menu save_section = Gio.Menu.New ();
 		save_section.AppendItem (Save.CreateMenuItem ());
 		save_section.AppendItem (SaveAs.CreateMenuItem ());
+		save_section.AppendItem (window.SaveAll.CreateMenuItem ());
 
 		Gio.Menu close_section = Gio.Menu.New ();
 		close_section.AppendItem (Close.CreateMenuItem ());
-		if (!isMac) close_section.AppendItem (app.Exit.CreateMenuItem ()); // This is part of the application menu on macOS
 
-		menu.AppendItem (New.CreateMenuItem ());
-		menu.AppendItem (NewScreenshot.CreateMenuItem ());
-		menu.AppendItem (Open.CreateMenuItem ());
+		menu.AppendSection (null, open_section);
 		menu.AppendSection (null, save_section);
 		menu.AppendSection (null, close_section);
+
+		if (!isMac) { // This is part of the application menu on macOS
+			Gio.Menu exit_section = Gio.Menu.New ();
+			exit_section.AppendItem (app.Exit.CreateMenuItem ());
+			menu.AppendSection (null, exit_section);
+		}
 #if false
 		// Printing is disabled for now until it is fully functional.
 		menu.Append (Print.CreateAcceleratedMenuItem (Gdk.Key.P, Gdk.ModifierType.ControlMask));

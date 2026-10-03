@@ -43,6 +43,7 @@ public sealed class EditActions
 	public Command PasteIntoNewImage { get; }
 	public Command EraseSelection { get; }
 	public Command FillSelection { get; }
+	public Command FillSelectionSecondary { get; }
 	public Command InvertSelection { get; }
 	public Command OffsetSelection { get; }
 	public Command SelectAll { get; }
@@ -79,25 +80,25 @@ public sealed class EditActions
 			Translations.GetString ("Redo"),
 			null,
 			Resources.StandardIcons.EditRedo,
-			shortcuts: ["<Primary><Shift>Z", "<Ctrl>Y"]);
+			shortcuts: ["<Primary>Y"]);
 
 		Cut = new Command (
 			"cut",
 			Translations.GetString ("Cut"),
 			null,
 			Resources.StandardIcons.EditCut,
-			shortcuts: ["<Primary>X"]);
+			shortcuts: ["<Primary>X", "<Shift>Delete"]);
 
 		Copy = new Command (
 			"copy",
 			Translations.GetString ("Copy"),
 			null,
 			Resources.StandardIcons.EditCopy,
-			shortcuts: ["<Primary>C"]);
+			shortcuts: ["<Primary>C", "<Primary>Insert"]);
 
 		CopyMerged = new Command (
 			"copymerged",
-			Translations.GetString ("Copy Merged"),
+			Translations.GetString ("Copy Flattened"),
 			null,
 			Resources.StandardIcons.EditCopy,
 			shortcuts: ["<Primary><Shift>C"]);
@@ -107,11 +108,11 @@ public sealed class EditActions
 			Translations.GetString ("Paste"),
 			null,
 			Resources.StandardIcons.EditPaste,
-			shortcuts: ["<Primary>V"]);
+			shortcuts: ["<Primary>V", "<Shift>Insert"]);
 
 		PasteIntoNewLayer = new Command (
 			"pasteintonewlayer",
-			Translations.GetString ("Paste Into New Layer"),
+			Translations.GetString ("Paste into New Layer"),
 			null,
 			Resources.StandardIcons.EditPaste,
 			shortcuts: ["<Primary><Shift>V"]);
@@ -119,10 +120,10 @@ public sealed class EditActions
 		// Note: <Ctrl><Alt>V shortcut doesn't seem to work on Windows & macOS (bug 2047921).
 		PasteIntoNewImage = new Command (
 			"pasteintonewimage",
-			Translations.GetString ("Paste Into New Image"),
+			Translations.GetString ("Paste into New Image"),
 			null,
 			Resources.StandardIcons.EditPaste,
-			shortcuts: ["<Shift>V", "<Primary><Alt>V"]);
+			shortcuts: ["<Primary><Alt>V"]);
 
 		EraseSelection = new Command (
 			"eraseselection",
@@ -137,6 +138,14 @@ public sealed class EditActions
 			null,
 			Resources.Icons.EditSelectionFill,
 			shortcuts: ["BackSpace"]);
+
+		// Not shown in any menu; Paint.NET fills with the secondary color on Shift+Backspace.
+		FillSelectionSecondary = new Command (
+			"fillselectionsecondary",
+			Translations.GetString ("Fill Selection with Secondary Color"),
+			null,
+			Resources.Icons.EditSelectionFill,
+			shortcuts: ["<Shift>BackSpace"]);
 
 		InvertSelection = new Command (
 			"invertselection",
@@ -161,10 +170,10 @@ public sealed class EditActions
 
 		Deselect = new Command (
 			"deselect",
-			Translations.GetString ("Deselect All"),
+			Translations.GetString ("Deselect"),
 			null,
 			Resources.Icons.EditSelectionNone,
-			shortcuts: ["<Primary><Shift>A", "<Ctrl>D"]);
+			shortcuts: ["<Primary>D"]);
 
 		LoadPalette = new Command (
 			"loadpalette",
@@ -192,6 +201,7 @@ public sealed class EditActions
 
 		Undo.Sensitive = false;
 		Redo.Sensitive = false;
+		FillSelectionSecondary.Sensitive = false;
 
 		this.chrome = chrome;
 		palette_formats = paletteFormats;
@@ -210,31 +220,20 @@ public sealed class EditActions
 		paste_section.AppendItem (PasteIntoNewLayer.CreateMenuItem ());
 		paste_section.AppendItem (PasteIntoNewImage.CreateMenuItem ());
 
+		// Paint.NET order. Offset Selection is a Pinta extra kept after Invert Selection.
+		// The palette commands stay registered but are not in this menu (Paint.NET keeps them in the Colors window).
 		Gio.Menu sel_section = Gio.Menu.New ();
+		sel_section.AppendItem (EraseSelection.CreateMenuItem ());
+		sel_section.AppendItem (FillSelection.CreateMenuItem ());
+		sel_section.AppendItem (InvertSelection.CreateMenuItem ());
+		sel_section.AppendItem (OffsetSelection.CreateMenuItem ());
 		sel_section.AppendItem (SelectAll.CreateMenuItem ());
 		sel_section.AppendItem (Deselect.CreateMenuItem ());
-
-		Gio.Menu edit_sel_section = Gio.Menu.New ();
-		edit_sel_section.AppendItem (EraseSelection.CreateMenuItem ());
-		edit_sel_section.AppendItem (FillSelection.CreateMenuItem ());
-		edit_sel_section.AppendItem (InvertSelection.CreateMenuItem ());
-		edit_sel_section.AppendItem (OffsetSelection.CreateMenuItem ());
-
-		Gio.Menu palette_section = Gio.Menu.New ();
-
-		Gio.Menu palette_menu = Gio.Menu.New ();
-		palette_menu.AppendItem (LoadPalette.CreateMenuItem ());
-		palette_menu.AppendItem (SavePalette.CreateMenuItem ());
-		palette_menu.AppendItem (ResetPalette.CreateMenuItem ());
-		palette_menu.AppendItem (ResizePalette.CreateMenuItem ());
 
 		menu.AppendItem (Undo.CreateMenuItem ());
 		menu.AppendItem (Redo.CreateMenuItem ());
 		menu.AppendSection (null, paste_section);
 		menu.AppendSection (null, sel_section);
-		menu.AppendSection (null, edit_sel_section);
-		menu.AppendSection (null, palette_section);
-		menu.AppendSubmenu (Translations.GetString ("Palette"), palette_menu);
 
 		app.AddCommands ([
 
@@ -253,6 +252,7 @@ public sealed class EditActions
 
 			EraseSelection,
 			FillSelection,
+			FillSelectionSecondary,
 			InvertSelection,
 			OffsetSelection,
 			LoadPalette,
@@ -273,6 +273,7 @@ public sealed class EditActions
 		EraseSelection.Activated += HandlePintaCoreActionsEditEraseSelectionActivated;
 		SelectAll.Activated += HandlePintaCoreActionsEditSelectAllActivated;
 		FillSelection.Activated += HandlePintaCoreActionsEditFillSelectionActivated;
+		FillSelectionSecondary.Activated += HandleFillSelectionSecondaryActivated;
 		Copy.Activated += HandlerPintaCoreActionsEditCopyActivated;
 		CopyMerged.Activated += HandlerPintaCoreActionsEditCopyMergedActivated;
 		Undo.Activated += HandlerPintaCoreActionsEditUndoActivated;
@@ -293,6 +294,7 @@ public sealed class EditActions
 			Deselect.Sensitive = visible;
 			EraseSelection.Sensitive = visible;
 			FillSelection.Sensitive = visible;
+			FillSelectionSecondary.Sensitive = visible;
 			InvertSelection.Sensitive = visible;
 			OffsetSelection.Sensitive = visible;
 		};
@@ -300,6 +302,12 @@ public sealed class EditActions
 
 	#region Action Handlers
 	private void HandlePintaCoreActionsEditFillSelectionActivated (object sender, EventArgs e)
+		=> FillSelectionWith (palette.PrimaryColor);
+
+	private void HandleFillSelectionSecondaryActivated (object sender, EventArgs e)
+		=> FillSelectionWith (palette.SecondaryColor);
+
+	private void FillSelectionWith (Color color)
 	{
 		Document doc = workspace.ActiveDocument;
 
@@ -312,7 +320,7 @@ public sealed class EditActions
 		g.AppendPath (doc.Selection.SelectionPath);
 		g.FillRule = FillRule.EvenOdd;
 
-		g.SetSourceColor (palette.PrimaryColor);
+		g.SetSourceColor (color);
 		g.Fill ();
 
 		doc.Workspace.Invalidate ();
