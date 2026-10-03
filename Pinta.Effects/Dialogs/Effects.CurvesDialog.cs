@@ -234,7 +234,10 @@ public sealed partial class CurvesDialog
 	{
 		Gtk.EventControllerMotion result = Gtk.EventControllerMotion.New ();
 		result.OnMotion += HandleDrawingMotionNotifyEvent;
-		result.OnLeave += (_, _) => InvalidateDrawing ();
+		result.OnLeave += (_, _) => {
+			last_mouse_pos = new (-1, -1); // Hide the crosshair and readout once the pointer leaves the graph
+			InvalidateDrawing ();
+		};
 		return result;
 
 		// Handlers
