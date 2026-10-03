@@ -47,6 +47,10 @@ public sealed class GradientTool : BaseTool
 	public bool is_reversed = false;
 	MouseButton drag_button;
 
+	// The fixed end of the line while a handle is dragged, used for Shift angle snapping.
+	private PointD drag_anchor;
+	private const double SNAP_ANGLE_STEP = Math.PI / 12; // 15 degrees
+
 	public LineHandle handle;
 
 	public GradientTool (IServiceProvider services) : base (services)
@@ -61,7 +65,9 @@ public sealed class GradientTool : BaseTool
 	public override string Icon => Pinta.Resources.Icons.ToolGradient;
 	public override string StatusBarText => Translations.GetString ("Click and drag to draw gradient from primary to secondary color." +
 									"\nRight click to reverse." +
-									"\nClick on a control point and drag to move it.");
+									"\nClick on a control point and drag to move it." +
+									"\nRight click on a control point to swap the colors." +
+									"\nHold Shift to snap the angle to 15 degrees.");
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_G);
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.Gradient.png"), 9, 18, null);
 	public override int Priority => 19;
@@ -94,8 +100,21 @@ public sealed class GradientTool : BaseTool
 		if (handle.BeginDrag (e.PointDouble)) {
 			SetCursor (DefaultCursor);
 			drag_button = e.MouseButton;
+
+			// The handle nearer the click is the one being dragged.
+			bool dragging_start = e.PointDouble.Distance (handle.StartPosition) <= e.PointDouble.Distance (handle.EndPosition);
+			drag_anchor = dragging_start ? handle.EndPosition : handle.StartPosition;
+
+			// Right click on a handle swaps the colors.
+			if (e.MouseButton == MouseButton.Right) {
+				is_reversed = !is_reversed;
+				RenderGradient ();
+			}
+
 			return;
 		}
+
+		drag_anchor = e.PointDouble;
 
 		RectangleI handleDirtyRegion = handle.StartNewLine (e.PointDouble);
 		document.Workspace.InvalidateWindowRect (handleDirtyRegion);
@@ -140,10 +159,20 @@ public sealed class GradientTool : BaseTool
 			return;
 		}
 
-		RectangleI handleDirtyRegion = handle.Drag (e.PointDouble);
+		PointD point = e.IsShiftPressed ? SnapAngle (drag_anchor, e.PointDouble) : e.PointDouble;
+		RectangleI handleDirtyRegion = handle.Drag (point);
 		document.Workspace.InvalidateWindowRect (handleDirtyRegion);
 
 		RenderGradient ();
+	}
+
+	private static PointD SnapAngle (PointD anchor, PointD point)
+	{
+		double dx = point.X - anchor.X;
+		double dy = point.Y - anchor.Y;
+		double length = Math.Sqrt (dx * dx + dy * dy);
+		double angle = Math.Round (Math.Atan2 (dy, dx) / SNAP_ANGLE_STEP) * SNAP_ANGLE_STEP;
+		return new PointD (anchor.X + length * Math.Cos (angle), anchor.Y + length * Math.Sin (angle));
 	}
 
 	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
