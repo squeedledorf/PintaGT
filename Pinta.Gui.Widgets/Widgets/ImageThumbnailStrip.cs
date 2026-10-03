@@ -25,6 +25,7 @@ public sealed partial class ImageThumbnailStrip
 	private static readonly Color hover_fill = new (0.0, 0.47, 0.84, 0.1);
 	private static readonly Color hover_border = new (0.0, 0.47, 0.84, 0.45);
 	private static readonly Color shadow_color = new (0, 0, 0, 0.06);
+	private static readonly Color dirty_color = new (0.97, 0.6, 0.15);
 	private static readonly Color close_color = new (0.79, 0.31, 0.31);
 	private static readonly Pattern transparent_pattern = CairoExtensions.CreateTransparentBackgroundPattern (4);
 
@@ -496,7 +497,10 @@ public sealed partial class ImageThumbnailStrip
 		}
 
 		private void HandleDirtyChanged (object? sender, EventArgs e)
-			=> strip.RebuildListMenu ();
+		{
+			strip.RebuildListMenu ();
+			Area.QueueDraw ();
+		}
 
 		private void HandleRenamed (object? sender, EventArgs e)
 		{
@@ -584,8 +588,25 @@ public sealed partial class ImageThumbnailStrip
 				g.Restore ();
 			}
 
+			// Paint.NET marks an unsaved image with a small orange star at the thumbnail's top left.
+			if (Document.IsDirty)
+				DrawDirtyStar (g, new PointD (PADDING + 2, PADDING + 1));
+
 			if (ShowsCloseButton)
 				DrawCloseButton (g, CloseButtonCenter (width));
+		}
+
+		private static void DrawDirtyStar (Context g, PointD center)
+		{
+			const double OUTER = 4.5, INNER = 2;
+			for (int i = 0; i < 10; i++) {
+				double r = i % 2 == 0 ? OUTER : INNER;
+				double angle = -Math.PI / 2 + i * Math.PI / 5;
+				g.LineTo (center.X + r * Math.Cos (angle), center.Y + r * Math.Sin (angle));
+			}
+			g.ClosePath ();
+			g.SetSourceColor (dirty_color);
+			g.Fill ();
 		}
 
 		private ImageSurface GetSurface (int width, int height)

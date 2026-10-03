@@ -834,21 +834,14 @@ internal sealed class MainWindow
 		PintaCore.Chrome.InitializeStatusBar (statusbar);
 	}
 
-	// Paint.NET's dotted size grip in the status bar's corner; dragging it resizes the window.
+	// An invisible size grip in the status bar's corner: Paint.NET 5 draws none, but dragging
+	// the corner still resizes the window and shows the resize cursor.
 	private Gtk.DrawingArea CreateSizeGrip ()
 	{
 		Gtk.DrawingArea grip = Gtk.DrawingArea.New ();
 		grip.SetSizeRequest (14, 14);
 		grip.Valign = Gtk.Align.End;
 		grip.Cursor = Gdk.Cursor.NewFromName (StandardCursors.ResizeSE, null);
-		grip.SetDrawFunc ((_, g, width, height) => {
-			// Six dots in a triangle.
-			g.SetSourceRgba (0.55, 0.55, 0.55, 1);
-			for (int row = 0; row < 3; row++)
-				for (int col = 2 - row; col < 3; col++)
-					g.Rectangle (width - 4 - (2 - col) * 4, height - 4 - (2 - row) * 4, 2, 2);
-			g.Fill ();
-		});
 
 		Gtk.GestureClick press = Gtk.GestureClick.New ();
 		press.OnPressed += (gesture, args) => {
@@ -881,10 +874,10 @@ internal sealed class MainWindow
 		FloatingPanel colors = FloatingPanel.New ("colors", Translations.GetString ("Colors"), colors_panel, resizable: false);
 
 		// Paint.NET 5's default places: Tools top-left, Colors bottom-left, History top-right, Layers bottom-right.
-		const int GAP = 6;
+		const int GAP = 4;
 		panel_area.AddPanel (tools, new PanelAnchor (Right: false, Bottom: false, GAP, GAP), Size.Empty);
 		panel_area.AddPanel (colors, new PanelAnchor (Right: false, Bottom: true, GAP, GAP), Size.Empty);
-		panel_area.AddPanel (history, new PanelAnchor (Right: true, Bottom: false, GAP, GAP), new Size (178, 345));
+		panel_area.AddPanel (history, new PanelAnchor (Right: true, Bottom: false, GAP, GAP), new Size (178, 250));
 		panel_area.AddPanel (layers, new PanelAnchor (Right: true, Bottom: true, GAP, GAP), new Size (178, 300));
 
 		ViewActions view = PintaCore.Actions.View;

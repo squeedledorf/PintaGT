@@ -113,7 +113,7 @@ public sealed partial class Ruler
 	public const int THICKNESS = 17;
 
 	// Paint.NET's tiny ruler numbers (about 7px tall digits).
-	private const int LABEL_FONT_PIXELS = 10;
+	private const int LABEL_FONT_PIXELS = 9;
 
 	// Tick lengths by depth: the labelled tick spans the ruler, then the half and the small ticks.
 	private static readonly ImmutableArray<int> tick_lengths = [THICKNESS, 10, 6, 4, 3];
@@ -337,7 +337,7 @@ public sealed partial class Ruler
 
 		// Grey ticks and edge, darker numbers, as in Paint.NET.
 		Color tickColor = settings.Color with { A = settings.Color.A * 0.5 };
-		Color labelColor = settings.Color with { A = settings.Color.A * 0.85 };
+		Color labelColor = settings.Color with { A = settings.Color.A * 0.7 };
 
 		drawingContext.SetSourceColor (tickColor);
 		drawingContext.LineWidth = 1.0;

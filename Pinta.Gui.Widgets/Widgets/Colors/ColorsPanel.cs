@@ -19,11 +19,11 @@ public sealed partial class ColorsPanel
 	private const string EXPANDED_SETTING = "colors-panel-expanded";
 
 	private const int PALETTE_COLUMNS = 16;
-	private const int CELL = 12;
+	private const int CELL = 10;
 	private const int COLLAPSED_ROWS = 2;
-	private const int WHEEL_SIZE = 144; // A 140px wheel, as in Paint.NET.
+	private const int WHEEL_SIZE = 112; // A 110px wheel, as in Paint.NET 5.
 	private const int WHEEL_RADIUS = WHEEL_SIZE / 2 - 2;
-	private const int WHEEL_TOP = 30;
+	private const int WHEEL_TOP = 4;
 	private const int SLIDER_WIDTH = 110;
 
 	private static readonly RectangleD primary_rect = new (2, 2, 32, 32);
@@ -41,6 +41,7 @@ public sealed partial class ColorsPanel
 	private Gtk.DrawingArea wheel = null!;
 	private Gtk.DrawingArea palette_area = null!;
 	private Gtk.Button more_button = null!;
+	private Gtk.DropDown slot_dropdown = null!;
 	private Gtk.Box details = null!;
 	private Gtk.ToggleButton add_color = null!;
 	private Gtk.Entry hex_entry = null!;
@@ -106,7 +107,18 @@ public sealed partial class ColorsPanel
 
 	private Gtk.Box BuildMainColumn ()
 	{
-		// The wheel, with the swatches and More button floating over its top corners.
+		// Paint.NET 5's top row: which colour the wheel edits (Primary or Secondary), and More >>.
+		slot_dropdown = Gtk.DropDown.NewFromStrings ([Translations.GetString ("Primary"), Translations.GetString ("Secondary")]);
+		slot_dropdown.Halign = Gtk.Align.Start;
+		slot_dropdown.Hexpand = true;
+		slot_dropdown.FocusOnClick = false;
+		slot_dropdown.TooltipText = Translations.GetString ("The color that the wheel and sliders edit");
+		slot_dropdown.OnNotify += (_, e) => {
+			if (e.Pspec.GetName () == "selected")
+				PrimaryActive = slot_dropdown.Selected == 0;
+		};
+
+		// The wheel, with the swatches floating over its top-left corner.
 		swatches = Gtk.DrawingArea.New ();
 		swatches.SetSizeRequest (54, 54);
 		swatches.Halign = Gtk.Align.Start;
@@ -120,7 +132,7 @@ public sealed partial class ColorsPanel
 
 		more_button = Gtk.Button.New ();
 		more_button.Halign = Gtk.Align.End;
-		more_button.Valign = Gtk.Align.Start;
+		more_button.Valign = Gtk.Align.Center;
 		more_button.FocusOnClick = false;
 		more_button.AddCssClass ("pdn-push-button");
 		more_button.OnClicked += (_, _) => {
@@ -143,7 +155,10 @@ public sealed partial class ColorsPanel
 		Gtk.Overlay top = Gtk.Overlay.New ();
 		top.SetChild (wheelRow);
 		top.AddOverlay (swatches);
-		top.AddOverlay (more_button);
+
+		Gtk.Box header = Gtk.Box.New (Gtk.Orientation.Horizontal, 4);
+		header.Append (slot_dropdown);
+		header.Append (more_button);
 
 		// Palette controls and swatch strip.
 		add_color = Gtk.ToggleButton.New ();
@@ -196,6 +211,7 @@ public sealed partial class ColorsPanel
 
 		Gtk.Box column = Gtk.Box.New (Gtk.Orientation.Vertical, 2);
 		column.WidthRequest = PALETTE_COLUMNS * CELL;
+		column.Append (header);
 		column.Append (top);
 		column.Append (paletteRow);
 		column.Append (palette_area);
@@ -336,6 +352,10 @@ public sealed partial class ColorsPanel
 		} finally {
 			updating = false;
 		}
+
+		uint slot = primary_active ? 0u : 1u;
+		if (slot_dropdown.Selected != slot)
+			slot_dropdown.Selected = slot;
 
 		swatches.QueueDraw ();
 		wheel.QueueDraw ();

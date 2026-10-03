@@ -76,6 +76,7 @@ public sealed partial class FloatingPanel
 
 		SetOrientation (Gtk.Orientation.Vertical);
 		AddCssClass (Styles.PdnPanel);
+		Overflow = Gtk.Overflow.Hidden; // Clip the header and footer to the rounded corners.
 		Append (titleBar);
 
 		// --- References to keep
