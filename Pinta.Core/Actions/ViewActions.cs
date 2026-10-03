@@ -368,16 +368,21 @@ public sealed class ViewActions
 		focus_controller.OnLeave += Entry_FocusOutEvent;
 		ZoomComboBox.ComboBox.GetEntry ().AddController (focus_controller);
 
-		// Enter applies the typed zoom and Escape restores the old one; both hand focus back
-		// to the canvas so tool letters don't get typed into the box.
+		// As in Paint.NET, a typed zoom applies on Enter and Escape restores the old one; both hand
+		// focus back to the canvas so tool letters don't get typed into the box.
 		Gtk.Entry zoom_entry = ZoomComboBox.ComboBox.GetEntry ();
 		zoom_entry.OnActivate += (_, _) => FinishZoomEntry (cancel: false);
 		Gtk.EventControllerKey zoom_keys = Gtk.EventControllerKey.New ();
+		// Capture phase, so this also sees the keys the inner text widget consumes.
+		zoom_keys.SetPropagationPhase (Gtk.PropagationPhase.Capture);
 		zoom_keys.OnKeyPressed += (_, args) => {
-			if (args.Keyval != Gdk.Constants.KEY_Escape)
-				return false;
-			FinishZoomEntry (cancel: true);
-			return true;
+			if (args.Keyval == Gdk.Constants.KEY_Escape) {
+				FinishZoomEntry (cancel: true);
+				return true;
+			}
+			if (!IsEnterKey (args.Keyval))
+				zoom_typing = true;
+			return false;
 		};
 		// The main window forwards key presses to the focused widget, which is the entry's inner text widget.
 		((zoom_entry.GetDelegate () as Gtk.Widget) ?? zoom_entry).AddController (zoom_keys);
@@ -398,6 +403,18 @@ public sealed class ViewActions
 
 	private string? temp_zoom;
 	private bool suspend_zoom_change;
+	// Set while the zoom box holds typed text that Enter hasn't applied yet.
+	private bool zoom_typing;
+
+	private static bool IsEnterKey (uint keyval)
+		=> keyval == Gdk.Constants.KEY_Return || keyval == Gdk.Constants.KEY_KP_Enter || keyval == Gdk.Constants.KEY_ISO_Enter;
+
+	private void SetZoomTextQuietly (string text)
+	{
+		SuspendZoomUpdate ();
+		ZoomComboBox.ComboBox.GetEntry ().SetText (text);
+		ResumeZoomUpdate ();
+	}
 
 	private void Entry_FocusInEvent (object o, EventArgs args)
 	{
@@ -406,24 +423,36 @@ public sealed class ViewActions
 
 	private void FinishZoomEntry (bool cancel)
 	{
+		bool typed = zoom_typing;
+		zoom_typing = false;
+
+		// The typed text was never applied, so putting the old text back is enough.
 		if (cancel && temp_zoom is not null)
-			ZoomComboBox.ComboBox.GetEntry ().SetText (temp_zoom);
+			SetZoomTextQuietly (temp_zoom);
 
 		if (!workspace.HasOpenDocuments)
 			return;
 
-		// Show the zoom that was actually applied, e.g. "150%" for "150" or "3,600%" for "9000".
-		if (!cancel && ZoomComboBox.ComboBox.GetActiveText () != Translations.GetString ("Window")) {
-			SuspendZoomUpdate ();
-			ZoomComboBox.ComboBox.GetEntry ().SetText (ToPercent (workspace.Scale));
-			ResumeZoomUpdate ();
-		}
+		if (!cancel && typed)
+			workspace.ActiveWorkspace.ZoomManually ();
+
+		// Show the zoom that was actually applied, e.g. "150%" for "150" or "3600%" for "9000".
+		if (!cancel && ZoomComboBox.ComboBox.GetActiveText () != Translations.GetString ("Window"))
+			SetZoomTextQuietly (ToPercent (workspace.Scale));
 
 		workspace.ActiveWorkspace.GrabFocusToCanvas ();
 	}
 
 	private void Entry_FocusOutEvent (object o, EventArgs args)
 	{
+		// Leaving the box without Enter drops the typed value.
+		if (zoom_typing) {
+			zoom_typing = false;
+			if (temp_zoom is not null)
+				SetZoomTextQuietly (temp_zoom);
+			return;
+		}
+
 		string text = ZoomComboBox.ComboBox.GetActiveText ()!;
 
 		if (!TryParsePercent (text, out var percent)) {
@@ -471,7 +500,8 @@ public sealed class ViewActions
 	/// </summary>
 	public static string ToPercent (double n)
 	{
-		string percent = (n * 100).ToString ("N0", CultureInfo.CurrentCulture);
+		// No group separator: Paint.NET shows "3600%", not "3,600%".
+		string percent = (n * 100).ToString ("F0", CultureInfo.CurrentCulture);
 		// Translators: This specifies the format of the zoom percentage choices
 		// in the toolbar.
 		return Translations.GetString ("{0}%", percent);
@@ -520,6 +550,10 @@ public sealed class ViewActions
 	private void HandlePintaCoreActionsViewZoomComboBoxComboBoxChanged (object? sender, EventArgs e)
 	{
 		if (suspend_zoom_change)
+			return;
+
+		// Typed text waits for Enter; list picks and programmatic changes apply at once.
+		if (zoom_typing && ZoomComboBox.ComboBox.Active < 0)
 			return;
 
 		workspace.ActiveDocument.Workspace.ZoomManually ();
