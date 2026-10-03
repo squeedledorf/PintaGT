@@ -64,13 +64,8 @@ public sealed class PaintBucketTool : FloodTool
 
 	protected override void OnFillRegionComputed (Document document, BitMask stencil)
 	{
+		document.Layers.ToolLayer.Clear ();
 		var surf = document.Layers.ToolLayer.Surface;
-
-		using Context tool_layer_ctx = new (surf) {
-			Operator = Operator.Source
-		};
-		tool_layer_ctx.SetSourceSurface (document.Layers.CurrentUserLayer.Surface, 0, 0);
-		tool_layer_ctx.Paint ();
 
 		var hist = new SimpleHistoryItem (Icon, Name);
 		hist.TakeSnapshotOfLayer (document.Layers.CurrentUserLayer);
@@ -92,10 +87,10 @@ public sealed class PaintBucketTool : FloodTool
 
 		surf.MarkDirty ();
 
-		// Transfer the temp layer to the real one,
-		// respecting any selection area
+		// Composite the fill over the real layer, respecting any selection area,
+		// so a translucent color blends with the existing pixels.
 		using Context layer_ctx = document.CreateClippedContext ();
-		layer_ctx.Operator = Operator.Source;
+		layer_ctx.Operator = Operator.Over;
 		layer_ctx.SetSourceSurface (surf, 0, 0);
 		layer_ctx.Paint ();
 
