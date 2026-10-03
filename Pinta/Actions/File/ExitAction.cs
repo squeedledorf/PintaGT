@@ -61,8 +61,8 @@ internal sealed class ExitProgramAction : IActionHandler
 
 	private async void Activated (object sender, EventArgs e)
 	{
-		// The window's close button can fire again while the prompt is up.
-		if (running)
+		// The window's close button can fire again while this prompt (or a Close prompt) is up.
+		if (running || TaskDialog.IsOpen)
 			return;
 
 		running = true;

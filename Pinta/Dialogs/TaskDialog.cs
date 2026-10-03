@@ -45,6 +45,10 @@ internal static class TaskDialog
 
 	private static bool style_loaded;
 
+	/// <summary>True while a task dialog is on screen (Exit uses it to ignore a window close behind a modal prompt).</summary>
+	public static bool IsOpen => open_count > 0;
+	private static int open_count;
+
 	/// <summary>Shows the dialog and returns the index of the chosen command (closing it picks <paramref name="cancelIndex"/>).</summary>
 	public static Task<int> Show (
 		Gtk.Window parent,
@@ -67,15 +71,19 @@ internal static class TaskDialog
 		window.Modal = true;
 		window.Resizable = false;
 		window.SetSizeRequest (width, -1);
+		open_count++;
 
 		void Respond (int index)
 		{
-			if (result.TrySetResult (index))
+			if (result.TrySetResult (index)) {
+				open_count--;
 				window.Destroy ();
+			}
 		}
 
 		window.OnCloseRequest += (_, _) => {
-			result.TrySetResult (cancelIndex);
+			if (result.TrySetResult (cancelIndex))
+				open_count--;
 			return false;
 		};
 
@@ -307,7 +315,8 @@ internal static class TaskDialog
 	}
 
 	/// <summary>
-	/// Command links: blue text on a flat face, a pale blue box on hover and focus; the Exit strip's thumbnails likewise.
+	/// Command links: blue text on a flat face, a pale blue box on hover and focus (any focus, not just keyboard focus,
+	/// so the default link is boxed even when the dialog was opened with the mouse, as in Paint.NET); the Exit strip's thumbnails likewise.
 	/// Scoped to the link class so it cannot touch anything else (the shared style.css belongs to the theme work).
 	/// </summary>
 	private static void EnsureStyle ()
@@ -322,7 +331,7 @@ internal static class TaskDialog
 		Gtk.CssProvider provider = Gtk.CssProvider.New ();
 		provider.LoadFromString ($$"""
 			button.{{LINK_CLASS}} { background: none; border: 1px solid transparent; border-radius: 0; box-shadow: none; padding: 5px 8px; color: #0b55a8; }
-			button.{{LINK_CLASS}}:hover, button.{{LINK_CLASS}}:focus-visible { background-color: #e5f1fb; border-color: #a8cdef; }
+			button.{{LINK_CLASS}}:hover, button.{{LINK_CLASS}}:focus { background-color: #e5f1fb; border-color: #a8cdef; }
 			button.{{LINK_CLASS}}:active { background-color: #cce4f7; border-color: #7eb4ea; }
 			button.{{LINK_CLASS}} label.title { font-size: 1.25em; }
 			button.{{LINK_CLASS}} label.caption { font-size: 0.95em; }
