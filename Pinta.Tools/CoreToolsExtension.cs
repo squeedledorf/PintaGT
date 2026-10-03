@@ -66,10 +66,7 @@ public sealed class CoreToolsExtension : IExtension
 		PintaCore.Tools.AddTool (new ColorPickerTool (services));
 		PintaCore.Tools.AddTool (new TextTool (services));
 		PintaCore.Tools.AddTool (new LineCurveTool (services));
-		PintaCore.Tools.AddTool (new RectangleTool (services));
-		PintaCore.Tools.AddTool (new RoundedRectangleTool (services));
-		PintaCore.Tools.AddTool (new EllipseTool (services));
-		PintaCore.Tools.AddTool (new FreeformShapeTool (services));
+		PintaCore.Tools.AddTool (new ShapesTool (services));
 		PintaCore.Tools.AddTool (new CloneStampTool (services));
 		PintaCore.Tools.AddTool (new RecolorTool (services));
 	}
@@ -98,10 +95,7 @@ public sealed class CoreToolsExtension : IExtension
 		PintaCore.Tools.RemoveInstanceOfTool<ColorPickerTool> ();
 		PintaCore.Tools.RemoveInstanceOfTool<TextTool> ();
 		PintaCore.Tools.RemoveInstanceOfTool<LineCurveTool> ();
-		PintaCore.Tools.RemoveInstanceOfTool<RectangleTool> ();
-		PintaCore.Tools.RemoveInstanceOfTool<RoundedRectangleTool> ();
-		PintaCore.Tools.RemoveInstanceOfTool<EllipseTool> ();
-		PintaCore.Tools.RemoveInstanceOfTool<FreeformShapeTool> ();
+		PintaCore.Tools.RemoveInstanceOfTool<ShapesTool> ();
 		PintaCore.Tools.RemoveInstanceOfTool<CloneStampTool> ();
 		PintaCore.Tools.RemoveInstanceOfTool<RecolorTool> ();
 	}

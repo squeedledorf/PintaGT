@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Pinta.Core\Pinta.Core.csproj" />
+    <ProjectReference Include="..\..\Pinta.Tools\Pinta.Tools.csproj" />
   </ItemGroup>
   
   <ItemGroup>
