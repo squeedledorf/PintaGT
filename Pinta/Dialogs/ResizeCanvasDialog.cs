@@ -30,15 +30,33 @@ using Pinta.Core;
 
 namespace Pinta;
 
+/// <summary>
+/// Image > Canvas Size, laid out as Paint.NET's: the shared size block, then Options with
+/// an Anchor dropdown over the 3x3 anchor grid and a Fill dropdown for the new area.
+/// </summary>
 [GObject.Subclass<Gtk.Dialog>]
 public sealed partial class ResizeCanvasDialog
 {
-	private Gtk.SpinButton percentage_spinner;
-	private Gtk.SpinButton width_spinner;
-	private Gtk.SpinButton height_spinner;
-	private Gtk.CheckButton aspect_checkbox;
-	private Gtk.CheckButton percentage_radio;
-	private Gtk.CheckButton absolute_radio;
+	/// <summary>Paint.NET's Fill choices, in its order.</summary>
+	private enum CanvasFill
+	{
+		Transparent,
+		PrimaryColor,
+		SecondaryColor,
+		White,
+		Black,
+	}
+
+	// The Anchor dropdown's order (Paint.NET's), mapped to Pinta's enum.
+	private static readonly Anchor[] anchor_order = [
+		Anchor.NW, Anchor.N, Anchor.NE,
+		Anchor.W, Anchor.Center, Anchor.E,
+		Anchor.SW, Anchor.S, Anchor.SE,
+	];
+
+	private Gtk.DropDown anchor_dropdown;
+	private Gtk.DropDown fill_dropdown;
+	private Gtk.Box size_area;
 
 	private Gtk.Button nw_button;
 	private Gtk.Button n_button;
@@ -50,14 +68,13 @@ public sealed partial class ResizeCanvasDialog
 	private Gtk.Button s_button;
 	private Gtk.Button se_button;
 
-	private bool value_changing;
 	private Anchor anchor;
 
-	private IWorkspaceService workspace = null!; // NRT - set by factory method
+	private ImageSizeFields fields = null!; // NRT - set by factory method
 	private ISettingsService settings = null!;
+	private IPaletteService palette = null!;
 
-	[MemberNotNull (nameof (percentage_spinner), nameof (width_spinner), nameof (height_spinner))]
-	[MemberNotNull (nameof (aspect_checkbox), nameof (percentage_radio), nameof (absolute_radio))]
+	[MemberNotNull (nameof (anchor_dropdown), nameof (fill_dropdown), nameof (size_area))]
 	[MemberNotNull (nameof (nw_button), nameof (n_button), nameof (ne_button))]
 	[MemberNotNull (nameof (w_button), nameof (e_button), nameof (center_button))]
 	[MemberNotNull (nameof (sw_button), nameof (s_button), nameof (se_button))]
@@ -65,177 +82,106 @@ public sealed partial class ResizeCanvasDialog
 	{
 		const int SPACING = 6;
 
-		BoxStyle spacedVertical = new (
-			orientation: Gtk.Orientation.Vertical,
-			spacing: SPACING);
+		Gtk.DropDown anchorDropdown = Gtk.DropDown.NewFromStrings ([
+			Translations.GetString ("Top Left"),
+			Translations.GetString ("Top"),
+			Translations.GetString ("Top Right"),
+			Translations.GetString ("Left"),
+			Translations.GetString ("Middle"),
+			Translations.GetString ("Right"),
+			Translations.GetString ("Bottom Left"),
+			Translations.GetString ("Bottom"),
+			Translations.GetString ("Bottom Right")]);
+		anchorDropdown.Hexpand = true;
+		Gtk.DropDown.SelectedPropertyDefinition.Notify (anchorDropdown, (_, _) => {
+			if (anchorDropdown.Selected < anchor_order.Length)
+				SetAnchor (anchor_order[anchorDropdown.Selected]);
+		});
 
-		BoxStyle spacedHorizontal = new (
-			orientation: Gtk.Orientation.Horizontal,
-			spacing: SPACING);
-
-		Gtk.SpinButton percentageSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
-		percentageSpinner.OnValueChanged += percentageSpinner_ValueChanged;
-		// Follow the percentage while it is typed, not only once it is committed.
-		percentageSpinner.OnChanged += (_, _) => {
-			if (TryGetTypedValue (percentageSpinner, out int percent))
-				ApplyPercentage (percent);
-		};
-		percentageSpinner.SetActivatesDefaultImmediate (true);
-
-		Gtk.Label widthLabel = Gtk.Label.New (Translations.GetString ("Width:"));
-		widthLabel.Halign = Gtk.Align.End;
-
-		Gtk.SpinButton widthSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
-		widthSpinner.OnValueChanged += (_, _) => UpdateHeightFromWidth (widthSpinner.GetValueAsInt ());
-		widthSpinner.OnChanged += (_, _) => {
-			if (TryGetTypedValue (widthSpinner, out int width))
-				UpdateHeightFromWidth (width);
-		};
-		widthSpinner.SetActivatesDefaultImmediate (true);
-
-		Gtk.Label heightLabel = Gtk.Label.New (Translations.GetString ("Height:"));
-		heightLabel.Halign = Gtk.Align.End;
-
-		Gtk.SpinButton heightSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
-		heightSpinner.OnValueChanged += (_, _) => UpdateWidthFromHeight (heightSpinner.GetValueAsInt ());
-		heightSpinner.OnChanged += (_, _) => {
-			if (TryGetTypedValue (heightSpinner, out int height))
-				UpdateWidthFromHeight (height);
-		};
-		heightSpinner.SetActivatesDefaultImmediate (true);
-
-		Gtk.Button resetButton = Gtk.Button.NewFromIconName (Resources.StandardIcons.EditUndo);
-		resetButton.WidthRequest = 24;
-		resetButton.HeightRequest = 24;
-		resetButton.TooltipText = Translations.GetString ("Reset to image size");
-		resetButton.OnClicked += OnResetButtonClicked;
-
-		Gtk.Grid hwGrid = Gtk.Grid.New ();
-		hwGrid.RowSpacing = SPACING;
-		hwGrid.ColumnSpacing = SPACING;
-		hwGrid.ColumnHomogeneous = false;
-		hwGrid.Attach (widthLabel, 0, 0, 1, 1);
-		hwGrid.Attach (widthSpinner, 1, 0, 1, 1);
-		hwGrid.Attach (Gtk.Label.New (Translations.GetString ("pixels")), 2, 0, 1, 1);
-		hwGrid.Attach (resetButton, 3, 0, 1, 1);
-		hwGrid.Attach (heightLabel, 0, 1, 1, 1);
-		hwGrid.Attach (heightSpinner, 1, 1, 1, 1);
-		hwGrid.Attach (Gtk.Label.New (Translations.GetString ("pixels")), 2, 1, 1, 1);
-
-		Gtk.CheckButton aspectCheckBox = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Maintain aspect ratio"));
-
-		Gtk.CheckButton percentageRadio = Gtk.CheckButton.NewWithLabel (Translations.GetString ("By percentage:"));
-		percentageRadio.BindProperty (
-			Gtk.CheckButton.ActivePropertyDefinition.UnmanagedName,
-			percentageSpinner,
-			Gtk.SpinButton.SensitivePropertyDefinition.UnmanagedName,
-			GObject.BindingFlags.SyncCreate);
-
-		Gtk.CheckButton absoluteRadio = Gtk.CheckButton.NewWithLabel (Translations.GetString ("By absolute size:"));
-		absoluteRadio.SetGroup (percentageRadio);
-		absoluteRadio.BindProperty (
-			Gtk.CheckButton.ActivePropertyDefinition.UnmanagedName,
-			widthSpinner,
-			Gtk.SpinButton.SensitivePropertyDefinition.UnmanagedName,
-			GObject.BindingFlags.SyncCreate);
-		absoluteRadio.BindProperty (
-			Gtk.CheckButton.ActivePropertyDefinition.UnmanagedName,
-			heightSpinner,
-			Gtk.SpinButton.SensitivePropertyDefinition.UnmanagedName,
-			GObject.BindingFlags.SyncCreate);
-		absoluteRadio.BindProperty (
-			Gtk.CheckButton.ActivePropertyDefinition.UnmanagedName,
-			aspectCheckBox,
-			Gtk.CheckButton.SensitivePropertyDefinition.UnmanagedName,
-			GObject.BindingFlags.SyncCreate);
-		absoluteRadio.BindProperty (
-			Gtk.CheckButton.ActivePropertyDefinition.UnmanagedName,
-			resetButton,
-			Gtk.Button.SensitivePropertyDefinition.UnmanagedName,
-			GObject.BindingFlags.SyncCreate);
-
-		Gtk.Box hboxPercent = GtkExtensions.Box (
-		spacedHorizontal,
-		[
-			percentageRadio,
-			percentageSpinner,
-			Gtk.Label.New ("%")
-		]);
-
-		Gtk.Separator sep = Gtk.Separator.New (Gtk.Orientation.Horizontal);
-
-		Gtk.Label alignLabel = Gtk.Label.New (Translations.GetString ("Anchor:"));
-		alignLabel.Xalign = 0;
+		Gtk.DropDown fillDropdown = Gtk.DropDown.NewFromStrings ([
+			Translations.GetString ("Transparent"),
+			Translations.GetString ("Primary Color"),
+			Translations.GetString ("Secondary Color"),
+			Translations.GetString ("White"),
+			Translations.GetString ("Black")]);
+		fillDropdown.Hexpand = true;
 
 		Gtk.Button nwButton = CreateAnchorButton ();
-		nwButton.OnClicked += HandleNWButtonClicked;
+		nwButton.OnClicked += (_, _) => SetAnchor (Anchor.NW);
 
 		Gtk.Button nButton = CreateAnchorButton ();
-		nButton.OnClicked += HandleNButtonClicked;
+		nButton.OnClicked += (_, _) => SetAnchor (Anchor.N);
 
 		Gtk.Button neButton = CreateAnchorButton ();
-		neButton.OnClicked += HandleNEButtonClicked;
+		neButton.OnClicked += (_, _) => SetAnchor (Anchor.NE);
 
 		Gtk.Button wButton = CreateAnchorButton ();
-		wButton.OnClicked += HandleWButtonClicked;
+		wButton.OnClicked += (_, _) => SetAnchor (Anchor.W);
 
 		Gtk.Button eButton = CreateAnchorButton ();
-		eButton.OnClicked += HandleEButtonClicked;
+		eButton.OnClicked += (_, _) => SetAnchor (Anchor.E);
 
 		Gtk.Button centerButton = CreateAnchorButton ();
-		centerButton.OnClicked += HandleCenterButtonClicked;
+		centerButton.OnClicked += (_, _) => SetAnchor (Anchor.Center);
 
 		Gtk.Button swButton = CreateAnchorButton ();
-		swButton.OnClicked += HandleSWButtonClicked;
+		swButton.OnClicked += (_, _) => SetAnchor (Anchor.SW);
 
 		Gtk.Button sButton = CreateAnchorButton ();
-		sButton.OnClicked += HandleSButtonClicked;
+		sButton.OnClicked += (_, _) => SetAnchor (Anchor.S);
 
 		Gtk.Button seButton = CreateAnchorButton ();
-		seButton.OnClicked += HandleSEButtonClicked;
+		seButton.OnClicked += (_, _) => SetAnchor (Anchor.SE);
 
-		Gtk.Grid grid = Gtk.Grid.New ();
-		grid.RowSpacing = SPACING;
-		grid.ColumnSpacing = SPACING;
-		grid.Halign = Gtk.Align.Center;
-		grid.Valign = Gtk.Align.Center;
-		grid.Attach (nwButton, 0, 0, 1, 1);
-		grid.Attach (nButton, 1, 0, 1, 1);
-		grid.Attach (neButton, 2, 0, 1, 1);
-		grid.Attach (wButton, 0, 1, 1, 1);
-		grid.Attach (centerButton, 1, 1, 1, 1);
-		grid.Attach (eButton, 2, 1, 1, 1);
-		grid.Attach (swButton, 0, 2, 1, 1);
-		grid.Attach (sButton, 1, 2, 1, 1);
-		grid.Attach (seButton, 2, 2, 1, 1);
+		Gtk.Grid anchorGrid = Gtk.Grid.New ();
+		anchorGrid.Halign = Gtk.Align.Center;
+		anchorGrid.Attach (nwButton, 0, 0, 1, 1);
+		anchorGrid.Attach (nButton, 1, 0, 1, 1);
+		anchorGrid.Attach (neButton, 2, 0, 1, 1);
+		anchorGrid.Attach (wButton, 0, 1, 1, 1);
+		anchorGrid.Attach (centerButton, 1, 1, 1, 1);
+		anchorGrid.Attach (eButton, 2, 1, 1, 1);
+		anchorGrid.Attach (swButton, 0, 2, 1, 1);
+		anchorGrid.Attach (sButton, 1, 2, 1, 1);
+		anchorGrid.Attach (seButton, 2, 2, 1, 1);
 
-		Gtk.Box mainVbox = GtkExtensions.Box (
-			spacedVertical,
-			[
-				hboxPercent,
-				absoluteRadio,
-				hwGrid,
-				aspectCheckBox,
-				sep,
-				alignLabel,
-				grid,
-			]);
+		// No mnemonic: Alt+A belongs to "By absolute size", as in Paint.NET.
+		Gtk.Label anchorLabel = Gtk.Label.New (Translations.GetString ("Anchor:"));
+		anchorLabel.Xalign = 0;
+
+		Gtk.Label fillLabel = Gtk.Label.NewWithMnemonic (Translations.GetString ("_Fill:"));
+		fillLabel.Xalign = 0;
+		fillLabel.MnemonicWidget = fillDropdown;
+
+		Gtk.Grid optionsGrid = Gtk.Grid.New ();
+		optionsGrid.RowSpacing = SPACING;
+		optionsGrid.ColumnSpacing = SPACING;
+		optionsGrid.Attach (anchorLabel, 0, 0, 1, 1);
+		optionsGrid.Attach (anchorDropdown, 1, 0, 1, 1);
+		optionsGrid.Attach (anchorGrid, 1, 1, 1, 1);
+		optionsGrid.Attach (fillLabel, 0, 2, 1, 1);
+		optionsGrid.Attach (fillDropdown, 1, 2, 1, 1);
+
+		Gtk.Box sizeArea = Gtk.Box.New (Gtk.Orientation.Vertical, 0);
+
+		Gtk.Box mainVbox = Gtk.Box.New (Gtk.Orientation.Vertical, SPACING);
+		mainVbox.Append (sizeArea);
+		mainVbox.Append (ImageSizeFields.SectionHeader (Translations.GetString ("Options")));
+		mainVbox.Append (optionsGrid);
 
 		// --- Initialization (Gtk.Window)
 
 		Title = Translations.GetString ("Canvas Size");
 		Modal = true;
+		Resizable = false;
 		IconName = Resources.Icons.ImageResizeCanvas;
-		DefaultWidth = 300;
-		DefaultHeight = 200;
 
 		// --- Initialization (Gtk.Dialog)
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
 		OnResponse += OnDialogResponse;
-
-		// --- Initialization
+		ImageSizeFields.PressOkOnEnter (this);
 
 		var contentArea = this.GetContentAreaBox ();
 		contentArea.SetAllMargins (12);
@@ -243,12 +189,9 @@ public sealed partial class ResizeCanvasDialog
 
 		// --- References to keep
 
-		percentage_spinner = percentageSpinner;
-		width_spinner = widthSpinner;
-		height_spinner = heightSpinner;
-		aspect_checkbox = aspectCheckBox;
-		percentage_radio = percentageRadio;
-		absolute_radio = absoluteRadio;
+		anchor_dropdown = anchorDropdown;
+		fill_dropdown = fillDropdown;
+		size_area = sizeArea;
 
 		nw_button = nwButton;
 		n_button = nButton;
@@ -261,37 +204,39 @@ public sealed partial class ResizeCanvasDialog
 		se_button = seButton;
 	}
 
-	private void Configure (IChromeService chrome, IWorkspaceService workspace, ISettingsService settings)
+	private void Configure (IChromeService chrome, IWorkspaceService workspace, ISettingsService settings, IPaletteService palette)
 	{
 		TransientFor = chrome.MainWindow;
-		this.workspace = workspace;
 		this.settings = settings;
+		this.palette = palette;
 
 		// Always start from the current image's size, as in Paint.NET.
-		percentage_spinner.Value = 100;
-		width_spinner.Value = workspace.ImageSize.Width;
-		height_spinner.Value = workspace.ImageSize.Height;
-		aspect_checkbox.Active = settings.GetSetting (SettingNames.RESIZE_CANVAS_MAINTAIN_ASPECT, false);
+		fields = new ImageSizeFields (
+			workspace.ImageSize,
+			workspace.ActiveDocument.Dpi,
+			(PrintUnit) settings.GetSetting (SettingNames.PRINT_UNITS, (int) PrintUnit.Inches),
+			withPercentage: true);
+		size_area.Append (fields.Widget);
 
-		// Final initialization
+		fields.MaintainAspectRatio = settings.GetSetting (SettingNames.RESIZE_CANVAS_MAINTAIN_ASPECT, false);
 
-		Anchor savedAnchor = (Anchor) settings.GetSetting (SettingNames.RESIZE_CANVAS_ANCHOR, (int) Anchor.Center);
-		SetAnchor (savedAnchor);
+		SetAnchor ((Anchor) settings.GetSetting (SettingNames.RESIZE_CANVAS_ANCHOR, (int) Anchor.Center));
+
+		// The Paint.NET documentation shows White as the fill.
+		fill_dropdown.Selected = (uint) Math.Clamp (
+			settings.GetSetting (SettingNames.RESIZE_CANVAS_FILL, (int) CanvasFill.White),
+			0,
+			Enum.GetValues<CanvasFill> ().Length - 1);
 
 		// Paint.NET opens in "By absolute size" with Width selected, so typing a number sets the width.
-		if (settings.GetSetting (SettingNames.RESIZE_CANVAS_USE_PERCENTAGE, false)) {
-			percentage_radio.Active = true;
-			percentage_spinner.GrabFocus ();
-		} else {
-			absolute_radio.Active = true;
-			width_spinner.GrabFocus ();
-		}
+		fields.ByPercentage = settings.GetSetting (SettingNames.RESIZE_CANVAS_USE_PERCENTAGE, false);
+		OnMap += (_, _) => fields.FocusFirstField ();
 	}
 
-	public static ResizeCanvasDialog New (IChromeService chrome, IWorkspaceService workspace, ISettingsService settings)
+	public static ResizeCanvasDialog New (IChromeService chrome, IWorkspaceService workspace, ISettingsService settings, IPaletteService palette)
 	{
 		ResizeCanvasDialog dialog = NewWithProperties ([]);
-		dialog.Configure (chrome, workspace, settings);
+		dialog.Configure (chrome, workspace, settings, palette);
 		return dialog;
 	}
 
@@ -302,8 +247,10 @@ public sealed partial class ResizeCanvasDialog
 
 		// Save settings for next time
 		settings.PutSetting (SettingNames.RESIZE_CANVAS_ANCHOR, (int) anchor);
-		settings.PutSetting (SettingNames.RESIZE_CANVAS_MAINTAIN_ASPECT, aspect_checkbox.Active);
-		settings.PutSetting (SettingNames.RESIZE_CANVAS_USE_PERCENTAGE, percentage_radio.Active);
+		settings.PutSetting (SettingNames.RESIZE_CANVAS_MAINTAIN_ASPECT, fields.MaintainAspectRatio);
+		settings.PutSetting (SettingNames.RESIZE_CANVAS_USE_PERCENTAGE, fields.ByPercentage);
+		settings.PutSetting (SettingNames.RESIZE_CANVAS_FILL, (int) fill_dropdown.Selected);
+		settings.PutSetting (SettingNames.PRINT_UNITS, (int) fields.Unit);
 	}
 
 	private static Gtk.Button CreateAnchorButton ()
@@ -316,109 +263,24 @@ public sealed partial class ResizeCanvasDialog
 
 	public ResizeCanvasOptions GetResizeCanvasOptions ()
 	{
-		Size newSize = new (
-			Width: width_spinner.GetValueAsInt (),
-			Height: height_spinner.GetValueAsInt ());
-		return new (newSize, anchor, null);
-	}
-
-	/// <summary>
-	/// The number currently typed into a spin button, before GTK commits it as the value.
-	/// </summary>
-	private static bool TryGetTypedValue (Gtk.SpinButton spinner, out int value)
-		=> int.TryParse (spinner.GetText (), out value) && value > 0;
-
-	private void UpdateWidthFromHeight (int height)
-	{
-		if (value_changing)
-			return;
-
-		if (!aspect_checkbox.Active)
-			return;
-
-		value_changing = true;
-		width_spinner.Value = (int) ((double) height * workspace.ImageSize.Width / workspace.ImageSize.Height);
-		value_changing = false;
-	}
-
-	private void UpdateHeightFromWidth (int width)
-	{
-		if (value_changing)
-			return;
-
-		if (!aspect_checkbox.Active)
-			return;
-
-		value_changing = true;
-		height_spinner.Value = (int) ((double) width * workspace.ImageSize.Height / workspace.ImageSize.Width);
-		value_changing = false;
-	}
-
-	private void percentageSpinner_ValueChanged (object? sender, EventArgs e)
-		=> ApplyPercentage (percentage_spinner.GetValueAsInt ());
-
-	private void ApplyPercentage (int percent)
-	{
-		width_spinner.Value = (int) (workspace.ImageSize.Width * (percent / 100f));
-		height_spinner.Value = (int) (workspace.ImageSize.Height * (percent / 100f));
-	}
-
-	void OnResetButtonClicked (Gtk.Button button, EventArgs eventArgs)
-	{
-		value_changing = true;
-		width_spinner.Value = workspace.ImageSize.Width;
-		height_spinner.Value = workspace.ImageSize.Height;
-		value_changing = false;
-	}
-
-	private void HandleSEButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.SE);
-	}
-
-	private void HandleSButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.S);
-	}
-
-	private void HandleSWButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.SW);
-	}
-
-	private void HandleEButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.E);
-	}
-
-	private void HandleCenterButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.Center);
-	}
-
-	private void HandleWButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.W);
-	}
-
-	private void HandleNEButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.NE);
-	}
-
-	private void HandleNButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.N);
-	}
-
-	private void HandleNWButtonClicked (object? sender, EventArgs e)
-	{
-		SetAnchor (Anchor.NW);
+		fields.CommitTypedValues ();
+		Cairo.Color? fill = (CanvasFill) fill_dropdown.Selected switch {
+			CanvasFill.PrimaryColor => palette.PrimaryColor,
+			CanvasFill.SecondaryColor => palette.SecondaryColor,
+			CanvasFill.White => new Cairo.Color (1, 1, 1),
+			CanvasFill.Black => new Cairo.Color (0, 0, 0),
+			_ => null,
+		};
+		return new (fields.PixelSize, anchor, null, fill, fields.Dpi);
 	}
 
 	private void SetAnchor (Anchor anchor)
 	{
 		this.anchor = anchor;
+
+		uint index = (uint) Array.IndexOf (anchor_order, anchor);
+		if (anchor_dropdown.Selected != index)
+			anchor_dropdown.Selected = index;
 
 		nw_button.IconName = "";
 		n_button.IconName = "";

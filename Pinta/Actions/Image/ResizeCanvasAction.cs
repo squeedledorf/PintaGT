@@ -36,12 +36,15 @@ internal sealed class ResizeCanvasAction : IActionHandler
 	private readonly IWorkspaceService workspace;
 	private readonly ISettingsService settings;
 	private readonly ActionManager actions;
+	private readonly IPaletteService palette;
 	internal ResizeCanvasAction (
 		IChromeService chrome,
 		IWorkspaceService workspace,
 		ISettingsService settings,
-		ActionManager actions)
+		ActionManager actions,
+		IPaletteService palette)
 	{
+		this.palette = palette;
 		this.chrome = chrome;
 		this.workspace = workspace;
 		this.settings = settings;
@@ -63,12 +66,12 @@ internal sealed class ResizeCanvasAction : IActionHandler
 		ResizeCanvasOptions? response = await PromptResize ();
 		if (!response.HasValue) return;
 		ResizeCanvasOptions resizing = response.Value;
-		workspace.ResizeCanvas (resizing.NewSize, resizing.Anchor, resizing.CompoundAction);
+		workspace.ResizeCanvas (resizing.NewSize, resizing.Anchor, resizing.CompoundAction, resizing.Fill, resizing.Dpi);
 	}
 
 	private async Task<ResizeCanvasOptions?> PromptResize ()
 	{
-		using ResizeCanvasDialog dialog = ResizeCanvasDialog.New (chrome, workspace, settings);
+		using ResizeCanvasDialog dialog = ResizeCanvasDialog.New (chrome, workspace, settings, palette);
 		try {
 			Gtk.ResponseType response = await dialog.RunAsync ();
 			if (response != Gtk.ResponseType.Ok) return null;

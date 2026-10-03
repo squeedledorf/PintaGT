@@ -30,10 +30,12 @@ public sealed class ResizeHistoryItem : CompoundHistoryItem
 {
 	private readonly WorkspaceManager workspace;
 	private Size old_size;
+	private double old_dpi;
 	public ResizeHistoryItem (WorkspaceManager workspace, Size oldSize) : base ()
 	{
 		this.workspace = workspace;
 		old_size = oldSize;
+		old_dpi = workspace.ActiveDocument.Dpi;
 
 		Icon = Resources.Icons.ImageResize;
 		Text = Translations.GetString ("Resize Image");
@@ -54,6 +56,8 @@ public sealed class ResizeHistoryItem : CompoundHistoryItem
 		workspace.CanvasSize = old_size;
 
 		old_size = swap;
+
+		(doc.Dpi, old_dpi) = (old_dpi, doc.Dpi);
 
 		base.Undo ();
 
@@ -80,6 +84,8 @@ public sealed class ResizeHistoryItem : CompoundHistoryItem
 		workspace.CanvasSize = old_size;
 
 		old_size = swap;
+
+		(doc.Dpi, old_dpi) = (old_dpi, doc.Dpi);
 
 		base.Redo ();
 

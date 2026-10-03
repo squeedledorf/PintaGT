@@ -66,6 +66,10 @@ public sealed class OraFormat : IImageImporter, IImageExporter
 			file,
 			"ora");
 
+		// OpenRaster stores the resolution as xres / yres in pixels per inch.
+		if (double.TryParse (imageElement.GetAttribute ("xres"), NumberStyles.Float, GetFormat (), out double dpi) && dpi > 0)
+			newDocument.Dpi = dpi;
+
 		XmlElement stackElement = (XmlElement) stackXml.GetElementsByTagName ("stack")[0]!;
 		XmlNodeList layerElements = stackElement.GetElementsByTagName ("layer");
 
@@ -149,7 +153,7 @@ public sealed class OraFormat : IImageImporter, IImageExporter
 			return new ((int) ((double) width / height * THUMB_MAX_SIZE), THUMB_MAX_SIZE);
 	}
 
-	private static byte[] GetLayerXmlData (IReadOnlyList<UserLayer> layers)
+	private static byte[] GetLayerXmlData (IReadOnlyList<UserLayer> layers, double dpi)
 	{
 		using MemoryStream ms = new ();
 		using XmlTextWriter writer = new (ms, System.Text.Encoding.UTF8) {
@@ -160,6 +164,9 @@ public sealed class OraFormat : IImageImporter, IImageExporter
 		writer.WriteAttributeString ("w", layers[0].Surface.Width.ToString ());
 		writer.WriteAttributeString ("h", layers[0].Surface.Height.ToString ());
 		writer.WriteAttributeString ("version", "0.0.5"); // Current version of the spec.
+		string resolution = Math.Round (dpi).ToString (GetFormat ());
+		writer.WriteAttributeString ("xres", resolution);
+		writer.WriteAttributeString ("yres", resolution);
 
 		writer.WriteStartElement ("stack");
 
@@ -219,7 +226,7 @@ public sealed class OraFormat : IImageImporter, IImageExporter
 
 	private static void AddStackEntry (ZipArchive archive, Document document)
 	{
-		byte[] userLayerBytes = GetLayerXmlData (document.Layers.UserLayers);
+		byte[] userLayerBytes = GetLayerXmlData (document.Layers.UserLayers, document.Dpi);
 		ZipArchiveEntry stackEntry = archive.CreateEntry ("stack.xml");
 		using Stream stackStream = stackEntry.Open ();
 		stackStream.Write (userLayerBytes, 0, userLayerBytes.Length);

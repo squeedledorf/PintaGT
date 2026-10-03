@@ -25,6 +25,7 @@
 // THE SOFTWARE.
 
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using GdkPixbuf;
 
@@ -45,8 +46,23 @@ public static partial class GdkPixbufExtensions
 
 	// TODO-GTK4 (bindings, unsubmitted) - needs support for primitive value arrays
 	public static byte[] SaveToBuffer (this Pixbuf pixbuf, string type)
+		=> pixbuf.SaveToBuffer (type, [], []);
+
+	/// <summary>Encode to memory with saver options, such as "quality" for JPEG or "x-dpi" for PNG.</summary>
+	public static byte[] SaveToBuffer (this Pixbuf pixbuf, string type, string[] optionKeys, string[] optionValues)
 	{
-		SaveToBufferv (pixbuf.Handle.DangerousGetHandle (), out IntPtr buffer, out uint buffer_size, type, IntPtr.Zero, IntPtr.Zero, out var error);
+		// NULL-terminated arrays of UTF-8 strings.
+		IntPtr[] keys = [.. optionKeys.Select (Marshal.StringToCoTaskMemUTF8), IntPtr.Zero];
+		IntPtr[] values = [.. optionValues.Select (Marshal.StringToCoTaskMemUTF8), IntPtr.Zero];
+		IntPtr buffer;
+		uint buffer_size;
+		GLib.Internal.ErrorOwnedHandle error;
+		try {
+			SaveToBufferv (pixbuf.Handle.DangerousGetHandle (), out buffer, out buffer_size, type, keys, values, out error);
+		} finally {
+			foreach (IntPtr p in keys.Concat (values))
+				Marshal.FreeCoTaskMem (p);
+		}
 		if (!error.IsInvalid)
 			throw new GLib.GException (error);
 
@@ -75,5 +91,5 @@ public static partial class GdkPixbufExtensions
 	private static extern GLib.Internal.SListOwnedHandle GetFormatsNative ();
 
 	[DllImport (PixbufLibraryName, EntryPoint = "gdk_pixbuf_save_to_bufferv")]
-	private static extern bool SaveToBufferv (IntPtr pixbuf, out IntPtr buffer, out uint buffer_size, [MarshalAs (UnmanagedType.LPUTF8Str)] string type, IntPtr option_keys, IntPtr option_values, out GLib.Internal.ErrorOwnedHandle error);
+	private static extern bool SaveToBufferv (IntPtr pixbuf, out IntPtr buffer, out uint buffer_size, [MarshalAs (UnmanagedType.LPUTF8Str)] string type, IntPtr[] option_keys, IntPtr[] option_values, out GLib.Internal.ErrorOwnedHandle error);
 }

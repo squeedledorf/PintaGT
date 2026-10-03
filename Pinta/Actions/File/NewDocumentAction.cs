@@ -72,13 +72,14 @@ internal sealed class NewDocumentAction : IActionHandler
 
 		NewImageOptions newImageOptions = response.Value;
 
-		workspace.NewDocument (
+		// Paint.NET's new images are always white.
+		Document document = workspace.NewDocument (
 			newImageOptions.NewImageSize,
-			newImageOptions.NewImageBackgroundColor);
+			new Cairo.Color (1, 1, 1));
+		document.Dpi = newImageOptions.Dpi;
 
 		settings.PutSetting (SettingNames.NEW_IMAGE_WIDTH, newImageOptions.NewImageSize.Width);
 		settings.PutSetting (SettingNames.NEW_IMAGE_HEIGHT, newImageOptions.NewImageSize.Height);
-		settings.PutSetting (SettingNames.NEW_IMAGE_BACKGROUND, (int) newImageOptions.NewImageBackgroundType);
 	}
 
 	private async Task<NewImageDialogOptions> GetDialogOptions ()
@@ -96,8 +97,6 @@ internal sealed class NewDocumentAction : IActionHandler
 				Size: new (
 					Width: clipboardTexture.Width,
 					Height: clipboardTexture.Height),
-
-				Background: BackgroundType.White,
 				UsingClipboard: true);
 
 		// An image was not on the clipboard,
@@ -106,20 +105,12 @@ internal sealed class NewDocumentAction : IActionHandler
 			Size: new (
 				Width: settings.GetSetting<int> (SettingNames.NEW_IMAGE_WIDTH, 800),
 				Height: settings.GetSetting<int> (SettingNames.NEW_IMAGE_HEIGHT, 600)),
-			Background: (BackgroundType) settings.GetSetting<int> (
-				SettingNames.NEW_IMAGE_BACKGROUND,
-				(int) BackgroundType.White),
 			UsingClipboard: false);
 	}
 
 	private async Task<NewImageOptions?> PromptNewImage (NewImageDialogOptions options)
 	{
-		using NewImageDialog dialog = NewImageDialog.New (
-			chrome,
-			palette,
-			options.Size,
-			options.Background,
-			options.UsingClipboard);
+		using NewImageDialog dialog = NewImageDialog.New (chrome, settings, options.Size);
 
 		try {
 			Gtk.ResponseType response = await dialog.RunAsync ();
@@ -127,10 +118,7 @@ internal sealed class NewDocumentAction : IActionHandler
 			if (response != Gtk.ResponseType.Ok)
 				return null;
 
-			return new (
-				dialog.NewImageSize,
-				dialog.NewImageBackground,
-				dialog.NewImageBackgroundType);
+			return dialog.GetNewImageOptions ();
 
 		} finally {
 			dialog.Destroy ();

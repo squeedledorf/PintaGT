@@ -51,7 +51,7 @@ public sealed class FileActions
 	/// </summary>
 	public Gio.Menu RecentMenu { get; } = Gio.Menu.New ();
 
-	public event EventHandler<ModifyCompressionEventArgs>? ModifyCompression;
+	public event EventHandler<SaveConfigurationEventArgs>? SaveConfiguration;
 
 	/// <remarks>
 	/// The returned value is
@@ -210,13 +210,16 @@ public sealed class FileActions
 		return results.All (succeeded => succeeded);
 	}
 
-	internal int RaiseModifyCompression (int defaultCompression, Gtk.Window parent)
+	/// <returns>The chosen settings, or null if the dialog was canceled.</returns>
+	internal SaveConfiguration? RaiseSaveConfiguration (
+		string fileType,
+		Cairo.ImageSurface image,
+		SaveConfiguration configuration,
+		Func<SaveConfiguration, byte[]> encode,
+		Gtk.Window parent)
 	{
-		ModifyCompressionEventArgs e = new (defaultCompression, parent);
-		ModifyCompression?.Invoke (this, e);
-		return
-			e.Cancel
-			? -1
-			: e.Quality;
+		SaveConfigurationEventArgs e = new (fileType, image, configuration, encode, parent);
+		SaveConfiguration?.Invoke (this, e);
+		return e.Cancel ? null : e.Configuration;
 	}
 }

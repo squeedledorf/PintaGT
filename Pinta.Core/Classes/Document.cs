@@ -170,6 +170,16 @@ public sealed class Document
 
 	public Size ImageSize { get; set; }
 
+	/// <summary>
+	/// Paint.NET's default resolution, in pixels per inch.
+	/// </summary>
+	public const double DefaultDpi = 96;
+
+	/// <summary>
+	/// The print resolution in pixels per inch, read from and written to files that store one.
+	/// </summary>
+	public double Dpi { get; set; } = DefaultDpi;
+
 	public bool IsDirty {
 		get => is_dirty;
 		set {
@@ -331,12 +341,16 @@ public sealed class Document
 	/// Optionally, the history item for resizing the canvas can be added to
 	/// a CompoundHistoryItem if it is part of a larger action (e.g. pasting an image).
 	/// </param>
+	/// <param name="fill">Optionally, the colour for the new area of the bottom layer (Paint.NET's Fill option).</param>
+	/// <param name="dpi">Optionally, a new resolution in pixels per inch.</param>
 	public void ResizeCanvas (
 		Size newSize,
 		Anchor anchor,
-		CompoundHistoryItem? compoundAction)
+		CompoundHistoryItem? compoundAction,
+		Color? fill = null,
+		double? dpi = null)
 	{
-		if (ImageSize == newSize)
+		if (ImageSize == newSize && (dpi is null || dpi == Dpi))
 			return;
 
 		tools.Commit ();
@@ -352,8 +366,11 @@ public sealed class Document
 
 		ImageSize = newSize;
 
-		foreach (var layer in Layers.UserLayers)
-			layer.ResizeCanvas (newSize, anchor);
+		for (int i = 0; i < Layers.UserLayers.Count; i++)
+			Layers.UserLayers[i].ResizeCanvas (newSize, anchor, i == 0 ? fill : null);
+
+		if (dpi is not null)
+			Dpi = dpi.Value;
 
 		hist.FinishSnapshotOfImage ();
 
@@ -367,11 +384,15 @@ public sealed class Document
 		Workspace.Scale = scale;
 	}
 
+	/// <param name="dpi">Optionally, a new resolution in pixels per inch.</param>
 	public void ResizeImage (
 		Size newSize,
-		ResamplingMode resamplingMode)
+		ResamplingMode resamplingMode,
+		bool gammaCorrection = false,
+		double? dpi = null)
 	{
-		if (ImageSize == newSize)
+		bool resampling = ImageSize != newSize;
+		if (!resampling && (dpi is null || dpi == Dpi))
 			return;
 
 		tools.Commit ();
@@ -384,8 +405,12 @@ public sealed class Document
 
 		ImageSize = newSize;
 
-		foreach (var layer in Layers.UserLayers)
-			layer.Resize (newSize, resamplingMode);
+		if (resampling)
+			foreach (var layer in Layers.UserLayers)
+				layer.Resize (newSize, resamplingMode, gammaCorrection);
+
+		if (dpi is not null)
+			Dpi = dpi.Value;
 
 		hist.FinishSnapshotOfImage ();
 

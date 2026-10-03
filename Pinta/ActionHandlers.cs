@@ -56,7 +56,7 @@ public sealed class ActionHandlers
 			new SaveDocumentAction (actions.File, workspace),
 			new SaveDocumentAsAction (actions.File, workspace),
 			new SaveDocumentImplmentationAction (actions.File, actions.Image, chrome, imageFormats, recentFiles, tools),
-			new ModifyCompressionAction (actions.File),
+			new SaveConfigurationAction (actions.File),
 			new PrintDocumentAction (actions.File, chrome, workspace, tools),
 			new CloseDocumentAction (actions, chrome, workspace, tools),
 			new ExitProgramAction (actions, chrome, workspace),
@@ -72,7 +72,7 @@ public sealed class ActionHandlers
 
 			// Image
 			new ResizeImageAction (actions.Image, chrome, workspace, settings),
-			new ResizeCanvasAction (chrome, workspace, settings, actions),
+			new ResizeCanvasAction (chrome, workspace, settings, actions, palette),
 
 			// Layers
 			new LayerPropertiesAction (chrome, actions.Layers, workspace),
