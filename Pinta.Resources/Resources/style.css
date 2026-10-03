@@ -389,7 +389,7 @@ button label, menubutton label, dropdown label {
                (FloatingPanel.Faded sets its opacity). */
 .pdn-panel {
     background-color: mix(@view_bg_color, @view_fg_color, 0.035);
-    color: alpha(@view_fg_color, 1.25);
+    color: @view_fg_color;
     border: 1px solid alpha(@view_fg_color, 0.4);
     border-radius: 0;
     box-shadow: 1px 1px 3px alpha(black, 0.15);
@@ -409,7 +409,7 @@ button label, menubutton label, dropdown label {
 
 .pdn-panel-title {
     font-size: 9pt;
-    color: alpha(@view_fg_color, 1.25);
+    color: @view_fg_color;
 }
 
 .pdn-panel-header > button.pdn-panel-close {
@@ -474,7 +474,7 @@ button label, menubutton label, dropdown label {
     border-radius: 0;
     background-color: @view_bg_color;
     box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.8);
-    color: alpha(@view_fg_color, 1.25);
+    color: @view_fg_color;
     -gtk-icon-size: 13px;
 }
 
@@ -623,6 +623,12 @@ window.dialog button.text-button:disabled, window.messagedialog .response-area >
     box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.15);
 }
 
+/* Header-bar buttons (Choose Colors) fill the bar's height; keep them at 23px. */
+window.dialog headerbar button.text-button {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
 /* Square icon buttons (the reset arrows beside the sliders). */
 window.dialog button.image-button {
     min-width: 21px;
@@ -750,7 +756,7 @@ window.dialog check, window.dialog radio, window.messagedialog check {
     -gtk-icon-size: 13px;
     background-color: @view_bg_color;
     box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.75);
-    color: alpha(@view_fg_color, 1.25);
+    color: @view_fg_color;
 }
 
 window.dialog check, window.messagedialog check {
@@ -806,7 +812,9 @@ window.dialog scale:disabled > trough > slider {
     background-color: alpha(@view_fg_color, 0.35);
 }
 
-window.dialog .heading {
+/* Effect property titles (Angle, Center, combo titles) are plain 9pt labels like their slider siblings. */
+window.dialog .heading, window.dialog .title-4 {
+    font-size: 9pt;
     font-weight: normal;
 }
 
