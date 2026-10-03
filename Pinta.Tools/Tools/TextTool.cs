@@ -161,6 +161,19 @@ public sealed class TextTool : BaseTool
 			font_button.UseFont = true;
 			font_button.CanFocus = false;
 			font_button.Level = Gtk.FontLevel.Family;
+
+			// Fixed width, so the controls after it don't move when the font name changes.
+			font_button.WidthRequest = 160;
+			static void EllipsizeLabels (Gtk.Widget w)
+			{
+				if (w is Gtk.Label label) {
+					label.Ellipsize = Pango.EllipsizeMode.End;
+					label.MaxWidthChars = 1; // Cap the natural width; WidthRequest sets the real width.
+				}
+				for (Gtk.Widget? c = w.GetFirstChild (); c != null; c = c.GetNextSibling ())
+					EllipsizeLabels (c);
+			}
+			EllipsizeLabels (font_button);
 			font_button.FontDesc = Pango.FontDescription.FromString (
 				Settings.GetSetting (SettingNames.TEXT_FONT,
 					Gtk.Settings.GetDefault ()!.GtkFontName!));
@@ -1122,6 +1135,10 @@ public sealed class TextTool : BaseTool
 
 		is_editing = false;
 
+		// An empty text box that was empty when editing started changes nothing, so it gets no history items.
+		if (CurrentTextEngine.State == TextMode.Uncommitted && CurrentTextEngine.IsEmpty () && undo_engine?.IsEmpty () != false)
+			CurrentTextEngine.State = TextMode.Unchanged;
+
 		//Make sure that neither undo surface is null, the user is editing, and there are uncommitted changes.
 		if (text_undo_surface != null && user_undo_surface != null && CurrentTextEngine.State == TextMode.Uncommitted) {
 			Document doc = workspace.ActiveDocument;
@@ -1235,7 +1252,7 @@ public sealed class TextTool : BaseTool
 
 		selection?.Clip (g);
 
-		g.MoveTo (CurrentTextEngine.Origin.X, CurrentTextEngine.Origin.Y);
+		g.MoveTo (CurrentTextLayout.LayoutOrigin.X, CurrentTextLayout.LayoutOrigin.Y);
 
 		g.SetSourceColor (CurrentTextEngine.PrimaryColor);
 
@@ -1257,7 +1274,7 @@ public sealed class TextTool : BaseTool
 
 			// Position resets after g.Stroke ();
 			if (FillText) {
-				g.MoveTo (CurrentTextEngine.Origin.X, CurrentTextEngine.Origin.Y);
+				g.MoveTo (CurrentTextLayout.LayoutOrigin.X, CurrentTextLayout.LayoutOrigin.Y);
 				g.SetSourceColor (CurrentTextEngine.PrimaryColor);
 			}
 		}

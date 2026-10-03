@@ -48,6 +48,23 @@ public sealed class TextLayout
 	public Pango.Layout Layout { get; }
 	public int FontHeight => GetCursorLocation ().Height;
 
+	/// <summary>
+	/// Top-left corner of the layout. The engine's Origin is the anchor point the user clicked:
+	/// the left edge for left-aligned text, the middle for centered text and the right edge for
+	/// right-aligned text, as in Paint.NET.
+	/// </summary>
+	public PointI LayoutOrigin {
+		get {
+			Layout.GetPixelExtents (out _, out RectangleI logical);
+			int offset = engine.Alignment switch {
+				TextAlignment.Center => -logical.Width / 2,
+				TextAlignment.Right => -logical.Width,
+				_ => 0,
+			};
+			return new (engine.Origin.X + offset, engine.Origin.Y);
+		}
+	}
+
 	public TextLayout (IChromeService chrome)
 	{
 		Layout = Pango.Layout.New (chrome.MainWindow.GetPangoContext ());
@@ -70,8 +87,9 @@ public sealed class TextLayout
 		int index = engine.PositionToUTF8Index (engine.CurrentPosition);
 		Layout.GetCursorPos (index, out RectangleI strong, out _);
 
-		int x = PangoExtensions.UnitsToPixels (strong.X) + engine.Origin.X;
-		int y = PangoExtensions.UnitsToPixels (strong.Y) + engine.Origin.Y;
+		PointI origin = LayoutOrigin;
+		int x = PangoExtensions.UnitsToPixels (strong.X) + origin.X;
+		int y = PangoExtensions.UnitsToPixels (strong.Y) + origin.Y;
 		int w = PangoExtensions.UnitsToPixels (strong.Width);
 		int h = PangoExtensions.UnitsToPixels (strong.Height);
 
@@ -86,17 +104,19 @@ public sealed class TextLayout
 		// GetPixelExtents() doesn't really return a very sensible height.
 		// Instead of doing some hacky arithmetic to correct it, the height will just
 		// be the cursor's height times the number of lines.
+		PointI origin = LayoutOrigin;
 		return new (
-			engine.Origin.X,
-			engine.Origin.Y,
+			origin.X,
+			origin.Y,
 			ink.Width,
 			cursor.Height * engine.LineCount);
 	}
 
 	public TextPosition PointToTextPosition (PointI point)
 	{
-		int x = PangoExtensions.UnitsFromPixels (point.X - engine.Origin.X);
-		int y = PangoExtensions.UnitsFromPixels (point.Y - engine.Origin.Y);
+		PointI origin = LayoutOrigin;
+		int x = PangoExtensions.UnitsFromPixels (point.X - origin.X);
+		int y = PangoExtensions.UnitsFromPixels (point.Y - origin.Y);
 
 		Layout.XyToIndex (x, y, out int index, out int trailing);
 
@@ -109,8 +129,9 @@ public sealed class TextLayout
 
 		Layout.IndexToPos (index, out RectangleI rect);
 
-		int x = PangoExtensions.UnitsToPixels (rect.X) + engine.Origin.X;
-		int y = PangoExtensions.UnitsToPixels (rect.Y) + engine.Origin.Y;
+		PointI origin = LayoutOrigin;
+		int x = PangoExtensions.UnitsToPixels (rect.X) + origin.X;
+		int y = PangoExtensions.UnitsToPixels (rect.Y) + origin.Y;
 
 		return new PointI (x, y);
 	}
