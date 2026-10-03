@@ -102,6 +102,8 @@ public sealed class PaintBrushTool : BaseBrushTool
 	// The Normal brush is Paint.NET's brush; the other types draw their own way.
 	protected override bool PaintsWithDabs => active_brush is Brushes.PlainBrush;
 
+	private Gtk.Separator? brush_separator;
+
 	protected override BrushTip Tip => TipDropDown.SelectedItem.GetTagOrDefault (BrushTip.Circle);
 
 	protected override void OnBuildToolBar (Box tb)
@@ -113,6 +115,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 	protected override void OnBuildBrushToolBar (Box tb)
 	{
 		// The brush type sits where Paint.NET has its Fill dropdown, after the PDN options.
+		tb.Append (brush_separator ??= GtkExtensions.CreateToolBarSeparator ());
 		tb.Append (BrushLabel);
 		tb.Append (BrushComboBox);
 

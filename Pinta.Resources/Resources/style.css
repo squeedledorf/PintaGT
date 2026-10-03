@@ -384,6 +384,42 @@ button label, menubutton label, dropdown label {
     margin: 0;
 }
 
+/* Brush size: an editable combo, the digits and a drop-down arrow inside one white box. */
+#tool_toolbar .pdn-combo {
+    margin: 2px 0;
+    min-height: 23px;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@window_fg_color, 0.4);
+}
+
+#tool_toolbar .pdn-combo:focus-within {
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+#tool_toolbar .pdn-combo spinbutton {
+    margin: 0;
+    min-width: 0;
+    background: none;
+    box-shadow: none;
+}
+
+#tool_toolbar .pdn-combo spinbutton > text {
+    min-width: 50px;
+}
+
+#tool_toolbar .pdn-combo menubutton > button {
+    min-width: 0;
+    min-height: 0;
+    padding: 0 4px;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+
+#tool_toolbar .pdn-combo menubutton > button:hover {
+    background-color: alpha(#0078d7, 0.12);
+}
+
 /* Paint.NET's small boxed - and + beside Brush size, Hardness and the like. */
 #tool_toolbar button.pdn-step {
     -gtk-icon-size: 9px;
@@ -528,11 +564,11 @@ button label, menubutton label, dropdown label {
                followed by the panel content. When the pointer is elsewhere the whole panel fades
                (FloatingPanel.Faded sets its opacity). */
 .pdn-panel {
-    background-color: mix(@view_bg_color, @view_fg_color, 0.035);
+    background-color: mix(@view_bg_color, @view_fg_color, 0.06);
     color: @view_fg_color;
-    border: 1px solid alpha(@view_fg_color, 0.4);
-    border-radius: 0;
-    box-shadow: 1px 1px 3px alpha(black, 0.15);
+    border: 1px solid alpha(@view_fg_color, 0.3);
+    border-radius: 5px;
+    box-shadow: 0 2px 6px alpha(black, 0.18);
 }
 
 .pdn-panel listview, .pdn-panel list, .pdn-panel scrolledwindow, .pdn-panel viewport {
@@ -541,7 +577,8 @@ button label, menubutton label, dropdown label {
 }
 
 .pdn-panel-header {
-    background-color: @view_bg_color;
+    /* A faint blue-white header and a white footer around the grey body, as in Paint.NET 5. */
+    background-color: mix(@view_bg_color, #0078d7, 0.06);
     min-height: 26px;
     padding: 0 1px 0 5px;
     border-spacing: 2px;
@@ -577,6 +614,7 @@ button label, menubutton label, dropdown label {
 }
 
 .pdn-panel-footer-row {
+    background-color: @view_bg_color;
     border-top: 1px solid alpha(@view_fg_color, 0.15);
 }
 
@@ -624,6 +662,20 @@ button label, menubutton label, dropdown label {
 }
 
 /* Rectangular Win32 push button (the Colors window's More >>). */
+/* The Colors window's Primary/Secondary drop-down: a small white Win32 combo. */
+.pdn-panel dropdown > button {
+    min-height: 19px;
+    min-width: 72px;
+    padding: 0 3px;
+    border-radius: 0;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.3);
+}
+
+.pdn-panel dropdown > button:hover {
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
 .pdn-push-button {
     min-height: 20px;
     padding: 0 8px;

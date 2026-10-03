@@ -99,8 +99,11 @@ public abstract class BaseBrushTool : BaseTool
 		if (!ShowDabOptions)
 			return;
 
+		// Paint.NET puts a thin rule between each group of options.
+		tb.Append (hardness_separator ??= GtkExtensions.CreateToolBarSeparator ());
 		tb.Append (HardnessLabel);
 		tb.Append (HardnessSlider);
+		tb.Append (spacing_separator ??= GtkExtensions.CreateToolBarSeparator ());
 		tb.Append (SpacingLabel);
 		tb.Append (SpacingSlider);
 
@@ -289,6 +292,8 @@ public abstract class BaseBrushTool : BaseTool
 	private ToolBarSlider? spacing_slider;
 	private ToolBarDropDownButton? smoothing_button;
 	private Gtk.Separator? dab_separator;
+	private Gtk.Separator? hardness_separator;
+	private Gtk.Separator? spacing_separator;
 
 	protected Label HardnessLabel => hardness_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Hardness")));
 	protected Label SpacingLabel => spacing_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Spacing")));
@@ -298,9 +303,18 @@ public abstract class BaseBrushTool : BaseTool
 		0, 100, Settings.GetSetting (DabSettingName ("hardness"), DEFAULT_HARDNESS), 1,
 		Translations.GetString ("Hardness of the brush edge. Ignored when antialiasing is off."));
 
-	protected ToolBarSlider SpacingSlider => spacing_slider ??= CreateDabSlider (
-		1, MAX_SPACING, Settings.GetSetting (DabSettingName ("spacing"), DEFAULT_SPACING), SPACING_CURVE,
-		Translations.GetString ("Distance between brush stamps, as a percentage of the brush size."));
+	protected ToolBarSlider SpacingSlider {
+		get {
+			if (spacing_slider is null) {
+				spacing_slider = CreateDabSlider (
+					1, MAX_SPACING, Settings.GetSetting (DabSettingName ("spacing"), DEFAULT_SPACING), SPACING_CURVE,
+					Translations.GetString ("Distance between brush stamps, as a percentage of the brush size."));
+				// Paint.NET has no Spacing bar; a short one keeps the row near Paint.NET's length.
+				spacing_slider.Scale.WidthRequest = 100;
+			}
+			return spacing_slider;
+		}
+	}
 
 	private static ToolBarSlider CreateDabSlider (int min, int max, int value, double curve, string tooltip)
 	{

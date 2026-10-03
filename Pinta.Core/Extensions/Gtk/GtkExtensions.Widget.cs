@@ -193,8 +193,14 @@ partial class GtkExtensions
 		return ToolBarSlider.New (min, max, step, val, curve);
 	}
 
+	// Paint.NET's Brush size presets.
+	private static readonly int[] brush_size_presets = [
+		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
+		125, 150, 175, 200, 225, 250, 275, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 1500, 2000];
+
 	/// <summary>
-	/// Puts a spin button's − and + outside its field, as Paint.NET's tool bar does for Brush size.
+	/// Makes a spin button Paint.NET's Brush size control: an editable combo of preset sizes,
+	/// with − and + outside the field.
 	/// </summary>
 	public static Gtk.Box WithOuterStepButtons (this Gtk.SpinButton spin)
 	{
@@ -215,9 +221,44 @@ partial class GtkExtensions
 			return button;
 		}
 
+		// The field is an editable combo: the digits plus a drop-down arrow listing the preset sizes.
+		Gtk.ListBox list = Gtk.ListBox.New ();
+		list.SelectionMode = Gtk.SelectionMode.None;
+		list.ActivateOnSingleClick = true;
+		foreach (int size in brush_size_presets) {
+			Gtk.Label item = Gtk.Label.New (size.ToString ());
+			item.Xalign = 0;
+			list.Append (item);
+		}
+		Gtk.ScrolledWindow scroller = Gtk.ScrolledWindow.New ();
+		scroller.HscrollbarPolicy = Gtk.PolicyType.Never;
+		scroller.PropagateNaturalHeight = true;
+		scroller.MaxContentHeight = 300;
+		scroller.MinContentWidth = 64; // About the field's width.
+		scroller.SetChild (list);
+		Gtk.Popover popover = Gtk.Popover.New ();
+		popover.HasArrow = false;
+		popover.SetChild (scroller);
+
+		Gtk.MenuButton arrow = Gtk.MenuButton.New ();
+		arrow.Popover = popover;
+		arrow.FocusOnClick = false;
+		arrow.CanFocus = false;
+		arrow.TooltipText = spin.TooltipText;
+		list.OnRowActivated += (_, e) => {
+			spin.Value = brush_size_presets[e.Row.GetIndex ()];
+			popover.Popdown ();
+		};
+
+		Gtk.Box field = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+		field.AddCssClass ("pdn-combo");
+		field.Valign = Gtk.Align.Center;
+		field.Append (spin);
+		field.Append (arrow);
+
 		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, 2);
 		box.Append (Step ("pinta-step-minus-symbolic", Gtk.SpinType.StepBackward));
-		box.Append (spin);
+		box.Append (field);
 		box.Append (Step ("pinta-step-plus-symbolic", Gtk.SpinType.StepForward));
 
 		// Hiding the spin button hides its step buttons too.
