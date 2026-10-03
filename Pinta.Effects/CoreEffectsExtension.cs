@@ -93,6 +93,8 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.RegisterEffect (new VignetteEffect (services));
 		PintaCore.Effects.RegisterEffect (new VoronoiDiagramEffect (services));
 		PintaCore.Effects.RegisterEffect (new ZoomBlurEffect (services));
+		PintaCore.Effects.RegisterEffect (new CrystalizeEffect (services));
+		PintaCore.Effects.RegisterEffect (new MorphologyEffect (services));
 	}
 
 	public void Uninitialize ()
@@ -146,6 +148,8 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.UnregisterInstanceOfEffect<VignetteEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfEffect<VoronoiDiagramEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfEffect<ZoomBlurEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<CrystalizeEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<MorphologyEffect> ();
 	}
 	#endregion
 }
