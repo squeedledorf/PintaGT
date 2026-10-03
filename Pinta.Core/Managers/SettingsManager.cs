@@ -134,7 +134,8 @@ public sealed class SettingsManager : ISettingsService
 	public string GetUserSettingsDirectory ()
 	{
 		var appdata_folder = Environment.GetFolderPath (Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create);
-		var settings_directory = Path.Combine (appdata_folder, "Pinta");
+		// PintaGT keeps its own settings so the packaged Pinta's (header bar, dark theme...) never leak in.
+		var settings_directory = Path.Combine (appdata_folder, PintaCore.ApplicationName);
 
 		// If someone is getting this, they probably are going to need
 		// the directory created, so just handle that here.

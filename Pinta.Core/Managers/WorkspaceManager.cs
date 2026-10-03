@@ -441,9 +441,9 @@ public sealed class WorkspaceManager : IWorkspaceService
 	internal void ResetTitle ()
 	{
 		if (HasOpenDocuments)
-			chrome_manager.MainWindow.Title = $"{(ActiveDocument.IsDirty ? "*" : "")}{ActiveDocument.DisplayName} - Pinta";
+			chrome_manager.MainWindow.Title = $"{(ActiveDocument.IsDirty ? "*" : "")}{ActiveDocument.DisplayName} - {PintaCore.ApplicationName}";
 		else
-			chrome_manager.MainWindow.Title = "Pinta";
+			chrome_manager.MainWindow.Title = PintaCore.ApplicationName;
 	}
 
 	public void SetActiveDocument (int index)

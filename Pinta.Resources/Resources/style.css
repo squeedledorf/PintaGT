@@ -1010,3 +1010,24 @@ tabview scrolledwindow > scrollbar > range > trough > slider:hover {
 tabview scrolledwindow > scrollbar > range > trough > slider:active {
     background-color: alpha(@window_fg_color, 0.55);
 }
+
+/* Title-row window buttons: flat and square like Windows', not Adwaita's round ones. */
+.pdn-top windowcontrols button {
+	min-width: 32px;
+	min-height: 22px;
+	padding: 0;
+	border-radius: 0;
+	background: none;
+	box-shadow: none;
+}
+.pdn-top windowcontrols button > image {
+	background: none;
+	padding: 0;
+}
+.pdn-top windowcontrols button:hover {
+	background: alpha(currentColor, 0.1);
+}
+.pdn-top windowcontrols button.close:hover {
+	background: #e81123;
+	color: white;
+}

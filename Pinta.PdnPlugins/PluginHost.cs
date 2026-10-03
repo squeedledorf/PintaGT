@@ -24,7 +24,7 @@ internal static class PluginHost
 	private static readonly HashSet<string> loaded_types = [];
 
 	/// <summary>
-	/// Plugin folders: ~/.config/Pinta/PdnPlugins/Effects and Effects/ next to Pinta.
+	/// Plugin folders: ~/.config/PintaGT/PdnPlugins/Effects and Effects/ next to Pinta.
 	/// Loose DLLs in a folder share one load context; each subfolder gets its own.
 	/// </summary>
 	public static IEnumerable<string> PluginDirectories => [

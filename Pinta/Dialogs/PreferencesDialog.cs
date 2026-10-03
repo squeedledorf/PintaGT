@@ -81,7 +81,7 @@ internal sealed partial class PreferencesDialog
 		if (langIndex >= 0 && langIndex < language_codes.Count)
 			language_row.SetSelected ((uint) langIndex);
 
-		int schemeIndex = settings.GetSetting (SettingNames.COLOR_SCHEME, 0);
+		int schemeIndex = settings.GetSetting (SettingNames.COLOR_SCHEME, 1);
 		color_scheme_row.SetSelected ((uint) schemeIndex);
 
 		bool menuBarShown = settings.GetSetting (SettingNames.MENUBAR_SHOWN, SettingDefaults.MenuBarShown ());

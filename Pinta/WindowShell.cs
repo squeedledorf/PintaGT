@@ -61,6 +61,11 @@ public sealed class WindowShell
 			app_window = Gtk.ApplicationWindow.New (app);
 			app_window.ShowMenubar = SystemManager.GetOperatingSystem () == OS.Mac;
 			app_window.SetChild (app_layout);
+
+			// MainWindow draws Paint.NET's own title row (title, window buttons), so suppress the
+			// title bar GTK would otherwise draw itself when the compositor provides none (Hyprland, GNOME).
+			if (SystemManager.GetOperatingSystem () != OS.Mac)
+				app_window.SetTitlebar (Gtk.Box.New (Gtk.Orientation.Horizontal, 0));
 		}
 
 		app_window.Name = name;

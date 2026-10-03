@@ -29,7 +29,8 @@ internal sealed class ColorSchemeChangedAction : IActionHandler
 		if (e.Key != SettingNames.COLOR_SCHEME)
 			return;
 
-		int schemeIndex = PintaCore.Settings.GetSetting (SettingNames.COLOR_SCHEME, 0);
+		// Light by default, like Paint.NET; Settings can still pick dark or follow the system.
+		int schemeIndex = PintaCore.Settings.GetSetting (SettingNames.COLOR_SCHEME, 1);
 		Adw.ColorScheme scheme = schemeIndex switch {
 			1 => Adw.ColorScheme.ForceLight,
 			2 => Adw.ColorScheme.ForceDark,

@@ -51,6 +51,9 @@ public static class PintaCore
 	/// </summary>
 	public const string ApplicationId = "com.github.PintaProject.Pinta";
 
+	/// <summary>Name shown in the title bar and used for the settings folder (~/.config/PintaGT).</summary>
+	public const string ApplicationName = "PintaGT";
+
 	/// <summary>
 	/// The current version number of Pinta.
 	/// </summary>

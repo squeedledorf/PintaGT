@@ -389,7 +389,7 @@ internal sealed class MainWindow
 		window_shell = new WindowShell (
 			app,
 			"Pinta.GenericWindow",
-			"Pinta",
+			PintaCore.ApplicationName,
 			width,
 			height,
 			useMenuBar: IsUsingMenuBar (),
@@ -512,7 +512,16 @@ internal sealed class MainWindow
 					"label",
 					GObject.BindingFlags.SyncCreate);
 				title.Append (titleLabel);
-				top.Attach (title, 0, 0, 1, 1);
+				// Dragging the title row moves the window and double-click maximizes, as with a native title bar.
+				Gtk.WindowHandle titleHandle = Gtk.WindowHandle.New ();
+				titleHandle.SetChild (title);
+				top.Attach (titleHandle, 0, 0, 1, 1);
+
+				// Paint.NET's minimize / maximize / close at the right end of the title row.
+				Gtk.WindowHandle controlsHandle = Gtk.WindowHandle.New ();
+				controlsHandle.SetChild (Gtk.WindowControls.New (Gtk.PackType.End));
+				controlsHandle.Halign = Gtk.Align.End;
+				top.Attach (controlsHandle, 2, 0, 1, 1);
 
 				// The menus sit in a tab-shaped box; a rule runs from its bottom-right corner to the
 				// window's right edge, behind the image list and the window toggles. The row spans every
