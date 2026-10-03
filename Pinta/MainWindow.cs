@@ -519,6 +519,7 @@ internal sealed class MainWindow
 				// column and is attached first, so the thumbnails draw over the rule.
 				Gtk.Box menuRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 				Gtk.PopoverMenuBar menus = Gtk.PopoverMenuBar.NewFromModel (menu_bar);
+				PdnMenus.Attach (menus);
 				menuRow.Append (menus);
 				Gtk.Box rule = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 				rule.AddCssClass ("pdn-top-rule");
@@ -588,6 +589,7 @@ internal sealed class MainWindow
 
 		Gtk.MenuButton help = GtkExtensions.CreateMenuButton (help_menu, StandardIcons.HelpBrowser, Translations.GetString ("Help"));
 		help.AddCssClass (AdwaitaStyles.Flat);
+		PdnMenus.Attach (help);
 		window_buttons.Append (help);
 
 		top.Attach (window_buttons, 2, rows == 3 ? 1 : 0, 1, 1);
