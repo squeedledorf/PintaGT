@@ -60,17 +60,7 @@ public sealed partial class NewImageDialog
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
 
-		// A focused check box swallows Enter; in Paint.NET, Enter presses OK from anywhere but a button.
-		Gtk.EventControllerKey enterController = Gtk.EventControllerKey.New ();
-		enterController.SetPropagationPhase (Gtk.PropagationPhase.Capture);
-		enterController.OnKeyPressed += (_, args) => {
-			bool isEnter = args.Keyval is Gdk.Constants.KEY_Return or Gdk.Constants.KEY_KP_Enter or Gdk.Constants.KEY_ISO_Enter;
-			if (!isEnter || args.State.HasModifierKey () || GetFocus () is not Gtk.CheckButton)
-				return false;
-			Response ((int) Gtk.ResponseType.Ok);
-			return true;
-		};
-		AddController (enterController);
+		ImageSizeFields.PressOkOnEnter (this);
 
 		// --- References to keep
 		size_area = sizeArea;

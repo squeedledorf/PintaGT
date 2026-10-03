@@ -181,6 +181,7 @@ public sealed partial class ResizeCanvasDialog
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
 		OnResponse += OnDialogResponse;
+		ImageSizeFields.PressOkOnEnter (this);
 
 		var contentArea = this.GetContentAreaBox ();
 		contentArea.SetAllMargins (12);

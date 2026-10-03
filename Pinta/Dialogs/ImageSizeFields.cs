@@ -354,6 +354,35 @@ internal sealed class ImageSizeFields
 		grid.Attach (units, 2, row, 2, 1);
 	}
 
+	/// <summary>
+	/// A focused check box or dropdown swallows Enter (toggling it or opening its list);
+	/// in Paint.NET, Enter presses OK from anywhere but a push button.
+	/// </summary>
+	public static void PressOkOnEnter (Gtk.Dialog dialog)
+	{
+		Gtk.EventControllerKey enterController = Gtk.EventControllerKey.New ();
+		enterController.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+		enterController.OnKeyPressed += (_, args) => {
+			bool isEnter = args.Keyval is Gdk.Constants.KEY_Return or Gdk.Constants.KEY_KP_Enter or Gdk.Constants.KEY_ISO_Enter;
+			if (!isEnter || args.State.HasModifierKey () || !SwallowsEnter (dialog.GetFocus ()))
+				return false;
+			dialog.Response ((int) Gtk.ResponseType.Ok);
+			return true;
+		};
+		dialog.AddController (enterController);
+	}
+
+	private static bool SwallowsEnter (Gtk.Widget? focus)
+	{
+		if (focus is Gtk.CheckButton)
+			return true;
+		// A closed dropdown's button sits inside the DropDown; its open list is a popover with its own focus.
+		for (Gtk.Widget? w = focus; w is not null && w is not Gtk.Popover; w = w.GetParent ())
+			if (w is Gtk.DropDown)
+				return true;
+		return false;
+	}
+
 	/// <summary>A Win32-style group caption: the text, then a rule to the right edge.</summary>
 	public static Gtk.Widget SectionHeader (Gtk.Label label)
 	{
