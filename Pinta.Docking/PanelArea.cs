@@ -68,6 +68,7 @@ public sealed partial class PanelArea
 
 		AddOverlay (panel);
 		Apply (entry);
+		panel.OnShow += (_, _) => QueueRelayout (); // Clamp to an area that may have shrunk while it was hidden.
 
 		Gtk.GestureDrag move = Gtk.GestureDrag.New ();
 		move.OnDragBegin += (_, args) => BeginMove (entry, args.StartX, args.StartY);
@@ -120,16 +121,17 @@ public sealed partial class PanelArea
 
 	private Size PanelSize (Entry entry)
 	{
+		// Measure rather than read the allocation: right after a resize the allocation is a frame behind
+		// the new size request, and re-anchoring with the stale width shifted the panel sideways.
+		// A hidden panel measures as 0 x 0; it is placed again when shown.
 		FloatingPanel panel = entry.Panel;
-		if (panel.GetWidth () > 0)
-			return new Size (panel.GetWidth (), panel.GetHeight ());
-
-		if (entry.Resizable)
-			return entry.Size;
+		if (!panel.Visible)
+			return entry.Resizable ? entry.Size : Size.Empty;
 
 		panel.Measure (Gtk.Orientation.Horizontal, -1, out _, out int width, out _, out _);
 		panel.Measure (Gtk.Orientation.Vertical, width, out _, out int height, out _, out _);
-		return new Size (width, height);
+		// Measure includes the margins, which here are the panel's offsets in the area.
+		return new Size (width - panel.MarginStart - panel.MarginEnd, height - panel.MarginTop - panel.MarginBottom);
 	}
 
 	private bool HasArea => area.Width > 0 && area.Height > 0;

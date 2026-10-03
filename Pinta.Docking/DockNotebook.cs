@@ -166,6 +166,12 @@ public sealed partial class DockNotebook
 	/// </summary>
 	public void AppendTab (IDockNotebookItem item) => InsertTab (item, tab_view.NPages);
 
+	/// <summary>
+	/// Moves an item's page to a new position (raises <see cref="TabReordered"/>).
+	/// </summary>
+	public void MoveTab (IDockNotebookItem item, int position)
+		=> tab_view.ReorderPage (tab_view.GetPage (item.Widget), position);
+
 	public void InsertTab (IDockNotebookItem item, int position)
 	{
 		items.Add (item);

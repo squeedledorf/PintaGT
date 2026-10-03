@@ -25,6 +25,7 @@
 // THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Mono.Addins;
 using Pinta.Core;
@@ -146,6 +147,14 @@ internal sealed class MainWindow
 		// Keep OpenDocuments in tab order, which Ctrl+Tab and Ctrl+1..9 follow.
 		notebook.TabReordered += (_, e) => PintaCore.Workspace.MoveDocument (
 			PintaCore.Workspace.OpenDocuments.IndexOf (((DocumentViewContent) e.Item).Document), e.Position);
+		// And the pages in document order when the image list is dragged, so the tab view's own
+		// shortcuts (Ctrl+Shift+PgUp/PgDn) move the image the user sees.
+		PintaCore.Workspace.DocumentsReordered += (_, _) => {
+			IReadOnlyList<Document> documents = PintaCore.Workspace.OpenDocuments;
+			for (int i = 0; i < documents.Count; i++)
+				if (notebook.Items.FirstOrDefault (item => ((DocumentViewContent) item).Document == documents[i]) is IDockNotebookItem item)
+					notebook.MoveTab (item, i);
+		};
 	}
 
 	private void Workspace_DocumentClosed (object? sender, DocumentEventArgs e)
@@ -670,6 +679,8 @@ internal sealed class MainWindow
 		view.HistoryWindow.Value = PintaCore.Settings.GetSetting (SettingNames.HISTORY_WINDOW_SHOWN, true);
 		view.LayersWindow.Value = PintaCore.Settings.GetSetting (SettingNames.LAYERS_WINDOW_SHOWN, true);
 		view.ColorsWindow.Value = PintaCore.Settings.GetSetting (SettingNames.COLORS_WINDOW_SHOWN, true);
+		// Quit with every window hidden (e.g. by F12): one F12 brings them all back.
+		view.ToolWindows.Value = panel_toggles.Any (t => t.Value);
 
 		string dialog_uri = PintaCore.Settings.GetSetting (SettingNames.LAST_DIALOG_DIRECTORY, PintaCore.RecentFiles.DefaultDialogDirectory?.GetUri () ?? "");
 		PintaCore.RecentFiles.LastDialogDirectory = Gio.FileHelper.NewForUri (dialog_uri);
