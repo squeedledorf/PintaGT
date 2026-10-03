@@ -41,6 +41,7 @@ public sealed partial class CurvesDialog
 	private Gtk.CheckButton check_red;
 	private Gtk.CheckButton check_green;
 	private Gtk.CheckButton check_blue;
+	private Gtk.CheckButton check_luminosity;
 
 	private sealed record ControlPointDrawingInfo (
 		Color Color,
@@ -77,7 +78,7 @@ public sealed partial class CurvesDialog
 	public CurvesData EffectData { get; private set; } = new ();
 
 	[MemberNotNull (nameof (combo_map), nameof (label_point), nameof (curves_drawing))]
-	[MemberNotNull (nameof (check_red), nameof (check_green), nameof (check_blue))]
+	[MemberNotNull (nameof (check_red), nameof (check_green), nameof (check_blue), nameof (check_luminosity))]
 	partial void Initialize ()
 	{
 		const int SPACING = 6;
@@ -90,9 +91,15 @@ public sealed partial class CurvesDialog
 		Gtk.CheckButton checkGreen = CreateColorCheck (Translations.GetString ("Green"));
 		Gtk.CheckButton checkBlue = CreateColorCheck (Translations.GetString ("Blue "));
 
+		// As in Paint.NET, Luminosity mode shows a single checked, disabled channel box in the same row.
+		Gtk.CheckButton checkLuminosity = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Luminosity"));
+		checkLuminosity.Active = true;
+		checkLuminosity.Sensitive = false;
+
 		Gtk.Button buttonReset = CreateResetButton ();
 
 		Gtk.Label labelTip = Gtk.Label.New (Translations.GetString ("Tip: Right-click to remove control points."));
+		labelTip.Halign = Gtk.Align.Start;
 
 		Gtk.EventControllerMotion motionController = CreateCurvesMotionController ();
 
@@ -108,16 +115,20 @@ public sealed partial class CurvesDialog
 			]
 		);
 
-		Gtk.Box boxBelow = GtkExtensions.BoxHorizontal ([
-			checkRed,
-			checkGreen,
-			checkBlue,
-			buttonReset]);
+		Gtk.Box boxBelow = GtkExtensions.Box (
+			horizontalSpaced,
+			[
+				checkLuminosity,
+				checkRed,
+				checkGreen,
+				checkBlue
+			]
+		);
 
 		Gtk.DrawingArea curvesDrawing = Gtk.DrawingArea.New ();
 		curvesDrawing.WidthRequest = 256;
 		curvesDrawing.HeightRequest = 256;
-		curvesDrawing.CanFocus = true;
+		curvesDrawing.Focusable = true;
 		curvesDrawing.SetAllMargins (8);
 		curvesDrawing.SetDrawFunc ((area, context, width, height) => HandleDrawingDrawnEvent (context));
 		curvesDrawing.AddController (motionController);
@@ -145,6 +156,15 @@ public sealed partial class CurvesDialog
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
 
+		// Paint.NET puts Reset at the left end of the OK / Cancel row. It is a plain button, not a response.
+		Gtk.Box actionArea = (Gtk.Box) GetWidgetForResponse ((int) Gtk.ResponseType.Ok)!.GetParent ()!;
+		actionArea.Halign = Gtk.Align.Fill;
+		actionArea.Homogeneous = false;
+		actionArea.Prepend (buttonReset);
+
+		// Start with focus on the graph rather than the combo, so Enter presses OK.
+		SetFocus (curvesDrawing);
+
 		// --- References to keep
 
 		curves_drawing = curvesDrawing;
@@ -156,6 +176,7 @@ public sealed partial class CurvesDialog
 		check_red = checkRed;
 		check_green = checkGreen;
 		check_blue = checkBlue;
+		check_luminosity = checkLuminosity;
 	}
 
 	public static CurvesDialog New (IChromeService chrome, CurvesData effectData)
@@ -187,6 +208,7 @@ public sealed partial class CurvesDialog
 
 			bool visible = (Mode == ColorTransferMode.Rgb);
 			check_red.Visible = check_green.Visible = check_blue.Visible = visible;
+			check_luminosity.Visible = !visible;
 
 			InvalidateDrawing ();
 		}
@@ -207,7 +229,7 @@ public sealed partial class CurvesDialog
 		Gtk.Button result = Gtk.Button.NewWithLabel (Translations.GetString ("Reset"));
 		result.WidthRequest = 81;
 		result.HeightRequest = 30;
-		result.Halign = Gtk.Align.End;
+		result.Halign = Gtk.Align.Start;
 		result.Hexpand = true;
 		result.OnClicked += HandleButtonResetClicked;
 		return result;
@@ -268,6 +290,8 @@ public sealed partial class CurvesDialog
 			Gtk.GestureDrag controller,
 			Gtk.GestureDrag.DragBeginSignalArgs args)
 		{
+			curves_drawing.GrabFocus (); // Keep Enter pressing OK after the combo was used.
+
 			PointI pos = new (
 				X: (int) args.StartX,
 				Y: (int) args.StartY);
