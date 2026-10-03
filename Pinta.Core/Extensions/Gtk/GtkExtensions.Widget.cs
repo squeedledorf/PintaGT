@@ -228,6 +228,181 @@ partial class GtkExtensions
 		return box;
 	}
 
+	private const string STACKED_SPIN_CLASS = "pdn-stacked-spin";
+	private const string STACKED_STEP_CLASS = "pdn-spin-step";
+	private const string STACKED_STEP_PRESSED_CLASS = "pdn-spin-step-pressed";
+	private const string RESET_BUTTON_CLASS = "pdn-reset-button";
+	private static bool dialog_control_style_loaded;
+
+	/// <summary>
+	/// Gives a dialog spin button Paint.NET's (Win32) look: the digits right-aligned and two small
+	/// arrow cells stacked at the right end of the field, instead of GTK's side-by-side buttons.
+	/// Pack the returned box where the spin button would go.
+	/// </summary>
+	public static Gtk.Box WithStackedStepButtons (this Gtk.SpinButton spin)
+	{
+		EnsureDialogControlStyle ();
+
+		for (Gtk.Widget? child = spin.GetFirstChild (); child is not null; child = child.GetNextSibling ())
+			if (child is Gtk.Button)
+				child.Visible = false;
+
+		Gtk.Box steps = Gtk.Box.New (Gtk.Orientation.Vertical, 0);
+		steps.Append (StackedStep (spin, "pinta-pan-up-symbolic", Gtk.SpinType.StepForward));
+		steps.Append (StackedStep (spin, "pinta-pan-down-symbolic", Gtk.SpinType.StepBackward));
+
+		// The box takes over the spin button's place in the layout; any extra width goes to the digits.
+		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+		box.AddCssClass (STACKED_SPIN_CLASS);
+		box.Halign = spin.Halign;
+		box.Valign = spin.Valign;
+		box.Hexpand = spin.Hexpand;
+		box.Vexpand = spin.Vexpand;
+		box.MarginStart = spin.MarginStart;
+		box.MarginEnd = spin.MarginEnd;
+		box.MarginTop = spin.MarginTop;
+		box.MarginBottom = spin.MarginBottom;
+		spin.Halign = spin.Valign = Gtk.Align.Fill;
+		spin.Hexpand = true;
+		spin.Vexpand = false;
+		spin.MarginStart = spin.MarginEnd = spin.MarginTop = spin.MarginBottom = 0;
+		spin.Xalign = 1;
+		box.Append (spin);
+		box.Append (steps);
+
+		// Hiding or disabling the spin button does the same to its arrows.
+		foreach (string property in new[] { Gtk.Widget.VisiblePropertyDefinition.UnmanagedName, Gtk.Widget.SensitivePropertyDefinition.UnmanagedName })
+			spin.BindProperty (property, box, property, GObject.BindingFlags.SyncCreate);
+		return box;
+	}
+
+	/// <summary>
+	/// One arrow cell. Like a Win32 up-down control it steps on press and repeats while held.
+	/// </summary>
+	private static Gtk.Widget StackedStep (Gtk.SpinButton spin, string icon, Gtk.SpinType direction)
+	{
+		Gtk.Image arrow = Gtk.Image.NewFromIconName (icon);
+		arrow.PixelSize = 7;
+		arrow.Vexpand = true;
+		arrow.AddCssClass (STACKED_STEP_CLASS);
+
+		uint delay = 0, repeat = 0;
+		void Stop ()
+		{
+			if (delay != 0) GLib.Functions.SourceRemove (delay);
+			if (repeat != 0) GLib.Functions.SourceRemove (repeat);
+			delay = repeat = 0;
+			arrow.RemoveCssClass (STACKED_STEP_PRESSED_CLASS);
+		}
+
+		Gtk.GestureClick click = Gtk.GestureClick.New ();
+		click.OnPressed += (_, _) => {
+			Stop ();
+			arrow.AddCssClass (STACKED_STEP_PRESSED_CLASS);
+			spin.Update (); // Step from the typed text, as GTK's own buttons do.
+			spin.Spin (direction, 0);
+			delay = GLib.Functions.TimeoutAdd (GLib.Constants.PRIORITY_DEFAULT, 400, () => {
+				delay = 0;
+				repeat = GLib.Functions.TimeoutAdd (GLib.Constants.PRIORITY_DEFAULT, 50, () => {
+					// "stopped" fires at the double-click timeout, so poll for the button still being held.
+					if (!click.IsActive ()) {
+						repeat = 0;
+						Stop ();
+						return false;
+					}
+					spin.Spin (direction, 0);
+					return true;
+				});
+				return false;
+			});
+		};
+		click.OnReleased += (_, _) => Stop ();
+		click.OnCancel += (_, _) => Stop ();
+		arrow.AddController (click);
+		arrow.OnUnmap += (_, _) => Stop ();
+		return arrow;
+	}
+
+	/// <summary>
+	/// The reset arrow beside an effect dialog's slider, angle or point: a small framed square, as in Paint.NET.
+	/// </summary>
+	public static Gtk.Button CreateResetButton ()
+	{
+		EnsureDialogControlStyle ();
+		Gtk.Button button = Gtk.Button.NewFromIconName (StandardIcons.EditUndo);
+		button.AddCssClass (RESET_BUTTON_CLASS);
+		button.TooltipText = Translations.GetString ("Reset");
+		button.Valign = Gtk.Align.Center;
+		return button;
+	}
+
+	/// <summary>
+	/// Stacked spin buttons: the field frame moves from the spin button to the box that also holds the arrows.
+	/// Reset buttons: framed.
+	/// ponytail: loaded from code to keep style.css untouched by this package; it can move there.
+	/// </summary>
+	private static void EnsureDialogControlStyle ()
+	{
+		if (dialog_control_style_loaded)
+			return;
+
+		Gdk.Display? display = Gdk.Display.GetDefault ();
+		if (display is null)
+			return;
+
+		Gtk.CssProvider provider = Gtk.CssProvider.New ();
+		provider.LoadFromString ($$"""
+			.{{STACKED_SPIN_CLASS}} {
+				min-height: 21px;
+				background-color: @view_bg_color;
+				box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.4);
+			}
+			.{{STACKED_SPIN_CLASS}}:hover { box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.7); }
+			.{{STACKED_SPIN_CLASS}}:focus-within { box-shadow: inset 0 0 0 1px #0078d7; }
+			.{{STACKED_SPIN_CLASS}}:disabled {
+				background-color: mix(@view_bg_color, @view_fg_color, 0.04);
+				box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.2);
+			}
+			.{{STACKED_SPIN_CLASS}} > spinbutton,
+			.{{STACKED_SPIN_CLASS}} > spinbutton:hover,
+			.{{STACKED_SPIN_CLASS}} > spinbutton:focus-within,
+			.{{STACKED_SPIN_CLASS}} > spinbutton:disabled {
+				min-height: 21px;
+				border-radius: 0;
+				background: none;
+				box-shadow: none;
+				outline: none;
+			}
+			.{{STACKED_SPIN_CLASS}} > box { margin: 1px 1px 1px 0; }
+			.{{STACKED_SPIN_CLASS}} image.{{STACKED_STEP_CLASS}} {
+				min-width: 15px;
+				min-height: 0;
+				color: alpha(@view_fg_color, 0.8);
+			}
+			.{{STACKED_SPIN_CLASS}} image.{{STACKED_STEP_CLASS}}:hover { background-color: alpha(#0078d7, 0.15); }
+			.{{STACKED_SPIN_CLASS}} image.{{STACKED_STEP_PRESSED_CLASS}} { background-color: alpha(#0078d7, 0.3); }
+			.{{STACKED_SPIN_CLASS}}:disabled image.{{STACKED_STEP_CLASS}} { opacity: 0.35; }
+			button.image-button.{{RESET_BUTTON_CLASS}} {
+				min-width: 21px;
+				min-height: 21px;
+				padding: 0;
+				border-radius: 0;
+				background-color: mix(@view_bg_color, @view_fg_color, 0.08);
+				box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.35);
+			}
+			button.image-button.{{RESET_BUTTON_CLASS}}:hover {
+				background-color: alpha(#0078d7, 0.1);
+				box-shadow: inset 0 0 0 1px #0078d7;
+			}
+			button.image-button.{{RESET_BUTTON_CLASS}}:active { background-color: alpha(#0078d7, 0.22); }
+			button.image-button.{{RESET_BUTTON_CLASS}}:focus-visible { box-shadow: inset 0 0 0 2px #0078d7; }
+			button.image-button.{{RESET_BUTTON_CLASS}} > image { color: #2a6fc9; }
+			""");
+		// One above style.css, so these win over its "window.dialog spinbutton" rules.
+		Gtk.StyleContext.AddProviderForDisplay (display, provider, Gtk.Constants.STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
+		dialog_control_style_loaded = true;
+	}
+
 	public static void Toggle (this Gtk.ToggleButton button)
 	{
 		button.Active = !button.Active;

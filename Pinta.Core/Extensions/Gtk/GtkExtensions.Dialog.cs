@@ -227,4 +227,43 @@ partial class GtkExtensions
 		this Gtk.Dialog dialog,
 		Gtk.ResponseType response
 	) => dialog.SetDefaultResponse ((int) response);
+
+	/// <summary>
+	/// A focused check box, combo box or dropdown swallows Enter (toggling it or opening its list),
+	/// and a spin button only commits its text; in Paint.NET, Enter presses OK from anywhere but a push button.
+	/// </summary>
+	public static void PressOkOnEnter (this Gtk.Dialog dialog)
+	{
+		Gtk.EventControllerKey enterController = Gtk.EventControllerKey.New ();
+		enterController.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+		enterController.OnKeyPressed += (_, args) => {
+			bool isEnter = args.Keyval is Gdk.Constants.KEY_Return or Gdk.Constants.KEY_KP_Enter or Gdk.Constants.KEY_ISO_Enter;
+			Gtk.Widget? focus = dialog.GetFocus ();
+			if (!isEnter || args.State.HasModifierKey () || !SwallowsEnter (focus))
+				return false;
+			// Commit the typed text before the dialog reads the value.
+			FindAncestor<Gtk.SpinButton> (focus)?.Update ();
+			dialog.Response ((int) Gtk.ResponseType.Ok);
+			return true;
+		};
+		dialog.AddController (enterController);
+	}
+
+	private static bool SwallowsEnter (Gtk.Widget? focus)
+		=> focus is Gtk.CheckButton
+		|| FindAncestor<Gtk.DropDown> (focus) is not null
+		|| FindAncestor<Gtk.ComboBox> (focus) is not null
+		|| FindAncestor<Gtk.SpinButton> (focus) is not null;
+
+	/// <summary>
+	/// The widget itself or its closest ancestor of type T, stopping at a popover:
+	/// a closed dropdown's button sits inside the DropDown, but its open list is a popover with its own focus.
+	/// </summary>
+	private static T? FindAncestor<T> (Gtk.Widget? widget) where T : Gtk.Widget
+	{
+		for (Gtk.Widget? w = widget; w is not null && w is not Gtk.Popover; w = w.GetParent ())
+			if (w is T match)
+				return match;
+		return null;
+	}
 }

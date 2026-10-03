@@ -52,7 +52,7 @@ public sealed partial class SpinButtonEntryDialog
 			spacedHorizontal,
 			[
 				labelControl,
-				spinButton,
+				spinButton.WithStackedStepButtons (),
 			]);
 
 		// --- Initialization (Gtk.Box)
@@ -69,6 +69,7 @@ public sealed partial class SpinButtonEntryDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		// --- References to keep
 

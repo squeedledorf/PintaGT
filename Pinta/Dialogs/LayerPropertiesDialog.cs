@@ -60,7 +60,7 @@ public sealed partial class LayerPropertiesDialog
 	{
 		const int spacing = 6;
 
-		Gtk.Label nameLabel = Gtk.Label.New (Translations.GetString ("Name:"));
+		Gtk.Label nameLabel = Gtk.Label.New (Translations.GetString ("Name"));
 		nameLabel.Halign = Gtk.Align.Start;
 
 		Gtk.Entry layerNameEntry = Gtk.Entry.New ();
@@ -73,19 +73,18 @@ public sealed partial class LayerPropertiesDialog
 		visibilityCheckbox.OnToggled += OnVisibilityToggled;
 
 		Gtk.Label blendLabel = Gtk.Label.New (Translations.GetString ("Blend Mode") + ":");
-		blendLabel.Halign = Gtk.Align.End;
+		blendLabel.Halign = Gtk.Align.Start;
 
 		Gtk.ComboBoxText blendComboBox = Gtk.ComboBoxText.New ();
 
 		foreach (string name in UserBlendOps.GetAllBlendModeNames ())
 			blendComboBox.AppendText (name);
 
-		blendComboBox.Hexpand = true;
-		blendComboBox.Halign = Gtk.Align.Fill;
+		blendComboBox.Halign = Gtk.Align.Start;
 		blendComboBox.OnChanged += OnBlendModeChanged;
 
-		Gtk.Label opacityLabel = Gtk.Label.New (Translations.GetString ("Opacity:"));
-		opacityLabel.Halign = Gtk.Align.End;
+		Gtk.Label opacityLabel = Gtk.Label.New (Translations.GetString ("Opacity"));
+		opacityLabel.Halign = Gtk.Align.Start;
 
 		// Opacity is shown as 0-255, as in Paint.NET.
 		Gtk.SpinButton opacitySpinner = Gtk.SpinButton.NewWithRange (0, 255, 1);
@@ -93,6 +92,7 @@ public sealed partial class LayerPropertiesDialog
 		opacitySpinner.ClimbRate = 1;
 		opacitySpinner.OnValueChanged += OnOpacitySpinnerChanged;
 		opacitySpinner.SetActivatesDefaultImmediate (true);
+		opacitySpinner.WidthChars = 6;
 
 		Gtk.Scale opacitySlider = Gtk.Scale.NewWithRange (Gtk.Orientation.Horizontal, 0, 255, 1);
 		opacitySlider.Digits = 0;
@@ -103,7 +103,7 @@ public sealed partial class LayerPropertiesDialog
 
 		Gtk.Box opacityBox = Gtk.Box.New (Gtk.Orientation.Horizontal, spacing);
 		opacityBox.Append (opacitySlider);
-		opacityBox.Append (opacitySpinner);
+		opacityBox.Append (opacitySpinner.WithStackedStepButtons ());
 
 		Gtk.Grid grid = Gtk.Grid.New ();
 		grid.RowSpacing = spacing;
@@ -111,24 +111,28 @@ public sealed partial class LayerPropertiesDialog
 		grid.ColumnHomogeneous = false;
 		grid.Attach (nameLabel, 0, 0, 2, 1);
 		grid.Attach (layerNameEntry, 0, 1, 2, 1);
-		grid.Attach (opacityLabel, 0, 2, 1, 1);
-		grid.Attach (opacityBox, 1, 2, 1, 1);
-		grid.Attach (blendLabel, 0, 3, 1, 1);
-		grid.Attach (blendComboBox, 1, 3, 1, 1);
-		grid.Attach (visibilityCheckbox, 0, 4, 2, 1);
+		// Paint.NET's layout: Name and Opacity are headings above their fields; Blend Mode sits on one row.
+		grid.Attach (opacityLabel, 0, 2, 2, 1);
+		grid.Attach (opacityBox, 0, 3, 2, 1);
+		Gtk.Box blendBox = Gtk.Box.New (Gtk.Orientation.Horizontal, spacing);
+		blendBox.Append (blendLabel);
+		blendBox.Append (blendComboBox);
+		grid.Attach (blendBox, 0, 4, 2, 1);
+		grid.Attach (visibilityCheckbox, 0, 5, 2, 1);
 
 		// --- Initialization (Gtk.Window)
 
 		Title = Translations.GetString ("Layer Properties");
 		Modal = true;
-		DefaultWidth = 349;
-		DefaultHeight = 224;
+		DefaultWidth = 302;
+		Resizable = false;
 		IconName = Resources.Icons.LayerProperties;
 
 		// --- Initialization (Gtk.Dialog)
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		// --- Initialization
 

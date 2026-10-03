@@ -73,6 +73,7 @@ public sealed partial class SimpleEffectDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		// --- Initialization
 
@@ -81,6 +82,8 @@ public sealed partial class SimpleEffectDialog
 		contentAreaBox.SetAllMargins (6);
 
 		OnClose += (_, _) => HandleClose ();
+		// Connected before RunAsync's handler, so a value typed just before Enter reaches the effect before OK is read.
+		OnResponse += (_, _) => HandleClose ();
 	}
 
 	public static SimpleEffectDialog New (
@@ -166,7 +169,9 @@ public sealed partial class SimpleEffectDialog
 		// If there is a timeout that hasn't been invoked yet, run it before closing the dialog.
 		if (event_delay_timeout_id == 0) return;
 		GLib.Source.Remove (event_delay_timeout_id);
+		event_delay_timeout_id = 0;
 		timeout_func?.Invoke ();
+		timeout_func = null;
 	}
 
 	private IEnumerable<Gtk.Widget> GenerateDialogWidgets (EffectData effectData, IAddinLocalizer localizer, IWorkspaceService workspace) =>
@@ -493,6 +498,8 @@ public sealed partial class SimpleEffectDialog
 		widget.MaximumValue = attributes.OfType<MaximumValueAttribute> ().Select (m => m.Value).FirstOrDefault (100);
 		widget.IncrementValue = attributes.OfType<IncrementValueAttribute> ().Select (i => i.Value).FirstOrDefault (0.01);
 		widget.DigitsValue = attributes.OfType<DigitsValueAttribute> ().Select (d => d.Value).FirstOrDefault (2);
+		if (DefaultValueOf (settings, effectData) is double defaultValue)
+			widget.DefaultValue = defaultValue;
 
 		widget.ValueChanged += (_, _) => {
 			DelayedUpdate (() => {
@@ -523,6 +530,8 @@ public sealed partial class SimpleEffectDialog
 		widget.MaximumValue = attributes.OfType<MaximumValueAttribute> ().Select (m => m.Value).FirstOrDefault (100);
 		widget.IncrementValue = attributes.OfType<IncrementValueAttribute> ().Select (i => i.Value).FirstOrDefault (1.0);
 		widget.DigitsValue = attributes.OfType<DigitsValueAttribute> ().Select (d => d.Value).FirstOrDefault (0);
+		if (DefaultValueOf (settings, effectData) is int defaultValue)
+			widget.DefaultValue = defaultValue;
 
 		foreach (SliderTrackAttribute track in attributes.OfType<SliderTrackAttribute> ())
 			widget.AddTrackCssClass (track.CssClass);
@@ -535,6 +544,21 @@ public sealed partial class SimpleEffectDialog
 		};
 
 		return widget;
+	}
+
+	/// <summary>
+	/// The member's value in a freshly constructed EffectData: the effect's default, which Paint.NET
+	/// marks on the slider and resets to. The dialog itself opens with the last used values.
+	/// </summary>
+	private static object? DefaultValueOf (MemberSettings settings, EffectData effectData)
+	{
+		try {
+			return Activator.CreateInstance (effectData.GetType ()) is EffectData fresh
+				? settings.reflector.GetValue (fresh)
+				: null;
+		} catch (Exception) {
+			return null; // No parameterless constructor: keep resetting to the opening value, with no tick.
+		}
 	}
 
 	private Gtk.CheckButton CreateCheckBox (
@@ -679,7 +703,7 @@ public sealed partial class SimpleEffectDialog
 
 		Gtk.Box controlsBox = Gtk.Box.New (Gtk.Orientation.Horizontal, spacing: 6);
 		controlsBox.Append (reseedButton);
-		controlsBox.Append (seedInput);
+		controlsBox.Append (seedInput.WithStackedStepButtons ());
 
 		Gtk.Box combinedWidget = Gtk.Box.New (Gtk.Orientation.Vertical, spacing: 6);
 		combinedWidget.Append (sectionLabel);

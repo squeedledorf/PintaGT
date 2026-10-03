@@ -64,7 +64,7 @@ public sealed partial class SaveConfigurationDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
-		ImageSizeFields.PressOkOnEnter (this);
+		this.PressOkOnEnter ();
 	}
 
 	private void Configure (SaveConfigurationEventArgs e)
@@ -145,14 +145,17 @@ public sealed partial class SaveConfigurationDialog
 
 		preview = Gtk.Picture.New ();
 		preview.CanShrink = false;
-		preview.Halign = Gtk.Align.Start;
-		preview.Valign = Gtk.Align.Start;
+		preview.Halign = Gtk.Align.Center;
+		preview.Valign = Gtk.Align.Center;
 
 		Gtk.ScrolledWindow scroller = Gtk.ScrolledWindow.New ();
 		scroller.Child = preview;
 		scroller.Hexpand = true;
 		scroller.Vexpand = true;
 		scroller.HasFrame = true;
+		// Paint.NET centres the preview on grey, with classic scroll bars that are always shown.
+		scroller.OverlayScrolling = false;
+		scroller.AddCssClass ("canvas-border");
 
 		Gtk.Box previewBox = Gtk.Box.New (Gtk.Orientation.Vertical, 6);
 		previewBox.Append (ImageSizeFields.SectionHeader (size_label));
@@ -177,6 +180,19 @@ public sealed partial class SaveConfigurationDialog
 			else
 				args.Cancel = true;
 		};
+
+		// Type a quality straight away, as in Paint.NET. Wait for idle so the file chooser that
+		// opened this dialog has gone and cannot keep the keyboard focus.
+		OnMap += (_, _) => GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT_IDLE, () => {
+			if (closed)
+				return false;
+			Present ();
+			if (spins.Count > 0 && args.FileType != "png") {
+				spins[0].GrabFocus ();
+				spins[0].SelectRegion (0, -1);
+			}
+			return false;
+		});
 
 		Refresh ();
 	}
@@ -282,7 +298,7 @@ public sealed partial class SaveConfigurationDialog
 		Gtk.Box row = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
 		row.MarginStart = 4;
 		row.Append (scale);
-		row.Append (spin);
+		row.Append (spin.WithStackedStepButtons ());
 		return row;
 	}
 }

@@ -84,6 +84,7 @@ public sealed partial class AlignmentDialog
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
+		this.PressOkOnEnter ();
 
 		// --- Initialization (AlignmentDialog)
 
