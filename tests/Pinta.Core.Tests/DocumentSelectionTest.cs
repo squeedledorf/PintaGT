@@ -19,6 +19,18 @@ internal sealed class DocumentSelectionTest
 		Assert.That (selection.GetBounds ().ToInt (), Is.EqualTo (new RectangleI (0, 0, 640, 480)));
 	}
 
+	// The ellipse's extremes must land exactly on its rectangle, or Crop to Selection loses a row.
+	[TestCase (100, 100, 300, 300)]
+	[TestCase (0, 0, 800, 650)]
+	[TestCase (13, 7, 301, 99)]
+	public void EllipseSelection_BoundsMatchRectangle (int x, int y, int width, int height)
+	{
+		DocumentSelection selection = new ();
+		selection.CreateEllipseSelection (new RectangleD (x, y, width, height));
+
+		Assert.That (selection.GetBounds ().ToInt (), Is.EqualTo (new RectangleI (x, y, width, height)));
+	}
+
 	// Edit > Copy/Paste Selection use Paint.NET's clipboard JSON (getpaint.net/doc/latest/EditMenu.html).
 	[Test]
 	public void PolygonListJson_ParsesPaintNetExample ()

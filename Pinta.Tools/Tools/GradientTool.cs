@@ -45,7 +45,6 @@ public sealed class GradientTool : BaseTool
 	// The layer as it was before the live gradient was drawn, which every redraw blends onto.
 	private ImageSurface? base_surface;
 
-	private bool is_newly_created = false;
 
 	public bool is_reversed = false;
 	MouseButton drag_button;
@@ -135,7 +134,6 @@ public sealed class GradientTool : BaseTool
 
 		is_reversed = e.MouseButton == MouseButton.Right;
 
-		is_newly_created = true;
 		base_surface = undo_surface;
 		drag_button = e.MouseButton;
 
@@ -156,15 +154,11 @@ public sealed class GradientTool : BaseTool
 
 		document.Layers.ToolLayer.Clear ();
 
+		// Paint.NET names every step of a gradient plainly "Gradient".
 		if (undo_surface != null) {
-			string name = is_newly_created
-				? Translations.GetString ("Gradient Created")
-				: Translations.GetString ("Gradient Modified");
-			document.History.PushNewItem (new GradientHistoryItem (Icon, name, undo_surface,
+			document.History.PushNewItem (new GradientHistoryItem (Icon, Name, undo_surface,
 				document.Layers.CurrentUserLayerIndex, undo_data!.Value, this));
 		}
-
-		is_newly_created = false;
 	}
 
 	protected override void OnMouseMove (Document document, ToolMouseEventArgs e)
@@ -226,14 +220,11 @@ public sealed class GradientTool : BaseTool
 	{
 		if (!handle.Active) { return; }
 
-		if (document != null) {
-			undo_data = Data;
-			undo_surface = document.Layers.CurrentUserLayer.Surface.Clone ();
-			document.History.PushNewItem (new GradientHistoryItem (Icon, Name + " " + Translations.GetString ("Finalized"), undo_surface,
-						document.Layers.CurrentUserLayerIndex, undo_data!.Value, this));
-		}
+		// The pixels are already on the layer, so finishing adds no history item. Undoing the last
+		// "Gradient" item still goes back to before it, and redoing it brings the handles back.
 		handle.Active = false;
 		base_surface = null;
+		document?.Workspace.Invalidate ();
 
 		palette.PrimaryColorChanged -= HandlePintaCorePalettePrimaryColorChanged;
 		palette.SecondaryColorChanged -= HandlePintaCorePalettePrimaryColorChanged;

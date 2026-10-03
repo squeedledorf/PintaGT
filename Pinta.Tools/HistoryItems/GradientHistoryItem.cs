@@ -25,13 +25,27 @@ public class GradientHistoryItem : BaseHistoryItem
 	{
 		surface.Undo ();
 		Swap ();
-		PintaCore.Tools.SetCurrentTool (tool);
+		SelectToolIfLive ();
 	}
 
 	public override void Redo ()
 	{
 		surface.Redo ();
 		Swap ();
+		SelectToolIfLive ();
+	}
+
+	/// <summary>
+	/// Brings the Gradient tool back only when the history step leaves a live gradient with handles.
+	/// A History click undoes or redoes every step in between, so the check waits until the jump is done.
+	/// </summary>
+	private void SelectToolIfLive ()
+	{
+		GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT, () => {
+			if (tool.Data.Active && PintaCore.Tools.CurrentTool != tool)
+				PintaCore.Tools.SetCurrentTool (tool);
+			return false;
+		});
 	}
 
 	private void Swap ()

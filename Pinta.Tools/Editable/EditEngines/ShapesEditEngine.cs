@@ -45,7 +45,7 @@ public sealed class ShapesEditEngine : BaseEditEngine
 
 		tb.Append (preset_picker.Button);
 		AppendFillMode (tb, settings, toolPrefix);
-		AppendBrushWidth (tb, settings, toolPrefix, Translations.GetString ("Brush size"));
+		AppendBrushWidth (tb, settings, toolPrefix, Translations.GetString ("Brush width"));
 		AppendStyleLabel (tb);
 		AppendDashPicker (tb, settings, toolPrefix);
 		AppendSeparator (tb, ref style_sep);

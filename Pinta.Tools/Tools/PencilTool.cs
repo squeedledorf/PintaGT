@@ -37,6 +37,9 @@ public sealed class PencilTool : BaseTool
 	private PointI? last_point = null;
 
 	private ImageSurface? undo_surface;
+	// Every pixel the stroke has touched so far. The colour is painted through it onto the original
+	// layer, so a translucent stroke blends once where it crosses itself, as in Paint.NET.
+	private ImageSurface? stroke_mask;
 	private bool surface_modified;
 	private MouseButton mouse_button;
 
@@ -48,8 +51,7 @@ public sealed class PencilTool : BaseTool
 	public override string Name => Translations.GetString ("Pencil");
 	public override string Icon => Pinta.Resources.Icons.ToolPencil;
 	public override string StatusBarText => Translations.GetString (
-		"Left click to draw freeform one-pixel wide lines with the primary color." +
-		"\nRight click to use the secondary color.");
+		"Left click to draw freeform one-pixel wide lines with the primary color, right click to use the secondary color.");
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.Pencil.png"), 7, 24, null);
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_P);
 	public override int Priority => 25;
@@ -63,6 +65,8 @@ public sealed class PencilTool : BaseTool
 
 		surface_modified = false;
 		undo_surface = document.Layers.CurrentUserLayer.Surface.Clone ();
+		stroke_mask?.Dispose ();
+		stroke_mask = CairoExtensions.CreateImageSurface (Format.Argb32, document.ImageSize.Width, document.ImageSize.Height);
 		mouse_button = e.MouseButton;
 
 		Color tool_color;
@@ -108,6 +112,8 @@ public sealed class PencilTool : BaseTool
 
 		surface_modified = false;
 		undo_surface = null;
+		stroke_mask?.Dispose ();
+		stroke_mask = null;
 		mouse_button = MouseButton.None;
 	}
 
@@ -126,34 +132,48 @@ public sealed class PencilTool : BaseTool
 		if (document.Workspace.PointInCanvas (e.PointDouble))
 			surface_modified = true;
 
-		using Context g = document.CreateClippedContext ();
+		if (undo_surface is null || stroke_mask is null)
+			return;
 
-		g.Antialias = Antialias.None;
+		using (Context m = new (stroke_mask)) {
+			m.Antialias = Antialias.None;
+			m.SetSourceColor (new Color (0, 0, 0));
+			m.LineWidth = 1;
+			m.LineCap = LineCap.Square;
 
-		g.SetSourceColor (tool_color);
-
-		if (UseAlphaBlending)
-			g.SetBlendMode (BlendMode.Normal);
-		else
-			g.Operator = Operator.Source;
-
-		g.LineWidth = 1;
-		g.LineCap = LineCap.Square;
-
-		if (first_pixel) {
-			// Cairo does not support a single-pixel-long single-pixel-wide line
-			g.Rectangle (x, y, 1.0, 1.0);
-			g.Fill ();
-		} else {
-			// Adding 0.5 forces cairo into the correct square:
-			// See https://bugs.launchpad.net/bugs/672232
-			PointI lastPoint = last_point.Value;
-			g.MoveTo (lastPoint.X + 0.5, lastPoint.Y + 0.5);
-			g.LineTo (x + 0.5, y + 0.5);
-			g.Stroke ();
+			if (first_pixel) {
+				// Cairo does not support a single-pixel-long single-pixel-wide line
+				m.Rectangle (x, y, 1.0, 1.0);
+				m.Fill ();
+			} else {
+				// Adding 0.5 forces cairo into the correct square:
+				// See https://bugs.launchpad.net/bugs/672232
+				PointI lastPoint = last_point.Value;
+				m.MoveTo (lastPoint.X + 0.5, lastPoint.Y + 0.5);
+				m.LineTo (x + 0.5, y + 0.5);
+				m.Stroke ();
+			}
 		}
 
 		RectangleI dirty = RectangleI.FromPoints (last_point.Value, new PointI (x, y)).Inflated (4, 4);
+
+		// Repaint the touched area from the original layer, then the colour through the whole stroke's mask.
+		using (Context g = document.CreateClippedContext ()) {
+			g.Rectangle (dirty.ToDouble ());
+			g.Clip ();
+			g.Operator = Operator.Source;
+			g.SetSourceSurface (undo_surface, 0, 0);
+			g.Paint ();
+
+			g.SetSourceColor (tool_color);
+
+			if (UseAlphaBlending)
+				g.SetBlendMode (BlendMode.Normal);
+			else
+				g.Operator = Operator.Source;
+
+			g.MaskSurface (stroke_mask, 0, 0);
+		}
 
 		document.Workspace.Invalidate (document.ClampToImageSize (dirty));
 

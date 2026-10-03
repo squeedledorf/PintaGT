@@ -262,7 +262,7 @@ public abstract class BaseBrushTool : BaseTool
 			return brush_width;
 		}
 	}
-	private static bool ShowWholeAsInteger (SpinButton spin)
+	internal static bool ShowWholeAsInteger (SpinButton spin)
 	{
 		double value = spin.Value;
 		if (value != Math.Floor (value))
