@@ -28,7 +28,6 @@ public sealed class TextTool : BaseTool
 
 	private PointI click_point;
 	private bool is_editing;
-	private RectangleI old_cursor_bounds = RectangleI.Zero;
 
 	//This is used to temporarily store the UserLayer's and TextLayer's previous ImageSurface states.
 	private ImageSurface? text_undo_surface;
@@ -103,7 +102,9 @@ public sealed class TextTool : BaseTool
 
 	// Paint.NET's move nub, below and to the right of the text cursor: drag it to move the text before it's finished.
 	private readonly MoveNubHandle nub;
-	public override IEnumerable<IToolHandle> Handles => [nub];
+	// The caret is drawn over the canvas, not on the text layer, so the layer's opacity and blend mode can't hide it.
+	private readonly CaretHandle caret;
+	public override IEnumerable<IToolHandle> Handles => [nub, caret];
 
 	private readonly IChromeService chrome;
 	private readonly IPaletteService palette;
@@ -127,6 +128,7 @@ public sealed class TextTool : BaseTool
 		DefaultCursor = GdkExtensions.CursorFromName (Pinta.Resources.StandardCursors.Text);
 
 		nub = new MoveNubHandle (workspace);
+		caret = new CaretHandle (workspace);
 	}
 
 	#region ToolBar
@@ -294,8 +296,48 @@ public sealed class TextTool : BaseTool
 				UpdateFont ();
 			};
 
+			HookFontPopup (font_family_dropdown, names);
+
 			return font_family_dropdown;
 		}
+	}
+
+	/// <summary>
+	/// As in Paint.NET's font list: it opens on the current font, and Enter in the search picks the first match.
+	/// </summary>
+	private static void HookFontPopup (Gtk.DropDown dropdown, List<string> names)
+	{
+		if (FindDescendant<Gtk.Popover> (dropdown) is not Gtk.Popover popup
+		    || FindDescendant<Gtk.ListView> (popup) is not Gtk.ListView list)
+			return;
+
+		popup.OnShow += (_, _) => GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_LOW, () => {
+			if (dropdown.Selected != Gtk.Constants.INVALID_LIST_POSITION)
+				list.ScrollTo (dropdown.Selected, Gtk.ListScrollFlags.None, null);
+			return false;
+		});
+
+		if (FindDescendant<Gtk.SearchEntry> (popup) is Gtk.SearchEntry search) {
+			search.OnActivate += (_, _) => {
+				if (list.Model is not Gio.ListModel matches || matches.GetObject (0) is not Gtk.StringObject first)
+					return;
+				int index = names.IndexOf (first.GetString ());
+				if (index >= 0)
+					dropdown.Selected = (uint) index;
+				popup.Popdown ();
+			};
+		}
+	}
+
+	private static T? FindDescendant<T> (Gtk.Widget widget) where T : Gtk.Widget
+	{
+		for (Gtk.Widget? child = widget.GetFirstChild (); child is not null; child = child.GetNextSibling ()) {
+			if (child is T match)
+				return match;
+			if (FindDescendant<T> (child) is T nested)
+				return nested;
+		}
+		return null;
 	}
 
 	private string FontFamily
@@ -1010,8 +1052,6 @@ public sealed class TextTool : BaseTool
 		InflateAndInvalidate (r);
 		CurrentTextBounds = r;
 
-		RectangleI cursorBounds = RectangleI.Zero;
-
 		if (!useTextLayer) {
 			// Committing: draw the text on its own, then put it on the layer with the tool's blend mode,
 			// as if it were on a new layer merged down.
@@ -1061,54 +1101,16 @@ public sealed class TextTool : BaseTool
 			selection?.Clip (g);
 			DrawLayout (g, CurrentTextEngine.PrimaryColor);
 
-			if (showCursor) {
-
-				RectangleI loc = CurrentTextLayout.GetCursorLocation ();
-				Color color = CurrentTextEngine.PrimaryColor;
-
-				g.DrawLine (
-					new PointD (loc.X, loc.Y),
-					new PointD (loc.X, loc.Y + loc.Height),
-					color, 1);
-
-				cursorBounds = loc;
-				cursorBounds = cursorBounds.Inflated (2, 10);
-			}
-
 			g.Restore ();
 
-			if ((is_editing || ctrl_key) && !CurrentTextEngine.IsEmpty ()) {
-
-				//Draw the text edit rectangle.
-
-				g.Save ();
-
-				g.Translate (.5, .5);
-
-				g.AppendPath (g.CreateRectanglePath (CurrentTextBounds.ToDouble ()));
-
-				g.LineWidth = 1;
-
-				g.SetSourceColor (new Color (1, 1, 1));
-				g.StrokePreserve ();
-
-				g.SetDash ([2, 4], 0);
-				g.SetSourceColor (new Color (1, .1, .2));
-
-				g.Stroke ();
-
-				g.Restore ();
-			}
+			// Paint.NET shows only the caret and the move nub while editing; no edit rectangle.
 		}
 
 		UpdateNub (doc);
+		UpdateCaret (doc, showCursor && useTextLayer);
 
 		InflateAndInvalidate (layer.PreviousTextBounds);
-		workspace.Invalidate (old_cursor_bounds);
 		InflateAndInvalidate (r);
-		workspace.Invalidate (cursorBounds);
-
-		old_cursor_bounds = cursorBounds;
 	}
 
 	/// <summary>Shows the move nub at the bottom of the text cursor while editing, and hides it otherwise.</summary>
@@ -1121,6 +1123,45 @@ public sealed class TextTool : BaseTool
 			RectangleI loc = CurrentTextLayout.GetCursorLocation ();
 			nub.CanvasPosition = new PointD (loc.X, loc.Y + loc.Height);
 			doc.Workspace.InvalidateWindowRect (nub.InvalidateRect);
+		}
+	}
+
+	private void UpdateCaret (Document doc, bool show)
+	{
+		doc.Workspace.InvalidateWindowRect (caret.InvalidateRect);
+
+		caret.Active = show;
+		if (show) {
+			caret.CanvasRect = CurrentTextLayout.GetCursorLocation ();
+			caret.Color = CurrentTextEngine.PrimaryColor.ToGdkRGBA ();
+			doc.Workspace.InvalidateWindowRect (caret.InvalidateRect);
+		}
+	}
+
+	/// <summary>The text cursor: a line in the primary colour, one image pixel wide.</summary>
+	private sealed class CaretHandle (IWorkspaceService workspace) : IToolHandle
+	{
+		public bool Active { get; set; }
+		public RectangleI CanvasRect { get; set; }
+		public Gdk.RGBA Color { get; set; } = new ();
+
+		public bool ContainsPoint (PointD windowPoint) => false;
+
+		private RectangleD WindowRect {
+			get {
+				PointD top = workspace.CanvasPointToView (new PointD (CanvasRect.X, CanvasRect.Y));
+				PointD bottom = workspace.CanvasPointToView (new PointD (CanvasRect.X, CanvasRect.Y + CanvasRect.Height));
+				double width = Math.Max (1, workspace.GetScale ());
+				return new RectangleD (Math.Floor (top.X), top.Y, width, bottom.Y - top.Y);
+			}
+		}
+
+		public RectangleI InvalidateRect => WindowRect.Inflated (2, 2).ToInt ();
+
+		public void Draw (Gtk.Snapshot snapshot)
+		{
+			RectangleD r = WindowRect;
+			snapshot.AppendColor (Color, Graphene.Rect.Alloc ().Init ((float) r.X, (float) r.Y, (float) r.Width, (float) r.Height));
 		}
 	}
 
