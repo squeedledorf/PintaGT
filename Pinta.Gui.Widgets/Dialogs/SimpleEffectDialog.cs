@@ -167,9 +167,14 @@ public sealed partial class SimpleEffectDialog
 	private void HandleClose ()
 	{
 		// If there is a timeout that hasn't been invoked yet, run it before closing the dialog.
+		// Response can fire more than once (e.g. a double-clicked OK), so clear the id: removing a
+		// source twice raises GLib-CRITICAL.
 		if (event_delay_timeout_id == 0) return;
 		GLib.Source.Remove (event_delay_timeout_id);
-		timeout_func?.Invoke ();
+		event_delay_timeout_id = 0;
+		TimeoutHandler? pending = timeout_func;
+		timeout_func = null;
+		pending?.Invoke ();
 	}
 
 	private IEnumerable<Gtk.Widget> GenerateDialogWidgets (EffectData effectData, IAddinLocalizer localizer, IWorkspaceService workspace) =>
