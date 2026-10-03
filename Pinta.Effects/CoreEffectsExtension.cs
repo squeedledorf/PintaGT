@@ -103,6 +103,9 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.RegisterEffect (new SurfaceBlurEffect (services));
 		PintaCore.Effects.RegisterEffect (new CrystalizeEffect (services));
 		PintaCore.Effects.RegisterEffect (new MorphologyEffect (services));
+		PintaCore.Effects.RegisterEffect (new DropShadowEffect (services));
+		PintaCore.Effects.RegisterEffect (new StraightenEffect (services));
+		PintaCore.Effects.RegisterEffect (new TurbulenceEffect (services));
 	}
 
 	public void Uninitialize ()
@@ -166,6 +169,9 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.UnregisterInstanceOfEffect<SurfaceBlurEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfEffect<CrystalizeEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfEffect<MorphologyEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<DropShadowEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<StraightenEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfEffect<TurbulenceEffect> ();
 	}
 	#endregion
 }
