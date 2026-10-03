@@ -18,6 +18,7 @@ public abstract class GradientRenderer
 	private ColorBgra start_color;
 	private ColorBgra end_color;
 	private bool lerp_cache_is_valid = false;
+	private bool reversed = false;
 	private readonly byte[] lerp_alphas;
 	private readonly ColorBgra[] lerp_colors;
 
@@ -54,6 +55,19 @@ public abstract class GradientRenderer
 	public bool AlphaBlending { get; set; }
 	public bool AlphaOnly { get; set; }
 
+	/// <summary>
+	/// Reverses the alpha ramp in alpha-only (transparency) mode.
+	/// Colour gradients are reversed by the caller swapping StartColor and EndColor.
+	/// </summary>
+	public bool Reversed {
+		get => reversed;
+		set {
+			if (reversed == value) return;
+			reversed = value;
+			lerp_cache_is_valid = false;
+		}
+	}
+
 	private readonly record struct AlphaBounds (
 		byte StartAlpha,
 		byte EndAlpha);
@@ -63,10 +77,7 @@ public abstract class GradientRenderer
 		if (lerp_cache_is_valid)
 			return;
 
-		AlphaBounds bounds =
-			AlphaOnly
-			? ComputeAlphaOnlyValuesFromColors (start_color, end_color)
-			: new (StartAlpha: start_color.A, EndAlpha: end_color.A);
+		AlphaBounds bounds = ComputeAlphaBounds ();
 
 		for (int i = 0; i < 256; ++i) {
 			byte a = (byte) i;
@@ -79,23 +90,26 @@ public abstract class GradientRenderer
 
 	public abstract byte ComputeByteLerp (int x, int y);
 
-	private static AlphaBounds ComputeAlphaOnlyValuesFromColors (
-		ColorBgra startColor,
-		ColorBgra endColor)
+	private AlphaBounds ComputeAlphaBounds ()
 	{
-		return new (
-			StartAlpha: startColor.A,
-			EndAlpha: (byte) (255 - endColor.A));
+		if (!AlphaOnly)
+			return new (StartAlpha: start_color.A, EndAlpha: end_color.A);
+
+		byte startAlpha = start_color.A;
+		byte endAlpha = (byte) (255 - end_color.A);
+
+		// Swapping the colours can't reverse an alpha-only gradient (two opaque colours give 255 -> 0 either way),
+		// so reverse the alpha ramp itself.
+		return Reversed
+			? new (StartAlpha: endAlpha, EndAlpha: startAlpha)
+			: new (StartAlpha: startAlpha, EndAlpha: endAlpha);
 	}
 
 	public void Render (
 		ImageSurface surface,
 		ReadOnlySpan<RectangleI> rois)
 	{
-		AlphaBounds bounds =
-			AlphaOnly
-			? ComputeAlphaOnlyValuesFromColors (start_color, end_color)
-			: new (StartAlpha: start_color.A, EndAlpha: end_color.A);
+		AlphaBounds bounds = ComputeAlphaBounds ();
 
 		surface.Flush ();
 
