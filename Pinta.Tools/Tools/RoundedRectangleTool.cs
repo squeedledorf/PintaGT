@@ -48,7 +48,7 @@ public sealed class RoundedRectangleTool : ShapeTool
 	public override Gdk.Cursor DefaultCursor { get; }
 
 	public override int Priority
-		=> 41;
+		=> 39;
 
 	public override BaseEditEngine EditEngine { get; }
 

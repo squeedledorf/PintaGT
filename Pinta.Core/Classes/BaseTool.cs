@@ -355,8 +355,8 @@ public abstract class BaseTool
 			if (antialiasing_button is null) {
 				antialiasing_button = ToolBarDropDownButton.New ();
 
-				antialiasing_button.AddItem (Translations.GetString ("Antialiasing On"), Pinta.Resources.Icons.AntiAliasingEnabled, true);
-				antialiasing_button.AddItem (Translations.GetString ("Antialiasing Off"), Pinta.Resources.Icons.AntiAliasingDisabled, false);
+				antialiasing_button.AddItem (Translations.GetString ("Antialiasing enabled"), Pinta.Resources.Icons.AntiAliasingEnabled, true);
+				antialiasing_button.AddItem (Translations.GetString ("Antialiasing disabled"), Pinta.Resources.Icons.AntiAliasingDisabled, false);
 
 				antialiasing_button.SelectedIndex = Settings.GetSetting (
 					SettingNames.ToolAntialias (this),
