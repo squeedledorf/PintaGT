@@ -22,6 +22,8 @@ public sealed partial class PanelArea
 	private sealed class Entry (FloatingPanel panel, PanelAnchor defaultAnchor, Size defaultSize)
 	{
 		public FloatingPanel Panel { get; } = panel;
+		public PanelAnchor DefaultAnchor { get; } = defaultAnchor;
+		public Size DefaultSize { get; } = defaultSize;
 		public PanelAnchor Anchor { get; set; } = defaultAnchor;
 		public Size Size { get; set; } = defaultSize; // Empty for panels sized by their content.
 		public bool Resizable { get; } = !defaultSize.IsEmpty;
@@ -112,6 +114,18 @@ public sealed partial class PanelArea
 			};
 		panel.AddController (hover);
 		panel.Faded = RestsFaded;
+	}
+
+	/// <summary>
+	/// Put a panel back at its default place and size (Paint.NET's Ctrl+Shift+F5–F8).
+	/// </summary>
+	public void ResetPanel (string id)
+	{
+		foreach (Entry entry in entries.Where (e => e.Panel.Id == id)) {
+			entry.Anchor = entry.DefaultAnchor;
+			entry.Size = entry.DefaultSize;
+			Apply (entry);
+		}
 	}
 
 	private bool RestsFaded => settings.GetSetting (TRANSLUCENT_SETTING, true);

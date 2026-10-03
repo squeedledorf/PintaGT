@@ -93,12 +93,47 @@ public sealed class DocumentWorkspace
 	/// </summary>
 	public bool ImageFitsInWindow {
 		get {
-			Gtk.Viewport view = (Gtk.Viewport) Canvas.Parent!;
-			int window_x = view.GetAllocatedWidth ();
-			int window_y = view.GetAllocatedHeight ();
-			return document.ImageSize.Width <= window_x && document.ImageSize.Height <= window_y;
+			Size window = WindowSize;
+			return document.ImageSize.Width <= window.Width && document.ImageSize.Height <= window.Height;
 		}
 	}
+
+	/// <summary>
+	/// Size of the area the canvas is shown in, including the space taken by the scrollbars,
+	/// so fit-to-window maths gives the same answer whether or not the scrollbars are showing.
+	/// </summary>
+	public Size WindowSize {
+		get {
+			Gtk.Widget scrolled = Canvas.Parent!.Parent!;
+			return new (scrolled.GetAllocatedWidth (), scrolled.GetAllocatedHeight ());
+		}
+	}
+
+	/// <summary>
+	/// <see cref="WindowSize"/> less the scrollbars, which show whenever the image is larger than the window.
+	/// </summary>
+	private Size WindowSizeLessScrollbars {
+		get {
+			Gtk.ScrolledWindow scrolled = (Gtk.ScrolledWindow) Canvas.Parent!.Parent!;
+			scrolled.GetVscrollbar ().Measure (Gtk.Orientation.Horizontal, -1, out _, out int bar_width, out _, out _);
+			scrolled.GetHscrollbar ().Measure (Gtk.Orientation.Vertical, -1, out _, out int bar_height, out _, out _);
+			Size window = WindowSize;
+			return new (window.Width - bar_width, window.Height - bar_height);
+		}
+	}
+
+	/// <summary>
+	/// Margin left around the image or selection when zooming to fit the window.
+	/// </summary>
+	public const int FitMargin = 20;
+
+	/// <summary>
+	/// The largest scale at which content of the given size fits in the window, leaving a margin.
+	/// </summary>
+	public static double GetFitScale (double width, double height, Size window, int margin)
+		=> Math.Min (
+			Math.Max (window.Width - margin, 1) / width,
+			Math.Max (window.Height - margin, 1) / height);
 
 	/// <summary>
 	/// Scale factor for the zoomed image.
@@ -280,10 +315,9 @@ public sealed class DocumentWorkspace
 
 	public void ZoomToCanvasRectangle (RectangleD rect)
 	{
-		double ratio =
-			(document.ImageSize.Width / rect.Width <= document.ImageSize.Height / rect.Height)
-			? document.ImageSize.Width / rect.Width
-			: document.ImageSize.Height / rect.Height;
+		// Fit the rectangle to the window, in whole percent rounded down so it is never cropped.
+		double ratio = GetFitScale (rect.Width, rect.Height, WindowSizeLessScrollbars, FitMargin);
+		ratio = Math.Clamp (Math.Floor (ratio * 100) / 100, 0.01, 36);
 
 		actions.View.ZoomComboBox.ComboBox.GetEntry ().SetText (ViewActions.ToPercent (ratio));
 		GLib.MainContext.Default ().Iteration (false); //Force update of scrollbar upper before recenter
