@@ -152,6 +152,48 @@ popover.menu separator {
     background-color: #993d3d;
 }
 
+/* Footer button rows of History and Layers: small flat 16px icon buttons. */
+.pdn-panel-footer {
+    padding: 1px 2px;
+}
+
+.pdn-panel-footer button {
+    -gtk-icon-size: 16px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0 1px;
+    margin: 0;
+}
+
+.pdn-panel-footer button:not(:hover):not(:active):not(:checked) {
+    background: none;
+    box-shadow: none;
+}
+
+/* Paint.NET 5's top rows: menu bar and toolbar on the left, the image list beside them,
+   and the window toggles, Settings and Help at the far right. */
+#window_buttons {
+    padding: 2px 4px;
+}
+
+#window_buttons button {
+    -gtk-icon-size: 16px;
+    min-width: 24px;
+    min-height: 22px;
+    padding: 0 3px;
+    margin: 0 1px;
+}
+
+#window_buttons button:checked {
+    background-color: alpha(@accent_bg_color, 0.25);
+    box-shadow: inset 0 0 0 1px @accent_color;
+}
+
+#window_buttons separator {
+    min-width: 1px;
+    margin: 4px 6px;
+}
+
 /* Paint.NET's list selection: pale blue fill with a blue outline. */
 .pdn-panel listview > row:selected, .pdn-panel list > row:selected {
     background-color: alpha(#0078d7, 0.3);

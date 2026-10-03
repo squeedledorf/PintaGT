@@ -30,29 +30,19 @@ using Pinta.Gui.Widgets;
 
 namespace Pinta;
 
-internal sealed class HistoryPad : IDockPad
+/// <summary>
+/// Paint.NET's History window: the history list with Undo and Redo below it.
+/// </summary>
+internal static class HistoryPad
 {
-	private readonly EditActions edit;
-	internal HistoryPad (EditActions edit)
+	internal static FloatingPanel Create (EditActions edit)
 	{
-		this.edit = edit;
-	}
+		FloatingPanel panel = FloatingPanel.New ("history", Translations.GetString ("History"), HistoryListView.New (), resizable: true);
 
-	public void Initialize (Dock workspace)
-	{
-		HistoryListView history = HistoryListView.New ();
-
-		DockItem history_item = DockItem.New (
-			child: history,
-			uniqueName: "History",
-			iconName: Resources.Icons.HistoryList);
-		history_item.Label = Translations.GetString ("History");
-
-		Gtk.Box history_tb = history_item.AddToolBar ();
-		history_tb.AppendMultiple ([
+		panel.Footer.AppendMultiple ([
 			edit.Undo.CreateDockToolBarItem (),
 			edit.Redo.CreateDockToolBarItem ()]);
 
-		workspace.AddItem (history_item, DockPlacement.Right);
+		return panel;
 	}
 }

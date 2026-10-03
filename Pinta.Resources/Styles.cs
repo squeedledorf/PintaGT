@@ -10,4 +10,5 @@ public static class Styles
 	public const string PdnPanelHeader = "pdn-panel-header";
 	public const string PdnPanelTitle = "pdn-panel-title";
 	public const string PdnPanelClose = "pdn-panel-close";
+	public const string PdnPanelFooter = "pdn-panel-footer";
 }

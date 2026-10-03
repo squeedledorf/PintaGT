@@ -30,23 +30,14 @@ using Pinta.Gui.Widgets;
 
 namespace Pinta;
 
-internal sealed class LayersPad : IDockPad
+/// <summary>
+/// Paint.NET's Layers window: the layer list with its button row below it.
+/// </summary>
+internal static class LayersPad
 {
-	private readonly LayerActions layer_actions;
-	internal LayersPad (LayerActions layerActions)
+	internal static FloatingPanel Create (LayerActions layer_actions)
 	{
-		layer_actions = layerActions;
-	}
-
-	public void Initialize (Dock workspace)
-	{
-		LayersListView layers = LayersListView.New ();
-		DockItem layers_item = DockItem.New (
-			child: layers,
-			uniqueName: "Layers",
-			iconName: Resources.Icons.LayerDuplicate
-		);
-		layers_item.Label = Translations.GetString ("Layers");
+		FloatingPanel panel = FloatingPanel.New ("layers", Translations.GetString ("Layers"), LayersListView.New (), resizable: true);
 
 		Gio.Menu hamburger_menu = Gio.Menu.New ();
 
@@ -67,8 +58,7 @@ internal sealed class LayersPad : IDockPad
 
 		hamburger_button.Direction = Gtk.ArrowType.Up;
 
-		Gtk.Box layers_tb = layers_item.AddToolBar ();
-		layers_tb.AppendMultiple ([
+		panel.Footer.AppendMultiple ([
 			layer_actions.AddNewLayer.CreateDockToolBarItem (),
 			layer_actions.DeleteLayer.CreateDockToolBarItem (),
 			layer_actions.DuplicateLayer.CreateDockToolBarItem (),
@@ -79,6 +69,6 @@ internal sealed class LayersPad : IDockPad
 			hamburger_button
 		]);
 
-		workspace.AddItem (layers_item, DockPlacement.Right);
+		return panel;
 	}
 }

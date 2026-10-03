@@ -23,6 +23,9 @@ internal sealed partial class PreferencesDialog
 	[Gtk.Connect ("menubar_switchrow")]
 	private Adw.SwitchRow menubar_row;
 
+	[Gtk.Connect ("translucent_switchrow")]
+	private Adw.SwitchRow translucent_row;
+
 	[Gtk.Connect ("selection_anim_switchrow")]
 	private Adw.SwitchRow selection_anim_row;
 
@@ -60,6 +63,7 @@ internal sealed partial class PreferencesDialog
 		Adw.ComboRow.SelectedPropertyDefinition.Notify (language_row, OnLanguageChanged);
 		Adw.ComboRow.SelectedPropertyDefinition.Notify (color_scheme_row, OnColorSchemeChanged);
 		Adw.SwitchRow.ActivePropertyDefinition.Notify (menubar_row, OnMenuBarChanged);
+		Adw.SwitchRow.ActivePropertyDefinition.Notify (translucent_row, (_, _) => settings.PutSetting (Docking.PanelArea.TRANSLUCENT_SETTING, translucent_row.Active));
 		Adw.SwitchRow.ActivePropertyDefinition.Notify (selection_anim_row, OnSelectionAnimChanged);
 		Adw.SpinRow.ValuePropertyDefinition.Notify (startup_width_row, OnStartupWidthChanged);
 		Adw.SpinRow.ValuePropertyDefinition.Notify (startup_height_row, OnStartupHeightChanged);
@@ -82,6 +86,8 @@ internal sealed partial class PreferencesDialog
 
 		bool menuBarShown = settings.GetSetting (SettingNames.MENUBAR_SHOWN, SettingDefaults.MenuBarShown ());
 		menubar_row.Active = menuBarShown;
+
+		translucent_row.Active = settings.GetSetting (Docking.PanelArea.TRANSLUCENT_SETTING, true);
 
 		bool selectionAnimated = settings.GetSetting (
 			Pinta.Core.SettingNames.CANVAS_SELECTION_ANIMATED,

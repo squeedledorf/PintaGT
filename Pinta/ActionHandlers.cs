@@ -81,9 +81,7 @@ public sealed class ActionHandlers
 			// View
 			new ToolBarToggledAction (actions.View, chrome),
 			new ImageTabsToggledAction (actions.View, chrome),
-			new ToolWindowsToggledAction (actions.View, chrome),
 			new StatusBarToggledAction (actions.View, chrome),
-			new ToolBoxToggledAction (actions.View, chrome),
 			new ColorSchemeChangedAction (settings),
 			new EditCanvasGridAction (actions.View, chrome, canvasGrid),
 

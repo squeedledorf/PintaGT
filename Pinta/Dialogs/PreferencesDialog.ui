@@ -42,6 +42,12 @@
                 <property name="subtitle" translatable="yes">Replaces the header bar with a separate menu bar and tool bar.</property>
               </object>
             </child>
+            <child>
+              <object class="AdwSwitchRow" id="translucent_switchrow">
+                <property name="title" translatable="yes">Translucent Windows</property>
+                <property name="subtitle" translatable="yes">The Tools, History, Layers and Colors windows fade while the mouse is not over them.</property>
+              </object>
+            </child>
           </object>
         </child>
         <child>
