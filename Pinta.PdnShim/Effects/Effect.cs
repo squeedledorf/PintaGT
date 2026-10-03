@@ -278,7 +278,7 @@ namespace PaintDotNet.Effects
 	}
 
 	/// <summary>An effect whose settings are a <see cref="PropertyCollection"/> shown through IndirectUI.</summary>
-	public abstract class PropertyBasedEffect : Effect<PropertyBasedEffectConfigToken>
+	public abstract class PropertyBasedEffect : Effect<PropertyBasedEffectConfigToken>, IPropertyBasedEffect
 	{
 		protected PropertyBasedEffect (string name, Image image, string subMenuName, EffectFlags flags) : base (name, image, subMenuName, flags) { }
 		protected PropertyBasedEffect (string name, Image image, string subMenuName, EffectOptions options) : base (name, image, subMenuName, options) { }
@@ -296,17 +296,21 @@ namespace PaintDotNet.Effects
 		/// <summary>Builds the window settings (title, help text, size) and lets the plugin customize them.</summary>
 		internal PropertyCollection CreateWindowProperties ()
 		{
-			PropertyCollection props = new ([
-				new StringProperty (ControlInfoPropertyNames.WindowTitle, Name ?? string.Empty),
-				new BooleanProperty (ControlInfoPropertyNames.WindowIsSizable, false),
-				new DoubleProperty (ControlInfoPropertyNames.WindowWidthScale, 1.0, 0.25, 4.0),
-				StaticListChoiceProperty.CreateForEnum (ControlInfoPropertyNames.WindowHelpContentType, WindowHelpContentType.None),
-				new StringProperty (ControlInfoPropertyNames.WindowHelpContent, string.Empty),
-				new BooleanProperty (ControlInfoPropertyNames.WindowShowBottomSeparatorLine, true),
-			]);
+			PropertyCollection props = DefaultWindowProperties (Name);
 			OnCustomizeConfigUIWindowProperties (props);
 			return props;
 		}
+
+		PropertyCollection IPropertyBasedEffect.CreateWindowProperties () => CreateWindowProperties ();
+
+		internal static PropertyCollection DefaultWindowProperties (string name) => new ([
+			new StringProperty (ControlInfoPropertyNames.WindowTitle, name ?? string.Empty),
+			new BooleanProperty (ControlInfoPropertyNames.WindowIsSizable, false),
+			new DoubleProperty (ControlInfoPropertyNames.WindowWidthScale, 1.0, 0.25, 4.0),
+			StaticListChoiceProperty.CreateForEnum (ControlInfoPropertyNames.WindowHelpContentType, WindowHelpContentType.None),
+			new StringProperty (ControlInfoPropertyNames.WindowHelpContent, string.Empty),
+			new BooleanProperty (ControlInfoPropertyNames.WindowShowBottomSeparatorLine, true),
+		]);
 	}
 }
 

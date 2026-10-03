@@ -10,7 +10,10 @@ using ColorBgra = PaintDotNet.ColorBgra;
 
 namespace Pinta.PdnPlugins;
 
-/// <summary>A loaded Paint.NET effect class and what Pinta needs to know about it.</summary>
+/// <summary>
+/// A loaded Paint.NET effect class and what Pinta needs to know about it. It is either a classic
+/// effect (<see cref="Effect"/>, Paint.NET 3 and 4) or a Paint.NET 5 <see cref="BitmapEffect"/>.
+/// </summary>
 internal sealed class PdnPluginInfo
 {
 	public required Type EffectType { get; init; }
@@ -19,28 +22,37 @@ internal sealed class PdnPluginInfo
 	public required string MenuCategory { get; init; }
 	public required string IconName { get; init; }
 	public required EffectCategory Category { get; init; }
-	public required EffectOptions Options { get; init; }
 
-	public bool IsPropertyBased => typeof (PropertyBasedEffect).IsAssignableFrom (EffectType);
-	public bool IsConfigurable => IsPropertyBased && (Options.Flags & EffectFlags.Configurable) != 0;
+	/// <summary>Options of a classic effect; null for a BitmapEffect.</summary>
+	public EffectOptions? ClassicOptions { get; init; }
+
+	/// <summary>Whether a BitmapEffect asked for a settings dialog.</summary>
+	public bool BitmapEffectConfigurable { get; init; }
+
+	public bool IsBitmapEffect => typeof (BitmapEffect).IsAssignableFrom (EffectType);
+	public bool IsPropertyBased => typeof (IPropertyBasedEffect).IsAssignableFrom (EffectType);
+
+	public bool IsConfigurable => IsPropertyBased && (IsBitmapEffect ? BitmapEffectConfigurable : (ClassicOptions!.Flags & EffectFlags.Configurable) != 0);
 
 	/// <summary>One Render call with every region (EffectRenderingSchedule.None or the old SingleRenderCall flag).</summary>
-	public bool SingleRenderCall => Options.RenderingSchedule == EffectRenderingSchedule.None || (Options.Flags & EffectFlags.LegacySingleRenderCall) != 0;
+	public bool SingleRenderCall => ClassicOptions is EffectOptions o && (o.RenderingSchedule == EffectRenderingSchedule.None || (o.Flags & EffectFlags.LegacySingleRenderCall) != 0);
 
-	public bool SingleThreaded => (Options.Flags & (EffectFlags.SingleThreaded | EffectFlags.LegacySingleThreaded)) != 0;
-
-	/// <summary>By default the first tile renders alone, then the rest in parallel.</summary>
-	public bool FirstTileBarrier => (Options.Flags & EffectFlags.FirstTileIsNotRenderedWithBarrier) == 0;
-
-	public Effect CreateInstance () => (Effect) Activator.CreateInstance (EffectType)!;
+	public object CreateInstance () => Activator.CreateInstance (EffectType)!;
 
 	/// <summary>A new instance that can already see the image and colors, as plugins expect before they build their properties.</summary>
-	public Effect CreateInstance (EffectEnvironmentParameters environment)
+	public object CreateInstance (RenderEnvironment environment, Surface source)
 	{
-		Effect effect = CreateInstance ();
-		effect.EnvironmentParameters = environment;
-		effect.Services = PdnServices.Instance;
-		return effect;
+		object instance = CreateInstance ();
+		switch (instance) {
+			case Effect effect:
+				effect.EnvironmentParameters = environment.CreateParameters (source);
+				effect.Services = PdnServices.Instance;
+				break;
+			case BitmapEffect bitmapEffect:
+				bitmapEffect.SetEnvironment (environment.CreateBitmapEnvironment (source), PdnServices.Instance);
+				break;
+		}
+		return instance;
 	}
 }
 
@@ -92,8 +104,9 @@ internal sealed class PdnEffectAdapter : BaseEffect
 		if (!Info.IsPropertyBased)
 			return null;
 		try {
-			using PropertyBasedEffect e = (PropertyBasedEffect) Info.CreateInstance (env.CreateParameters (RenderEnvironment.CurrentLayer ()));
-			return new PropertyBasedEffectConfigToken (e.CreatePropertyCollection ());
+			object e = Info.CreateInstance (env, RenderEnvironment.CurrentLayer ());
+			using (e as IDisposable)
+				return new PropertyBasedEffectConfigToken (((IPropertyBasedEffect) e).CreatePropertyCollection ());
 		} catch (Exception ex) {
 			PluginRegistry.AddRuntimeError (Info.File, Info.EffectType.FullName!, Info.Name, ex);
 			return null;
@@ -127,7 +140,12 @@ internal sealed record RenderEnvironment (ColorBgra Primary, ColorBgra Secondary
 	}
 
 	public EffectEnvironmentParameters CreateParameters (Surface source)
-		=> new (Primary, Secondary, BrushWidth, source, SelectionScans is null ? null : PdnRegion.FromRectangles (SelectionScans.ToArray ()));
+		=> new (Primary, Secondary, BrushWidth, source, SelectionRegion ());
+
+	public BitmapEffectEnvironment CreateBitmapEnvironment (Surface source)
+		=> new (source, Primary, Secondary, BrushWidth, SelectionRegion ());
+
+	private PdnRegion? SelectionRegion () => SelectionScans is null ? null : PdnRegion.FromRectangles (SelectionScans.ToArray ());
 
 	/// <summary>A straight-alpha copy of the current layer, for plugins that look at the image while building their UI.</summary>
 	public static Surface CurrentLayer ()
@@ -181,7 +199,9 @@ internal sealed class RenderSession
 	private Exception? init_error;
 	private volatile bool first_tile_done;
 
-	private Effect effect = null!;
+	private object effect = null!;
+	private bool single_threaded;
+	private bool first_tile_barrier;
 	private Surface dst_surface = null!;
 	private RenderArgs dst_args = null!;
 	private RenderArgs src_args = null!;
@@ -201,7 +221,7 @@ internal sealed class RenderSession
 		if (rois.Length == 0)
 			return;
 
-		if (!first_tile_done && info.FirstTileBarrier) {
+		if (!first_tile_done && first_tile_barrier) {
 			lock (first_tile_lock) {
 				if (!first_tile_done) {
 					RenderRois (rois);
@@ -219,11 +239,11 @@ internal sealed class RenderSession
 	private void RenderRois (Rectangle[] rois)
 	{
 		try {
-			if (info.SingleThreaded) {
+			if (single_threaded) {
 				lock (serial_lock)
-					effect.Render (token, dst_args, src_args, rois, 0, rois.Length);
+					RenderCore (rois);
 			} else {
-				effect.Render (token, dst_args, src_args, rois, 0, rois.Length);
+				RenderCore (rois);
 			}
 		} catch (Exception ex) {
 			PluginRegistry.AddRuntimeError (info.File, info.EffectType.FullName!, info.Name, ex);
@@ -255,8 +275,32 @@ internal sealed class RenderSession
 		src_args = new RenderArgs (src_surface);
 		dst_args = new RenderArgs (dst_surface);
 
-		effect = info.CreateInstance (env.CreateParameters (src_surface));
-		effect.SetRenderInfo (token, dst_args, src_args);
+		effect = info.CreateInstance (env, src_surface);
+		switch (effect) {
+			case Effect classic:
+				EffectFlags flags = classic.Options.Flags;
+				single_threaded = (flags & (EffectFlags.SingleThreaded | EffectFlags.LegacySingleThreaded)) != 0;
+				first_tile_barrier = (flags & EffectFlags.FirstTileIsNotRenderedWithBarrier) == 0; // classic default: barrier
+				classic.SetRenderInfo (token, dst_args, src_args);
+				break;
+			case BitmapEffect bitmap:
+				bitmap.Initialize (token);
+				BitmapEffectRenderingFlags bflags = bitmap.RenderInfo.Flags;
+				single_threaded = (bflags & BitmapEffectRenderingFlags.SingleThreaded) != 0;
+				first_tile_barrier = (bflags & BitmapEffectRenderingFlags.FirstTileIsRenderedWithBarrier) != 0; // Paint.NET 5 default: none
+				break;
+		}
+	}
+
+	private void RenderCore (Rectangle[] rois)
+	{
+		if (effect is Effect classic) {
+			classic.Render (token, dst_args, src_args, rois, 0, rois.Length);
+			return;
+		}
+		BitmapEffect bitmap = (BitmapEffect) effect;
+		foreach (Rectangle roi in rois)
+			bitmap.Render (dst_surface, roi);
 	}
 
 	/// <summary>Writes the rendered regions back to Cairo's premultiplied surface.</summary>

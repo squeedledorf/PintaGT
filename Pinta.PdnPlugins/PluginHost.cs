@@ -108,22 +108,46 @@ internal static class PluginHost
 			support = SafeGet (() => type.GetCustomAttribute<PluginSupportInfoAttribute> (true) ?? assembly.GetCustomAttribute<PluginSupportInfoAttribute> ());
 			supportInfo = support?.PluginSupportInfoType is Type st ? SafeGet (() => Activator.CreateInstance (st) as IPluginSupportInfo) : support;
 
-			using Effect effect = (Effect) Activator.CreateInstance (type)!;
+			object instance = Activator.CreateInstance (type)!;
+			using IDisposable _ = (IDisposable) instance;
 
-			if (effect is not PropertyBasedEffect && (effect.Options.Flags & EffectFlags.Configurable) != 0) {
-				Report (PluginStatus.Unsupported, effect.Name, "uses its own Windows Forms settings dialog");
-				return;
+			PdnPluginInfo info;
+			switch (instance) {
+				case Effect effect:
+					if (effect is not PropertyBasedEffect && (effect.Options.Flags & EffectFlags.Configurable) != 0) {
+						Report (PluginStatus.Unsupported, effect.Name, "uses its own Windows Forms settings dialog");
+						return;
+					}
+					info = new () {
+						EffectType = type,
+						File = file,
+						Name = string.IsNullOrWhiteSpace (effect.Name) ? type.Name : effect.Name,
+						MenuCategory = MenuCategory (effect.SubMenuName),
+						IconName = InstallIcon (effect.Image),
+						Category = effect.Category,
+						ClassicOptions = effect.Options with { },
+					};
+					break;
+				case BitmapEffect bitmapEffect:
+					bool configurable = bitmapEffect.OptionsBase.IsConfigurable;
+					if (bitmapEffect is not PropertyBasedBitmapEffect && configurable) {
+						Report (PluginStatus.Unsupported, bitmapEffect.Name, "uses its own Windows Forms settings dialog");
+						return;
+					}
+					info = new () {
+						EffectType = type,
+						File = file,
+						Name = string.IsNullOrWhiteSpace (bitmapEffect.Name) ? type.Name : bitmapEffect.Name,
+						MenuCategory = MenuCategory (bitmapEffect.SubMenuName),
+						IconName = InstallIcon (bitmapEffect.Image),
+						Category = bitmapEffect.Category,
+						BitmapEffectConfigurable = configurable,
+					};
+					break;
+				default:
+					Report (PluginStatus.Unsupported, null, "is not an effect type Pinta knows");
+					return;
 			}
-
-			PdnPluginInfo info = new () {
-				EffectType = type,
-				File = file,
-				Name = string.IsNullOrWhiteSpace (effect.Name) ? type.Name : effect.Name,
-				MenuCategory = MenuCategory (effect.SubMenuName),
-				IconName = InstallIcon (effect.Image),
-				Category = effect.Category,
-				Options = effect.Options with { },
-			};
 
 			if (registered.Any (r => r.Info.Name == info.Name && r.Info.Category == info.Category)) {
 				Report (PluginStatus.Unsupported, info.Name, "a plugin with the same name is already loaded");

@@ -36,13 +36,12 @@ internal sealed class PdnEffectDialog
 
 	public static async Task<bool> Run (PdnEffectAdapter adapter)
 	{
-		PropertyBasedEffect effect;
+		IPropertyBasedEffect effect;
 		PropertyCollection props;
 		ControlInfo ui;
 		PropertyCollection? window = null;
 		try {
-			RenderEnvironment env = RenderEnvironment.Capture ();
-			effect = (PropertyBasedEffect) adapter.Info.CreateInstance (env.CreateParameters (RenderEnvironment.CurrentLayer ()));
+			effect = (IPropertyBasedEffect) adapter.Info.CreateInstance (RenderEnvironment.Capture (), RenderEnvironment.CurrentLayer ());
 			props = effect.CreatePropertyCollection ();
 		} catch (Exception ex) {
 			PluginRegistry.AddRuntimeError (adapter.Info.File, adapter.Info.EffectType.FullName!, adapter.Info.Name, ex);
@@ -85,8 +84,16 @@ internal sealed class PdnEffectDialog
 		content.Spacing = 12;
 		content.SetAllMargins (6);
 
+		// Plugins with many controls scroll instead of growing past the screen.
+		Gtk.Box body = Gtk.Box.New (Gtk.Orientation.Vertical, 12);
 		foreach (Gtk.Widget w in d.CreateWidgets (ui))
-			content.Append (w);
+			body.Append (w);
+		Gtk.ScrolledWindow scroll = Gtk.ScrolledWindow.New ();
+		scroll.SetChild (body);
+		scroll.HscrollbarPolicy = Gtk.PolicyType.Never;
+		scroll.PropagateNaturalHeight = true;
+		scroll.MaxContentHeight = 720;
+		content.Append (scroll);
 
 		if (window?[ControlInfoPropertyNames.WindowHelpContentType]?.Value is WindowHelpContentType.PlainText
 			&& window[ControlInfoPropertyNames.WindowHelpContent]?.Value is string { Length: > 0 } help) {
@@ -96,7 +103,7 @@ internal sealed class PdnEffectDialog
 			content.Append (helpButton);
 		}
 
-		effect.Dispose ();
+		(effect as IDisposable)?.Dispose ();
 		d.Push ();
 
 		Gtk.ResponseType response = await dialog.RunAsync ();
@@ -390,8 +397,11 @@ internal sealed class PdnEffectDialog
 		PintaColorButton button = PintaColorButton.New ();
 		button.DisplayColor = ToCairo (p.Value);
 		button.Hexpand = false;
+		button.Vexpand = false;
 		button.Halign = Gtk.Align.Start;
+		button.Valign = Gtk.Align.Start;
 		button.WidthRequest = 80;
+		button.HeightRequest = 28;
 		button.OnClicked += async (_, _) => {
 			using ColorPickerDialog picker = ColorPickerDialog.New (dialog, PintaCore.Palette, new SingleColor (ToCairo (p.Value)), true, false, caption);
 			try {

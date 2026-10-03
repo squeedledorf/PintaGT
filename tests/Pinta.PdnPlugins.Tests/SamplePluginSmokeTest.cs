@@ -113,15 +113,23 @@ internal sealed class SamplePluginSmokeTest
 
 			Assembly asm = context.LoadFromAssemblyPath (file);
 			Type type = asm.GetType (typeName, throwOnError: true)!;
-			using Effect effect = (Effect) Activator.CreateInstance (type)!;
-			name = effect.Name;
-			if (effect is not PropertyBasedEffect && (effect.Options.Flags & EffectFlags.Configurable) != 0)
-				return ("unsupported", name, "own settings dialog");
-			effect.EnvironmentParameters = new EffectEnvironmentParameters (ColorBgra.Black, ColorBgra.White, 2, src, null);
-			effect.Services = PdnServices.Instance;
+			object instance = Activator.CreateInstance (type)!;
+			using IDisposable _ = (IDisposable) instance;
+			Effect? effect = instance as Effect;
+			BitmapEffect? bitmapEffect = instance as BitmapEffect;
+			if (effect is not null) {
+				name = effect.Name;
+				if (effect is not PropertyBasedEffect && (effect.Options.Flags & EffectFlags.Configurable) != 0)
+					return ("unsupported", name, "own settings dialog");
+				effect.EnvironmentParameters = new EffectEnvironmentParameters (ColorBgra.Black, ColorBgra.White, 2, src, null);
+				effect.Services = PdnServices.Instance;
+			} else {
+				name = bitmapEffect!.Name;
+				bitmapEffect.SetEnvironment (new BitmapEffectEnvironment (src, ColorBgra.Black, ColorBgra.White, 2, null), PdnServices.Instance);
+			}
 
 			EffectConfigToken? token = null;
-			if (effect is PropertyBasedEffect pbe) {
+			if (instance is IPropertyBasedEffect pbe) {
 				var props = pbe.CreatePropertyCollection ();
 				pbe.CreateConfigUI (props);
 				try {
@@ -129,12 +137,21 @@ internal sealed class SamplePluginSmokeTest
 				} catch (Exception) {
 				}
 				token = new PropertyBasedEffectConfigToken (props);
+				if (Environment.GetEnvironmentVariable ("PDN_SMOKE_ONLY") is not null)
+					foreach (var p in props)
+						TestContext.Out.WriteLine ($"  {name}: {p}");
 			}
 
 			System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew ();
 			long setupMs = 0;
 			Task render = Task.Run (() => {
-				effect.SetRenderInfo (token, dstArgs, srcArgs);
+				if (bitmapEffect is not null) {
+					bitmapEffect.Initialize (token);
+					setupMs = timer.ElapsedMilliseconds;
+					Parallel.For (0, H, y => bitmapEffect.Render (dst, new Rectangle (0, y, W, 1)));
+					return;
+				}
+				effect!.SetRenderInfo (token, dstArgs, srcArgs);
 				setupMs = timer.ElapsedMilliseconds;
 				if (effect.Options.RenderingSchedule == EffectRenderingSchedule.None || (effect.Options.Flags & EffectFlags.LegacySingleRenderCall) != 0) {
 					effect.Render (token, dstArgs, srcArgs, [new Rectangle (0, 0, W, H)], 0, 1);

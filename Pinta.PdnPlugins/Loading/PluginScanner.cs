@@ -84,8 +84,8 @@ internal static class PluginScanner
 	/// <summary>Null if the base type is runnable, otherwise why not.</summary>
 	private static string? Classify (string baseType) => baseType switch {
 		"PaintDotNet.Effects.Effect" or "PaintDotNet.Effects.Effect`1" or "PaintDotNet.Effects.PropertyBasedEffect" => null,
+		"PaintDotNet.Effects.BitmapEffect" or "PaintDotNet.Effects.BitmapEffect`1" or "PaintDotNet.Effects.PropertyBasedBitmapEffect" => null,
 		_ when baseType.Contains ("Gpu") => "is a GPU (Direct2D) effect",
-		_ when baseType.StartsWith ("PaintDotNet.Effects.") && baseType.Contains ("BitmapEffect") => "is a Paint.NET 5 BitmapEffect, which is not supported yet",
 		_ when baseType.Contains ("FileType") => "is a file type plugin, which Pinta does not load",
 		_ => "not a plugin",
 	};
