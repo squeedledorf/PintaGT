@@ -12,6 +12,8 @@ PintaGT is a personal project, maintained when I have time. It is not a supporte
 
 Much of PintaGT's code was written with the help of AI coding tools, then reviewed, built and tested before it was committed.
 
+PintaGT is free and must never be sold or charged for. If you want to support the work behind it, support the people who made it possible instead: the [Pinta project](https://www.pinta-project.com/) and its [contributors](https://github.com/PintaProject/Pinta/graphs/contributors), and Paint.NET's developer, through [Paint.NET's donation page](https://www.getpaint.net/donate.html).
+
 ## What's different from Pinta
 
 **Window layout**
