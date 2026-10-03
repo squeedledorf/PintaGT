@@ -24,6 +24,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+using System;
 using System.Collections.Generic;
 using ClipperLib;
 
@@ -35,20 +36,24 @@ public sealed class SelectionModeHandler
 	private ToolBarComboBox? selection_combo_box;
 
 	private CombineMode selected_mode;
-	private readonly IReadOnlyDictionary<string, CombineMode> combine_modes;
+
+	// Paint.NET's names, in Paint.NET's order.
+	private readonly (string Label, CombineMode Mode)[] combine_modes;
+
+	// The combo order used to be Replace/Union/Exclude/Xor/Intersect, so the index is now
+	// stored under a new key and an index stored under the old key is remapped once.
+	private const string COMBINE_MODE_SETTING = "selection-combine-mode-pdn";
+	private static readonly int[] legacy_index_map = [0, 1, 2, 4, 3];
 
 	public SelectionModeHandler (SystemManager system)
 	{
-		combine_modes = new Dictionary<string, CombineMode> () {
-			[Translations.GetString ("Replace")] = CombineMode.Replace,
-			// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS.
-			[Translations.GetString ("Union (+) ({0} + Left Click)", system.CtrlLabel ())] = CombineMode.Union,
-			[Translations.GetString ("Exclude (-) (Right Click)")] = CombineMode.Exclude,
-			// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS.
-			[Translations.GetString ("Xor ({0} + Right Click)", system.CtrlLabel ())] = CombineMode.Xor,
-			// Translators: {0} is 'Alt', or a platform-specific key such as 'Option' on macOS.
-			[Translations.GetString ("Intersect ({0} + Left Click)", GtkExtensions.AltLabel ())] = CombineMode.Intersect,
-		};
+		combine_modes = [
+			(Translations.GetString ("Replace"), CombineMode.Replace),
+			(Translations.GetString ("Add (union)"), CombineMode.Union),
+			(Translations.GetString ("Subtract"), CombineMode.Exclude),
+			(Translations.GetString ("Intersect"), CombineMode.Intersect),
+			(Translations.GetString ("Invert (xor)"), CombineMode.Xor),
+		];
 	}
 
 	public void BuildToolbar (Gtk.Box tb, ISettingsService settings)
@@ -61,39 +66,53 @@ public sealed class SelectionModeHandler
 			selection_combo_box = ToolBarComboBox.New (170, 0, false);
 
 			selection_combo_box.ComboBox.OnChanged += (o, e) => {
-				selected_mode = combine_modes[selection_combo_box.ComboBox.GetActiveText ()!];
+				int active = selection_combo_box.ComboBox.Active;
+				if (active >= 0 && active < combine_modes.Length)
+					selected_mode = combine_modes[active].Mode;
 			};
 
-			foreach (var mode in combine_modes)
-				selection_combo_box.ComboBox.AppendText (mode.Key);
+			foreach (var (label, _) in combine_modes)
+				selection_combo_box.ComboBox.AppendText (label);
 
-			selection_combo_box.ComboBox.Active = settings.GetSetting (SettingNames.SELECTION_COMBINE_MODE, 0);
+			int index = settings.GetSetting (COMBINE_MODE_SETTING, -1);
+			if (index < 0) {
+				int legacy = settings.GetSetting (SettingNames.SELECTION_COMBINE_MODE, 0);
+				index = legacy >= 0 && legacy < legacy_index_map.Length ? legacy_index_map[legacy] : 0;
+			}
+
+			selection_combo_box.ComboBox.Active = Math.Clamp (index, 0, combine_modes.Length - 1);
 		}
 
 		tb.Append (selection_combo_box);
 	}
 
 	/// <summary>
-	/// Determine the current combine mode - various combinations of left/right click
-	/// and Ctrl/Shift can override the selected mode from the toolbar.
+	/// Determine the current combine mode. As in Paint.NET, modifiers override the toolbar mode:
+	/// Left: Ctrl = Add (union), Alt = Subtract. Right: Ctrl = Invert (xor), Alt = Intersect.
+	/// A plain click with either button uses the toolbar mode.
 	/// </summary>
 	public CombineMode DetermineCombineMode (ToolMouseEventArgs args)
+		=> DetermineCombineMode (args.MouseButton, args.IsControlPressed, args.IsAltPressed, selected_mode);
+
+	public static CombineMode DetermineCombineMode (MouseButton button, bool ctrl, bool alt, CombineMode toolbarMode)
 	{
-		switch (args.MouseButton) {
+		switch (button) {
 			case MouseButton.Left:
-				if (args.IsControlPressed)
+				if (ctrl)
 					return CombineMode.Union;
-				else if (args.IsAltPressed)
+				else if (alt)
+					return CombineMode.Exclude;
+				else
+					return toolbarMode;
+			case MouseButton.Right:
+				if (ctrl)
+					return CombineMode.Xor;
+				else if (alt)
 					return CombineMode.Intersect;
 				else
-					return selected_mode;
-			case MouseButton.Right:
-				if (args.IsControlPressed)
-					return CombineMode.Xor;
-				else
-					return CombineMode.Exclude;
+					return toolbarMode;
 			default:
-				return selected_mode;
+				return toolbarMode;
 		}
 	}
 
@@ -166,7 +185,7 @@ public sealed class SelectionModeHandler
 	public void OnSaveSettings (ISettingsService settings)
 	{
 		if (selection_combo_box is not null)
-			settings.PutSetting (SettingNames.SELECTION_COMBINE_MODE, selection_combo_box.ComboBox.Active);
+			settings.PutSetting (COMBINE_MODE_SETTING, selection_combo_box.ComboBox.Active);
 	}
 }
 
