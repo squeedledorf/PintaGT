@@ -305,7 +305,7 @@ public sealed class ViewActions
 	// Paint.NET's status bar zoom: the % box, Zoom to Window, then − slider +. The slider is logarithmic.
 	public void CreateStatusBar (Gtk.Box statusbar)
 	{
-		// "3,600%", as narrow as Paint.NET's box.
+		// "3600%", as narrow as Paint.NET's box.
 		ZoomComboBox.ComboBox.GetEntry ().WidthChars = 6;
 		ZoomComboBox.ComboBox.GetEntry ().MaxWidthChars = 6;
 		// Paint.NET shows the zoom as plain, editable text; the presets live in the zoom buttons and View menu.
@@ -549,11 +549,16 @@ public sealed class ViewActions
 
 	private void HandlePintaCoreActionsViewZoomComboBoxComboBoxChanged (object? sender, EventArgs e)
 	{
+		// A list pick (or Zoom In/Out picking a level) replaces any typed text, so there is nothing
+		// left for Enter to apply or for leaving the box to throw away.
+		if (ZoomComboBox.ComboBox.Active >= 0)
+			zoom_typing = false;
+
 		if (suspend_zoom_change)
 			return;
 
 		// Typed text waits for Enter; list picks and programmatic changes apply at once.
-		if (zoom_typing && ZoomComboBox.ComboBox.Active < 0)
+		if (zoom_typing)
 			return;
 
 		workspace.ActiveDocument.Workspace.ZoomManually ();
