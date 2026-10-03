@@ -53,7 +53,7 @@ public sealed class RoundedLineEngine : ShapeEngine
 		bool antialiasing,
 		Color outlineColor,
 		Color fillColor,
-		int brushWidth,
+		double brushWidth,
 		LineCap lineCap)
 	: base (
 		parentLayer,
@@ -83,7 +83,7 @@ public sealed class RoundedLineEngine : ShapeEngine
 	/// Generate each point in a rounded line shape and store the result in GeneratedPoints.
 	/// <param name="brush_width">The width of the brush that will be used to draw the shape.</param>
 	/// </summary>
-	public override void GeneratePoints (int brush_width)
+	public override void GeneratePoints (double brush_width)
 	{
 		List<GeneratedPoint> generatedPoints = [];
 

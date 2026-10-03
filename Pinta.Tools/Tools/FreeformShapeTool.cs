@@ -54,7 +54,6 @@ public sealed class FreeformShapeTool : BaseBrushTool
 
 	protected override void OnBuildToolBar (Box tb)
 	{
-		tb.Append (FillLabel);
 		tb.Append (FillDropDown);
 		tb.Append (Separator);
 		base.OnBuildToolBar (tb);
@@ -211,20 +210,18 @@ public sealed class FreeformShapeTool : BaseBrushTool
 	private bool StrokeShape => FillDropDown.SelectedItem.GetTagOrDefault (0) % 2 == 0;
 	private bool FillShape => FillDropDown.SelectedItem.GetTagOrDefault (0) >= 1;
 
-	private Label? fill_label;
 	private ToolBarDropDownButton? fill_button;
 	private Separator? fill_sep;
 
 	private Separator Separator => fill_sep ??= GtkExtensions.CreateToolBarSeparator ();
-	private Label FillLabel => fill_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Fill Style")));
 	private ToolBarDropDownButton FillDropDown {
 		get {
 			if (fill_button == null) {
 				fill_button = ToolBarDropDownButton.New ();
 
-				fill_button.AddItem (Translations.GetString ("Outline Shape"), Pinta.Resources.Icons.FillStyleOutline, 0);
-				fill_button.AddItem (Translations.GetString ("Fill Shape"), Pinta.Resources.Icons.FillStyleFill, 1);
-				fill_button.AddItem (Translations.GetString ("Fill and Outline Shape"), Pinta.Resources.Icons.FillStyleOutlineFill, 2);
+				fill_button.AddItem (Translations.GetString ("Draw Shape Outline"), Pinta.Resources.Icons.FillStyleOutline, 0);
+				fill_button.AddItem (Translations.GetString ("Draw Filled Shape"), Pinta.Resources.Icons.FillStyleFill, 1);
+				fill_button.AddItem (Translations.GetString ("Draw Filled Shape With Outline"), Pinta.Resources.Icons.FillStyleOutlineFill, 2);
 
 				fill_button.SelectedIndex = Settings.GetSetting (SettingNames.FREEFORM_SHAPE_FILL_TYPE, 0);
 				fill_button.SelectedItemChanged += OnFillStyleChanged;

@@ -55,7 +55,7 @@ public sealed class LineCurveSeriesEngine : ShapeEngine
 		bool closed,
 		Color outlineColor,
 		Color fillColor,
-		int brushWidth,
+		double brushWidth,
 		LineCap lineCap
 	) : base (
 		parentLayer,
@@ -89,7 +89,7 @@ public sealed class LineCurveSeriesEngine : ShapeEngine
 	/// and store the result in GeneratedPoints.
 	/// <param name="brush_width">The width of the brush that will be used to draw the shape.</param>
 	/// </summary>
-	public override void GeneratePoints (int brush_width)
+	public override void GeneratePoints (double brush_width)
 	{
 		if (ControlPoints.Count < 2) {
 			GeneratedPoints = [new GeneratedPoint (ControlPoints[0].Position, 0)];

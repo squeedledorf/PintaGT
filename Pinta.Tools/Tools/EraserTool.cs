@@ -79,7 +79,7 @@ public sealed class EraserTool : BaseBrushTool
 				"Cursor.Eraser.png",
 				CursorShape.Ellipse,
 				scale,
-				BrushWidth,
+				BrushWidthCeiling,
 				8,
 				22,
 				out int iconOffsetX,
@@ -139,7 +139,7 @@ public sealed class EraserTool : BaseBrushTool
 				break;
 		}
 
-		int dirtyPadding = BrushWidth + 2;
+		int dirtyPadding = BrushWidthCeiling + 2;
 
 		RectangleI dirty =
 			RectangleI.FromPoints (

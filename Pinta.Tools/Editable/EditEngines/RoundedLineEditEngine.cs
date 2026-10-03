@@ -82,7 +82,7 @@ public sealed class RoundedLineEditEngine : BaseEditEngine
 		tb.Append (radius_sep);
 
 		if (radius_label == null) {
-			var radiusText = Translations.GetString ("Radius");
+			var radiusText = Translations.GetString ("Corner size");
 			radius_label = Gtk.Label.New ($"{radiusText}: ");
 		}
 

@@ -70,7 +70,7 @@ public sealed class CloneStampTool : BaseBrushTool
 		get {
 			double scale = workspace.GetScale ();
 			var icon = GdkExtensions.CreateIconWithShape ("Cursor.CloneStamp.png",
-							CursorShape.Ellipse, scale, BrushWidth, 16, 26,
+							CursorShape.Ellipse, scale, BrushWidthCeiling, 16, 26,
 							out var iconOffsetX, out var iconOffsetY);
 			return Gdk.Cursor.NewFromTexture (icon, iconOffsetX, iconOffsetY, null);
 		}
@@ -134,7 +134,7 @@ public sealed class CloneStampTool : BaseBrushTool
 
 		g.Stroke ();
 
-		int dirtyPadding = BrushWidth + 2;
+		int dirtyPadding = BrushWidthCeiling + 2;
 		RectangleI dirtyRect = RectangleI.FromPoints (last_point.Value, e.Point).Inflated (dirtyPadding, dirtyPadding);
 
 		last_point = e.Point;
@@ -194,7 +194,7 @@ public sealed class CloneStampTool : BaseBrushTool
 	{
 		if (move_origin_handle || (!move_event))
 			handle.CanvasPosition = new (x, y);
-		handle.BrushWidth = BrushWidth;
+		handle.BrushWidth = BrushWidthCeiling;
 		document.Workspace.Invalidate (handle.InvalidateRect);
 	}
 }

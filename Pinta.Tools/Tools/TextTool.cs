@@ -946,7 +946,8 @@ public sealed class TextTool : BaseTool
 						break;
 
 					case Gdk.Constants.KEY_Escape:
-						StopEditing (false);
+						// Escape commits the text, as in Paint.NET.
+						StopEditing (true);
 						return true;
 					case Gdk.Constants.KEY_Insert:
 						if (e.IsShiftPressed) {

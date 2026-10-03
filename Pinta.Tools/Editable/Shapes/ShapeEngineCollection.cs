@@ -112,7 +112,7 @@ public abstract class ShapeEngine
 	public Color OutlineColor { get; internal set; }
 	public Color FillColor { get; internal set; }
 
-	public int BrushWidth { get; internal set; }
+	public double BrushWidth { get; internal set; }
 
 	public BaseEditEngine.ShapeTypes ShapeType { get; }
 
@@ -132,7 +132,7 @@ public abstract class ShapeEngine
 	public ShapeEngine (UserLayer parent_layer, ReEditableLayer? drawing_layer,
 			    BaseEditEngine.ShapeTypes shape_type, bool antialiasing,
 			    bool closed, Color outline_color, Color fill_color,
-			    int brush_width, LineCap lineCap)
+			    double brush_width, LineCap lineCap)
 	{
 		this.parent_layer = parent_layer;
 
@@ -246,7 +246,7 @@ public abstract class ShapeEngine
 	/// Generate the points that make up the entirety of the shape being drawn.
 	/// <param name="brush_width">The width of the brush that will be used to draw the shape.</param>
 	/// </summary>
-	public abstract void GeneratePoints (int brush_width);
+	public abstract void GeneratePoints (double brush_width);
 
 	public ImmutableArray<PointD> GetActualPoints ()
 	{

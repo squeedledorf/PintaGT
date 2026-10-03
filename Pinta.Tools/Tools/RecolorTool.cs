@@ -112,7 +112,7 @@ public class RecolorTool : BaseBrushTool
 		var surf = document.Layers.CurrentUserLayer.Surface;
 		var tmp_layer = document.Layers.ToolLayer.Surface;
 
-		int roiPadding = BrushWidth + 2;
+		int roiPadding = BrushWidthCeiling + 2;
 		RectangleI roi = RectangleI.FromPoints (last_point.Value, new PointI (x, y)).Inflated (roiPadding, roiPadding);
 
 		roi = workspace.ClampToImageSize (roi);

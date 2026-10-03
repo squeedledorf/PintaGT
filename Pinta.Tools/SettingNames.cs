@@ -1,3 +1,6 @@
+using System;
+using Pinta.Core;
+
 namespace Pinta.Tools;
 
 internal static class SettingNames
@@ -58,6 +61,12 @@ internal static class SettingNames
 
 	internal static string BrushWidth (string prefix)
 		=> $"{prefix}-brush-width";
+
+	/// <summary>
+	/// Brush widths were stored as integers before decimal sizes were allowed, so accept either type.
+	/// </summary>
+	internal static double GetBrushWidth (ISettingsService settings, string key)
+		=> Convert.ToDouble (settings.GetSetting<object> (key, (double) BaseTool.DEFAULT_BRUSH_WIDTH));
 
 	internal static string FillStyle (string prefix)
 		=> $"{prefix}-fill-style";
