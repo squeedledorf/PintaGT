@@ -60,7 +60,7 @@ public sealed class LassoSelectTool : BaseTool
 									"\nPress Backspace to delete the last point.");
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_S);
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.LassoSelect.png"), 9, 18, null);
-	public override int Priority => 17;
+	public override int Priority => 5;
 	public override bool IsSelectionTool => true;
 
 	private bool IsPolygonMode => LassoModeButtom.SelectedItem.GetTagOrDefault (false);
@@ -163,7 +163,9 @@ public sealed class LassoSelectTool : BaseTool
 
 	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
 	{
-		if (IsPolygonMode) {
+		bool mid_polygon = IsPolygonMode && lasso_polygon.Count > 0;
+
+		if (mid_polygon) {
 			switch (e.Key.Value) {
 				case Gdk.Constants.KEY_Return:
 					FinalizeShape (document);
@@ -173,6 +175,9 @@ public sealed class LassoSelectTool : BaseTool
 					return true;
 			}
 		}
+
+		if (!mid_polygon && !is_dragging && SelectTool.TryDeselectOnKey (e))
+			return true;
 
 		return base.OnKeyDown (document, e);
 	}

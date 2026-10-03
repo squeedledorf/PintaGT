@@ -60,6 +60,11 @@ public abstract class FloodTool : BaseTool
 	{
 		base.OnBuildToolBar (tb);
 
+		AppendFloodControls (tb);
+	}
+
+	protected virtual void AppendFloodControls (Gtk.Box tb)
+	{
 		tb.Append (ModeLabel);
 		tb.Append (ModeDropDown);
 		tb.Append (Separator);
@@ -90,7 +95,8 @@ public abstract class FloodTool : BaseTool
 
 		RectangleD boundingBox;
 
-		if (IsGlobalMode || e.IsShiftPressed)
+		// As in Paint.NET, Shift toggles the flood mode rather than forcing Global.
+		if (IsGlobalMode ^ e.IsShiftPressed)
 			CairoExtensions.FillStencilByColor (surface, stencilBuffer, surface.GetColorBgra (pos), tol, out boundingBox, currentRegion, LimitToSelection);
 		else
 			CairoExtensions.FillStencilFromPoint (surface, stencilBuffer, pos, tol, out boundingBox, currentRegion, LimitToSelection);
@@ -120,7 +126,7 @@ public abstract class FloodTool : BaseTool
 
 	protected Label ModeLabel => mode_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Flood Mode")));
 	protected Label ToleranceLabel => tolerance_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Tolerance")));
-	protected Scale ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.FloodToolFillTolerance (this), 0));
+	protected Scale ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.FloodToolFillTolerance (this), 50));
 	protected Separator Separator => mode_sep ??= GtkExtensions.CreateToolBarSeparator ();
 
 	protected ToolBarDropDownButton ModeDropDown {
