@@ -36,17 +36,17 @@ public sealed class TemperatureTintEffect : BaseEffect
 
 	/// <summary>
 	/// Linear-light channel gains. Warm (+temperature) raises red and lowers blue;
-	/// +tint leans green, -tint leans magenta. Tuned by eye.
+	/// +tint leans green, -tint leans magenta. Fitted by eye to the Paint.NET 5 documentation example,
+	/// where Temperature 24 moves red and blue by about 11% each.
 	/// </summary>
 	public static (double B, double G, double R) GetGains (int temperature, int tint)
 	{
-		double t = temperature / 100d;
-		double n = tint / 100d;
-		double magenta = 1 - 0.15 * n;
+		double t = 1.34 * temperature / 100d; // stops
+		double n = 0.5 * tint / 100d;
 		return (
-			B: (1 - 0.45 * t) * magenta,
-			G: 1 + 0.3 * n,
-			R: (1 + 0.45 * t) * magenta);
+			B: Math.Pow (2, -t - n / 2),
+			G: Math.Pow (2, n),
+			R: Math.Pow (2, t - n / 2));
 	}
 
 	protected override void Render (ImageSurface source, ImageSurface destination, RectangleI roi)

@@ -37,14 +37,16 @@ public sealed class ExposureEffect : BaseEffect
 	protected override void Render (ImageSurface source, ImageSurface destination, RectangleI roi)
 	{
 		// One stop doubles the light reaching every channel.
-		byte[] table = ChannelTable.Create (Math.Pow (2, Data.Exposure));
+		byte[] table = ChannelTable.Create (Math.Pow (2, Data.Exposure / 50d));
 		ChannelTable.Apply (source, destination, roi, table, table, table);
 	}
 
 	public sealed class ExposureData : EffectData
 	{
-		[Caption ("Exposure"), MinimumValue (-2), MaximumValue (2), DigitsValue (2), IncrementValue (0.01)]
-		public double Exposure { get; set; } = 0;
+		// Fiftieths of a stop. Paint.NET 5 shows a whole-number slider (24 sits just right of centre, and
+		// brightens mid-tones by about a sixth); the range and scale are fitted from that screenshot.
+		[Caption ("Exposure"), MinimumValue (-200), MaximumValue (200)]
+		public int Exposure { get; set; } = 0;
 
 		[Skip]
 		public override bool IsDefault

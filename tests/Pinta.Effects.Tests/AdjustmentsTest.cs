@@ -163,12 +163,21 @@ internal sealed class AdjustmentsTest
 		Assert.That (lift[0], Is.EqualTo (0));
 		Assert.That (lift[255], Is.EqualTo (0));
 		Assert.That (lift[85], Is.GreaterThan (lift[200]));
-		Assert.That (lift[85], Is.InRange (60, 66));
+		Assert.That (lift[85], Is.InRange (20, 32));
 
 		int[] dim = HighlightsShadowsEffect.CreateShiftTable (0, -100);
 		Assert.That (dim[170], Is.LessThan (dim[60]));
+		Assert.That (dim[170], Is.LessThan (0));
 
 		ColorBgra grey = ColorBgra.FromBgr (85, 85, 85);
-		Assert.That (HighlightsShadowsEffect.Apply (grey, lift).R, Is.GreaterThan (140));
+		Assert.That (HighlightsShadowsEffect.Apply (grey, lift[85]).R, Is.GreaterThan (105));
+
+		// The local-brightness blur keeps flat areas flat and spreads a step.
+		float[] step = [0, 0, 0, 0, 0, 100, 100, 100, 100, 100];
+		float[] blurred = HighlightsShadowsEffect.Blur (step, 10, 1, 1);
+		Assert.That (blurred[0], Is.EqualTo (0).Within (0.001));
+		Assert.That (blurred[9], Is.EqualTo (100).Within (0.001));
+		Assert.That (blurred[4], Is.InRange (1, 50));
+		Assert.That (blurred[5], Is.InRange (50, 99));
 	}
 }
