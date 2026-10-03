@@ -25,6 +25,7 @@
 // THE SOFTWARE.
 
 using System;
+using Cairo;
 using Pinta.Core;
 
 namespace Pinta.Actions;
@@ -68,31 +69,32 @@ internal sealed class CloseDocumentAction : IActionHandler
 			return;
 		}
 
-		string heading = Translations.GetString (
-			"\"{0}\" has unsaved changes.",
-			workspace.ActiveDocument.DisplayName);
+		Document document = workspace.ActiveDocument;
 
-		string body = Translations.GetString ("What would you like to do?");
+		// Paint.NET's Unsaved Changes task dialog.
+		string message = Translations.GetString (
+			"{0} has unsaved changes. What would you like to do?",
+			document.DisplayName);
 
-		Adw.MessageDialog dialog = Adw.MessageDialog.New (chrome.MainWindow, heading, body);
+		using ImageSurface flattened = document.GetFlattenedImage ();
 
-		const string cancel_response = "cancel";
-		const string discard_response = "discard";
-		const string save_response = "save";
+		const int save_response = 0;
+		const int discard_response = 1;
+		const int cancel_response = 2;
 
-		// Same order as Paint.NET's Unsaved Changes dialog.
-		dialog.AddResponse (save_response, Translations.GetString ("_Save"));
-		dialog.AddResponse (discard_response, Translations.GetString ("Do_n't Save"));
-		dialog.AddResponse (cancel_response, Translations.GetString ("_Cancel"));
+		int response = TaskDialog.RunBlocking (
+			chrome.MainWindow,
+			Translations.GetString ("Unsaved Changes"),
+			message,
+			[
+				new (Translations.GetString ("_Save"), Translations.GetString ("Save the image, and then close it."), Resources.StandardIcons.DocumentSave),
+				new (Translations.GetString ("Do_n't Save"), Translations.GetString ("Discard the unsaved changes."), Resources.Icons.LayerDelete),
+				new (Translations.GetString ("_Cancel"), Translations.GetString ("Go back to Pinta."), Resources.StandardIcons.EditUndo),
+			],
+			cancel_response,
+			width: 340,
+			thumbnail: TaskDialog.CreateThumbnail (flattened));
 
-		// Configure the styling for the save / discard buttons.
-		dialog.SetResponseAppearance (discard_response, Adw.ResponseAppearance.Destructive);
-		dialog.SetResponseAppearance (save_response, Adw.ResponseAppearance.Suggested);
-
-		dialog.CloseResponse = cancel_response;
-		dialog.DefaultResponse = save_response;
-
-		string response = dialog.RunBlocking ();
 		if (response == save_response) {
 
 			bool saved = await workspace.ActiveDocument.Save (false);

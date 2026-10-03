@@ -152,7 +152,7 @@ internal sealed class PasteAction : IActionHandler
 		// If the image being pasted is larger than the canvas size, allow the user to optionally resize the canvas
 		if (cb_image.Width > canvas_size.Width || cb_image.Height > canvas_size.Height) {
 
-			var response = await ShowExpandCanvasDialog (chrome);
+			var response = await ShowExpandCanvasDialog (chrome, cb_image);
 
 			if (response == Gtk.ResponseType.Accept) {
 
@@ -238,32 +238,27 @@ internal sealed class PasteAction : IActionHandler
 		return chrome.ShowMessageDialog (chrome.MainWindow, primary, secondary);
 	}
 
-	public static async Task<Gtk.ResponseType> ShowExpandCanvasDialog (ChromeManager chrome)
+	/// <summary>Paint.NET's Paste task dialog: Expand canvas / Keep canvas size / Cancel, with the pasted image's thumbnail.</summary>
+	public static async Task<Gtk.ResponseType> ShowExpandCanvasDialog (ChromeManager chrome, Cairo.ImageSurface image)
 	{
-		string primary = Translations.GetString ("Image larger than canvas");
-		string secondary = Translations.GetString ("The image being pasted is larger than the canvas. What would you like to do to the canvas size?");
-
-		using Adw.MessageDialog dialog = Adw.MessageDialog.New (chrome.MainWindow, primary, secondary);
-
-		const string cancel_response = "cancel";
-		const string reject_response = "reject";
-		const string expand_response = "expand";
-
-		dialog.AddResponse (cancel_response, Translations.GetString ("_Cancel"));
-		// Translators: This refers to preserving the current canvas size when pasting a larger image.
-		dialog.AddResponse (reject_response, Translations.GetString ("Preserve"));
-		// Translators: This refers to expanding the canvas size when pasting a larger image.
-		dialog.AddResponse (expand_response, Translations.GetString ("Expand"));
-
-		dialog.SetResponseAppearance (expand_response, Adw.ResponseAppearance.Suggested);
-		dialog.CloseResponse = cancel_response;
-		dialog.DefaultResponse = expand_response;
-
-		string response = await dialog.RunAsync ();
+		int response = await TaskDialog.Show (
+			chrome.MainWindow,
+			Translations.GetString ("Paste"),
+			Translations.GetString ("The image being pasted is larger than the canvas size. What do you want to do?"),
+			[
+				// Translators: This refers to expanding the canvas size when pasting a larger image.
+				new (Translations.GetString ("_Expand canvas"), Translations.GetString ("Automatically expands the canvas to fit the image being pasted."), Resources.Icons.ImageResizeCanvas),
+				// Translators: This refers to preserving the current canvas size when pasting a larger image.
+				new (Translations.GetString ("_Keep canvas size"), Translations.GetString ("Does not expand the canvas. You will have to move the pasted image around to make sure that the part you want is within the canvas boundaries."), Resources.Icons.ImageCrop),
+				new (Translations.GetString ("_Cancel"), Translations.GetString ("Cancels the paste action."), Resources.StandardIcons.EditUndo),
+			],
+			cancelIndex: 2,
+			width: 450,
+			thumbnail: TaskDialog.CreateThumbnail (image));
 
 		return response switch {
-			expand_response => Gtk.ResponseType.Accept,
-			reject_response => Gtk.ResponseType.Reject,
+			0 => Gtk.ResponseType.Accept,
+			1 => Gtk.ResponseType.Reject,
 			_ => Gtk.ResponseType.Cancel,
 		};
 	}
