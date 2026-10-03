@@ -545,14 +545,21 @@ public sealed partial class ColorsPanel
 		}
 		menu.AppendSection (null, palettes);
 
+		// Paint.NET's labels and sections; Pinta's Open... and Set Number of Colors go in a last section.
 		EditActions edit = PintaCore.Actions.Edit;
-		Gio.Menu commands = Gio.Menu.New ();
-		commands.AppendItem (edit.LoadPalette.CreateMenuItem ());
-		commands.AppendItem (edit.SavePalette.CreateMenuItem ());
-		commands.Append (Translations.GetString ("Open Palettes Folder"), "colorspanel.open-palettes-folder");
-		commands.AppendItem (edit.ResetPalette.CreateMenuItem ());
-		commands.AppendItem (edit.ResizePalette.CreateMenuItem ());
-		menu.AppendSection (null, commands);
+		Gio.Menu fileCommands = Gio.Menu.New ();
+		fileCommands.Append (Translations.GetString ("Save Current Palette As..."), edit.SavePalette.FullName);
+		fileCommands.Append (Translations.GetString ("Open Palettes Folder"), "colorspanel.open-palettes-folder");
+		menu.AppendSection (null, fileCommands);
+
+		Gio.Menu reset = Gio.Menu.New ();
+		reset.Append (Translations.GetString ("Reset to Default Palette"), edit.ResetPalette.FullName);
+		menu.AppendSection (null, reset);
+
+		Gio.Menu extras = Gio.Menu.New ();
+		extras.AppendItem (edit.LoadPalette.CreateMenuItem ());
+		extras.AppendItem (edit.ResizePalette.CreateMenuItem ());
+		menu.AppendSection (null, extras);
 	}
 
 	private void LoadPaletteFile (string path)
@@ -638,7 +645,7 @@ public sealed partial class ColorsPanel
 			g.FillRectangle (r, colors[i]);
 		}
 
-		if (add_color.Active) {
+		if (add_color.Active && visible > 0) {
 			int rows = (visible + PALETTE_COLUMNS - 1) / PALETTE_COLUMNS;
 			g.DrawRectangle (new RectangleD (1, 1, PALETTE_COLUMNS * CELL - 2, rows * CELL - 2), new Color (0, 0.47, 0.84), 2);
 		}
