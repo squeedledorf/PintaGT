@@ -35,7 +35,6 @@ namespace Pinta.Actions;
 internal sealed class SaveDocumentImplmentationAction : IActionHandler
 {
 	const string RESPONSE_CANCEL = "cancel";
-	const string RESPONSE_FLATTEN = "flatten";
 	const string RESPONSE_REPLACE = "replace";
 
 	private readonly FileActions file;
@@ -307,22 +306,22 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 		if (!format.SupportsLayers
 			&& document.Layers.Count () > 1) {
 
-			string heading = Translations.GetString ("This format does not support layers. Flatten image?");
-			string body = Translations.GetString ("Flattening the image will merge all layers into a single layer.");
+			// A task dialog like Paint.NET's other prompts, with the affirmative command first.
+			using Cairo.ImageSurface flattened = document.GetFlattenedImage ();
+			int response = await TaskDialog.Show (
+				chrome.MainWindow,
+				Translations.GetString ("Flatten"),
+				Translations.GetString ("This format does not support layers. Flatten image?"),
+				[
+					new (Translations.GetString ("_Flatten"), Translations.GetString ("Flattening the image will merge all layers into a single layer."), Resources.Icons.ImageFlatten),
+					new (Translations.GetString ("_Cancel"), Translations.GetString ("Leave the layers as they are, and do not save."), Resources.StandardIcons.EditUndo),
+				],
+				cancelIndex: 1,
+				width: 400,
+				thumbnail: TaskDialog.CreateThumbnail (flattened));
 
-			using Adw.MessageDialog dialog = Adw.MessageDialog.New (chrome.MainWindow, heading, body);
-			dialog.AddResponse (RESPONSE_CANCEL, Translations.GetString ("_Cancel"));
-			dialog.AddResponse (RESPONSE_FLATTEN, Translations.GetString ("Flatten"));
-			dialog.SetResponseAppearance (RESPONSE_FLATTEN, Adw.ResponseAppearance.Suggested);
-
-			dialog.CloseResponse = RESPONSE_CANCEL;
-			dialog.DefaultResponse = RESPONSE_FLATTEN;
-
-			string response = await dialog.RunAsync ();
-
-			if (response == RESPONSE_CANCEL) {
+			if (response != 0)
 				return false;
-			}
 
 			// Flatten the image
 			tools.Commit ();
