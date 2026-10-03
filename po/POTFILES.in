@@ -350,6 +350,7 @@ Pinta.Tools/Tools/ColorPickerTool.cs
 Pinta.Tools/Tools/EllipseSelectTool.cs
 Pinta.Tools/Tools/EllipseTool.cs
 Pinta.Tools/Tools/EraserTool.cs
+Pinta.Tools/Tools/FillPatterns.cs
 Pinta.Tools/Tools/FloodTool.cs
 Pinta.Tools/Tools/FreeformShapeTool.cs
 Pinta.Tools/Tools/GradientTool.cs

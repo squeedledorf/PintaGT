@@ -143,6 +143,9 @@ public sealed class TextLayout
 		if (engine.Underline)
 			markup = $"<u>{markup}</u>";
 
+		if (engine.Strikethrough)
+			markup = $"<s>{markup}</s>";
+
 		switch (engine.Alignment) {
 			case TextAlignment.Right:
 				Layout.SetAlignment (Pango.Alignment.Right);

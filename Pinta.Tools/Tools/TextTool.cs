@@ -9,6 +9,8 @@
 /////////////////////////////////////////////////////////////////////////////////
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Cairo;
 using Pinta.Core;
@@ -79,9 +81,6 @@ public sealed class TextTool : BaseTool
 	public override string Name
 		=> Translations.GetString ("Text");
 
-	private static string FinalizeName
-		=> Translations.GetString ("Text - Finalize");
-
 	public override string Icon
 		=> Pinta.Resources.Icons.ToolText;
 
@@ -97,6 +96,14 @@ public sealed class TextTool : BaseTool
 	public override Gdk.Cursor DefaultCursor { get; }
 
 	protected override bool ShowAntialiasingButton => true;
+	protected override bool ShowBlendModeButton => true;
+	protected override bool ShowSelectionQualityButton => true;
+	protected override bool ShowFinishButton => true;
+	protected override bool CanFinish => is_editing;
+
+	// Paint.NET's move nub, below and to the right of the text cursor: drag it to move the text before it's finished.
+	private readonly MoveNubHandle nub;
+	public override IEnumerable<IToolHandle> Handles => [nub];
 
 	private readonly IChromeService chrome;
 	private readonly IPaletteService palette;
@@ -118,442 +125,270 @@ public sealed class TextTool : BaseTool
 		layout = new TextLayout (chromeService);
 
 		DefaultCursor = GdkExtensions.CursorFromName (Pinta.Resources.StandardCursors.Text);
+
+		nub = new MoveNubHandle (workspace);
 	}
 
 	#region ToolBar
-	// NRT - Created by OnBuildToolBar
-	private Gtk.Label font_label = null!;
-	private const int DEFAULT_FONT_SIZE = 12;
-	private Gtk.FontDialogButton font_button = null!;
-	private ToolBarDropDownButton variant_btn = null!;
-	private Gtk.SpinButton font_size = null!;
-	private ToolBarDropDownButton weight_btn = null!;
-	private Gtk.ToggleButton italic_btn = null!;
-	private Gtk.ToggleButton underscore_btn = null!;
-	private Gtk.ToggleButton left_alignment_btn = null!;
-	private Gtk.ToggleButton center_alignment_btn = null!;
-	private Gtk.ToggleButton right_alignment_btn = null!;
-	private Gtk.Label fill_label = null!;
-	private ToolBarDropDownButton fill_button = null!;
-	private Gtk.Separator fill_sep = null!;
-	private Gtk.Separator outline_sep = null!;
-	private Gtk.SpinButton outline_width = null!;
-	private Gtk.Label outline_width_label = null!;
-	private Gtk.Separator join_sep = null!;
-	private ToolBarDropDownButton join_btn = null!;
+	// Paint.NET's default text size, in points.
+	private const double DEFAULT_FONT_SIZE = 12;
+	private const string SIZE_SETTING = "text-size-points";
+	private const string FIXED_DPI_SETTING = "text-size-fixed-dpi";
+	private const string BOLD_SETTING = "text-bold";
+	private const string STRIKEOUT_SETTING = "text-strikeout";
+	private const string RENDERING_SETTING = "text-rendering-mode";
+
+	private Gtk.Label? font_label;
+	private Gtk.StringList? font_families;
+	private Gtk.DropDown? font_family_dropdown;
+	private Gtk.SpinButton? font_size;
+	private Gtk.Box? font_size_box;
+	private ToolBarDropDownButton? size_unit_btn;
+	private Gtk.Separator? format_sep;
+	private Gtk.ToggleButton? bold_btn;
+	private Gtk.ToggleButton? italic_btn;
+	private Gtk.ToggleButton? underscore_btn;
+	private Gtk.ToggleButton? strikeout_btn;
+	private ToolBarDropDownButton? rendering_btn;
+	private Gtk.Separator? alignment_sep;
+	private Gtk.ToggleButton? left_alignment_btn;
+	private Gtk.ToggleButton? center_alignment_btn;
+	private Gtk.ToggleButton? right_alignment_btn;
+
+	/// <summary>Paint.NET's text rendering modes.</summary>
+	private enum TextRenderingMode { Smooth, SharpModern, SharpClassic }
+
+	/// <summary>
+	/// The pixel size of a font size in points. Paint.NET's "Points (image DPI)" scales with the image's resolution;
+	/// "Fixed (96 DPI)" always uses 96.
+	/// </summary>
+	public static double PointsToPixels (double points, double dpi)
+		=> points * dpi / 72;
 
 	protected override void OnBuildToolBar (Gtk.Box tb)
 	{
 		base.OnBuildToolBar (tb);
 
-		if (font_label == null) {
-			string fontText = Translations.GetString ("Font");
-			font_label = Gtk.Label.New ($" {fontText}: ");
-		}
-
+		// Paint.NET order: Font, size with − and +, size unit | B I U S, rendering mode | alignment.
+		font_label ??= Gtk.Label.New ($" {Translations.GetString ("Font")}: ");
 		tb.Append (font_label);
+		tb.Append (FontFamilyDropDown);
+		tb.Append (FontSizeBox);
+		tb.Append (SizeUnitDropDown);
 
-		if (font_button == null) {
-			Gtk.FontDialog fontDialog = Gtk.FontDialog.New ();
-			fontDialog.Modal = true;
+		tb.Append (format_sep ??= GtkExtensions.CreateToolBarSeparator ());
 
-			font_button = Gtk.FontDialogButton.New (fontDialog);
-			font_button.UseSize = false;
-			font_button.UseFont = true;
-			font_button.CanFocus = false;
-			font_button.Level = Gtk.FontLevel.Family;
+		bold_btn ??= CreateToggle (Markup ("<b>B</b>"), Translations.GetString ("Bold"), Settings.GetSetting (BOLD_SETTING, false));
+		italic_btn ??= CreateToggle (Markup ("<i>I</i>"), Translations.GetString ("Italic"), Settings.GetSetting (SettingNames.TEXT_ITALIC, false));
+		underscore_btn ??= CreateToggle (Markup ("<u>U</u>"), Translations.GetString ("Underline"), Settings.GetSetting (SettingNames.TEXT_UNDERLINE, false));
+		strikeout_btn ??= CreateToggle (Markup ("<s>abc</s>"), Translations.GetString ("Strikeout"), Settings.GetSetting (STRIKEOUT_SETTING, false));
+		tb.Append (bold_btn);
+		tb.Append (italic_btn);
+		tb.Append (underscore_btn);
+		tb.Append (strikeout_btn);
+		tb.Append (RenderingDropDown);
 
+		tb.Append (alignment_sep ??= GtkExtensions.CreateToolBarSeparator ());
+
+		if (left_alignment_btn is null) {
+			TextAlignment alignment = (TextAlignment) Settings.GetSetting (SettingNames.TEXT_ALIGNMENT, (int) TextAlignment.Left);
+			left_alignment_btn = CreateToggle (Gtk.Image.NewFromIconName (Pinta.Resources.StandardIcons.FormatJustifyLeft), Translations.GetString ("Left Align"), alignment == TextAlignment.Left, radio: true);
+			center_alignment_btn = CreateToggle (Gtk.Image.NewFromIconName (Pinta.Resources.StandardIcons.FormatJustifyCenter), Translations.GetString ("Center Align"), alignment == TextAlignment.Center, radio: true, left_alignment_btn);
+			right_alignment_btn = CreateToggle (Gtk.Image.NewFromIconName (Pinta.Resources.StandardIcons.FormatJustifyRight), Translations.GetString ("Right Align"), alignment == TextAlignment.Right, radio: true, left_alignment_btn);
+		}
+
+		tb.Append (left_alignment_btn);
+		tb.Append (center_alignment_btn!);
+		tb.Append (right_alignment_btn!);
+
+		UpdateFont ();
+	}
+
+	/// <summary>A flat tool bar toggle that never takes keyboard focus. A radio toggle is one of a group where only one is on.</summary>
+	private Gtk.ToggleButton CreateToggle (Gtk.Widget child, string tooltip, bool active, bool radio = false, Gtk.ToggleButton? group = null)
+	{
+		Gtk.ToggleButton button = Gtk.ToggleButton.New ();
+		button.Child = child;
+		button.TooltipText = tooltip;
+		button.HasFrame = false;
+		button.CanFocus = false;
+		button.FocusOnClick = false;
+		if (group is not null)
+			button.SetGroup (group);
+		button.Active = active;
+		// A radio group toggles twice per click; redraw once, for the button turned on.
+		button.OnToggled += (_, _) => {
+			if (!radio || button.Active)
+				UpdateFont ();
+		};
+		return button;
+	}
+
+	// Paint.NET's formatting buttons are the letters themselves: B, I, U and a struck-out "abc".
+	private static Gtk.Label Markup (string markup)
+	{
+		Gtk.Label label = Gtk.Label.New (null);
+		label.SetMarkup (markup);
+		return label;
+	}
+
+	private Gtk.DropDown FontFamilyDropDown {
+		get {
+			if (font_family_dropdown is not null)
+				return font_family_dropdown;
+
+			List<string> names = [];
+			Pango.FontMap map = PangoCairo.Functions.FontMapGetDefault ();
+			for (uint i = 0; i < map.GetNItems (); i++)
+				if (map.GetObject (i) is Pango.FontFamily f)
+					names.Add (f.GetName ());
+			names = names.Distinct ().OrderBy (n => n, StringComparer.OrdinalIgnoreCase).ToList ();
+
+			font_families = Gtk.StringList.New ([.. names]);
+			// Type-to-search needs an expression for the item's string, which the bindings can only build through GtkBuilder.
+			Gtk.Builder builder = Gtk.Builder.NewFromString ("""
+				<interface>
+				  <object class="GtkDropDown" id="fonts">
+				    <property name="enable-search">true</property>
+				    <property name="search-match-mode">substring</property>
+				    <property name="expression"><lookup name="string" type="GtkStringObject"></lookup></property>
+				  </object>
+				</interface>
+				""", -1);
+			font_family_dropdown = (Gtk.DropDown) builder.GetObject ("fonts")!;
+			font_family_dropdown.Model = font_families;
+			// Not CanFocus = false: that would also keep focus from the popup's search entry. A pick hands focus back to the canvas.
+			font_family_dropdown.FocusOnClick = false;
+			font_family_dropdown.TooltipText = Translations.GetString ("Font");
 			// Fixed width, so the controls after it don't move when the font name changes.
-			font_button.WidthRequest = 160;
-			static void EllipsizeLabels (Gtk.Widget w)
-			{
-				if (w is Gtk.Label label) {
-					label.Ellipsize = Pango.EllipsizeMode.End;
-					label.MaxWidthChars = 1; // Cap the natural width; WidthRequest sets the real width.
-				}
-				for (Gtk.Widget? c = w.GetFirstChild (); c != null; c = c.GetNextSibling ())
-					EllipsizeLabels (c);
-			}
-			EllipsizeLabels (font_button);
-			string savedFont = Settings.GetSetting (SettingNames.TEXT_FONT, string.Empty);
-			if (savedFont.Length > 0) {
-				font_button.FontDesc = Pango.FontDescription.FromString (savedFont);
-			} else {
-				// First use: the system font family at Paint.NET's default size of 12.
-				Pango.FontDescription defaultFont = Pango.FontDescription.FromString (Gtk.Settings.GetDefault ()!.GtkFontName!);
-				defaultFont.SetSize (PangoExtensions.UnitsFromPixels (DEFAULT_FONT_SIZE));
-				font_button.FontDesc = defaultFont;
-			}
+			font_family_dropdown.WidthRequest = 170;
 
-			Gtk.FontDialogButton.FontDescPropertyDefinition.Notify (font_button, (_, _) => {
-				HandleFontChanged ();
-			});
+			// As in Paint.NET, the list shows each family in its own typeface.
+			Gtk.SignalListItemFactory listFactory = Gtk.SignalListItemFactory.New ();
+			listFactory.OnSetup += (_, args) => {
+				Gtk.Label label = Gtk.Label.New (null);
+				label.Xalign = 0;
+				((Gtk.ListItem) args.Object).SetChild (label);
+			};
+			listFactory.OnBind += (_, args) => {
+				Gtk.ListItem item = (Gtk.ListItem) args.Object;
+				string name = ((Gtk.StringObject) item.GetItem ()!).GetString ();
+				string escaped = GLib.Functions.MarkupEscapeText (name, -1);
+				((Gtk.Label) item.GetChild ()!).SetMarkup ($"<span face=\"{escaped}\">{escaped}</span>");
+			};
+			font_family_dropdown.ListFactory = listFactory;
+
+			// The saved font, or the system font's family on first use.
+			string saved = Settings.GetSetting (SettingNames.TEXT_FONT, string.Empty);
+			string? family = Pango.FontDescription.FromString (saved.Length > 0 ? saved : Gtk.Settings.GetDefault ()!.GtkFontName!).GetFamily ();
+			int index = family is null ? -1 : names.FindIndex (n => string.Equals (n, family, StringComparison.OrdinalIgnoreCase));
+			if (index < 0)
+				index = Math.Max (0, names.FindIndex (n => n == "Sans"));
+			font_family_dropdown.Selected = (uint) index;
+
+			font_family_dropdown.OnNotify += (_, args) => {
+				if (args.Pspec.GetName () != "selected")
+					return;
+				if (workspace.HasOpenDocuments)
+					workspace.ActiveDocument.Workspace.GrabFocusToCanvas ();
+				UpdateFont ();
+			};
+
+			return font_family_dropdown;
 		}
+	}
 
-		tb.Append (font_button);
+	private string FontFamily
+		=> font_family_dropdown?.SelectedItem is Gtk.StringObject s ? s.GetString () : "Sans";
 
-		tb.Append (GtkExtensions.CreateToolBarSeparator ());
+	private Gtk.Box FontSizeBox {
+		get {
+			if (font_size_box is not null)
+				return font_size_box;
 
-		if (variant_btn == null) {
-			variant_btn = ToolBarDropDownButton.New ();
-
-			variant_btn.AddItem (
-				// Translators: 'Normal' refers to the font-variant text property
-				Translations.GetString ("Normal"),
-				Pinta.Resources.Icons.TextVariantNormal,
-				Pango.Variant.Normal
-			);
-			variant_btn.AddItem (
-				// Translators: 'Small Caps' refers to the font-variant text property
-				Translations.GetString ("Small Caps"),
-				Pinta.Resources.Icons.TextVariantSmallCaps,
-				Pango.Variant.SmallCaps
-			);
-			variant_btn.AddItem (
-				// Translators: 'All Small Caps' refers to the font-variant text property
-				Translations.GetString ("All Small Caps"),
-				Pinta.Resources.Icons.TextVariantAllSmallCaps,
-				Pango.Variant.AllSmallCaps
-			);
-			variant_btn.AddItem (
-				// Translators: 'Petite Caps' refers to the font-variant text property
-				Translations.GetString ("Petite Caps"),
-				Pinta.Resources.Icons.TextVariantPetiteCaps,
-				Pango.Variant.PetiteCaps
-			);
-			variant_btn.AddItem (
-				// Translators: 'All Petite Caps' refers to the font-variant text property
-				Translations.GetString ("All Petite Caps"),
-				Pinta.Resources.Icons.TextVariantAllPetiteCaps,
-				Pango.Variant.AllPetiteCaps
-			);
-			variant_btn.AddItem (
-				// Translators: 'Unicase' refers to the font-variant text property
-				Translations.GetString ("Unicase"),
-				Pinta.Resources.Icons.TextVariantUnicase,
-				Pango.Variant.Unicase
-			);
-			variant_btn.AddItem (
-				// Translators: 'Title Caps' refers to the font-variant text property
-				Translations.GetString ("Title Caps"),
-				Pinta.Resources.Icons.TextVariantTitleCaps,
-				Pango.Variant.Normal
-			);
-
-			variant_btn.SelectedIndex = Settings.GetSetting (SettingNames.TEXT_VARIANT, 0);
-			variant_btn.SelectedItemChanged += HandleVariantButtonChanged;
-		}
-
-		tb.Append (variant_btn);
-
-		tb.Append (GtkExtensions.CreateToolBarSeparator ());
-
-		if (font_size == null) {
-			Gtk.Adjustment fontSizeAdjustment = Gtk.Adjustment.New (
-				value: PangoExtensions.UnitsToPixels (font_button.FontDesc!.GetSize ()),
-				lower: 1, upper: 2000, stepIncrement: 1, pageIncrement: 0, pageSize: 0);
-
-			font_size = Gtk.SpinButton.New (fontSizeAdjustment, climbRate: 0.0, digits: 0);
-			font_size.TooltipText = Translations.GetString ("Change font size. Shortcut keys: [ ]");
+			double size = Convert.ToDouble (Settings.GetSetting<object> (SIZE_SETTING, DEFAULT_FONT_SIZE));
+			font_size = GtkExtensions.CreateToolBarSpinButton (1, 2000, 1, size);
+			font_size.Digits = 1;
+			// Paint.NET shows a whole size as "12", and allows sizes like 18.3.
+			font_size.OnOutput += (spin, _) => {
+				double value = spin.Value;
+				spin.SetText (value == Math.Floor (value) ? value.ToString ("0") : value.ToString ("0.#"));
+				return true;
+			};
 			font_size.TooltipText = Translations.GetString ("Change font size.") + "\n"
 				   + "\n" + Translations.GetString ("Shortcut keys:")
 				   + "\n" + Translations.GetString ("Press {0} to decrease font size", "\"[\"")
 				   + "\n" + Translations.GetString ("Press {0} to increase font size", "\"]\"");
-			font_size.OnValueChanged += HandleFontSizeChanged;
+			font_size.OnValueChanged += (_, _) => UpdateFont ();
+			font_size_box = font_size.WithOuterStepButtons ();
+			return font_size_box;
 		}
-
-		tb.Append (font_size);
-
-		tb.Append (GtkExtensions.CreateToolBarSeparator ());
-
-		if (weight_btn == null) {
-			weight_btn = ToolBarDropDownButton.New ();
-
-			weight_btn.AddItem (
-				// Translators: 'Thin' (100) refers to the font-weight text property
-				Translations.GetString ("Thin") + " 100",
-				Pinta.Resources.Icons.TextExtraLight,
-				Pango.Weight.Thin
-			);
-			weight_btn.AddItem (
-				// Translators: 'Ultralight' (200) refers to the font-weight text property
-				Translations.GetString ("Ultralight") + " 200",
-				Pinta.Resources.Icons.TextExtraLight,
-				Pango.Weight.Ultralight
-			);
-			weight_btn.AddItem (
-				// Translators: 'Light' (300) refers to the font-weight text property
-				Translations.GetString ("Light") + " 300",
-				Pinta.Resources.Icons.TextLight,
-				Pango.Weight.Light
-			);
-			weight_btn.AddItem (
-				// Translators: 'Semilight' (350) refers to the font-weight text property
-				Translations.GetString ("Semilight") + " 350",
-				Pinta.Resources.Icons.TextLight,
-				Pango.Weight.Semilight
-			);
-			weight_btn.AddItem (
-				// Translators: 'Book' (380) refers to the font-weight text property
-				Translations.GetString ("Book") + " 380",
-				Pinta.Resources.Icons.TextNormal,
-				Pango.Weight.Book
-			);
-			weight_btn.AddItem (
-				// Translators: 'Normal' (400) refers to the font-weight text property
-				Translations.GetString ("Normal") + " 400",
-				Pinta.Resources.Icons.TextNormal,
-				Pango.Weight.Normal
-			);
-			weight_btn.AddItem (
-				// Translators: 'Medium' (500) refers to the font-weight text property
-				Translations.GetString ("Medium") + " 500",
-				Pinta.Resources.Icons.TextNormal,
-				Pango.Weight.Medium
-			);
-			weight_btn.AddItem (
-				// Translators: 'Semibold' (600) refers to the font-weight text property
-				Translations.GetString ("Semibold") + " 600",
-				Pinta.Resources.Icons.TextBold,
-				Pango.Weight.Semibold
-			);
-			weight_btn.AddItem (
-				// Translators: 'Bold' (700) refers to the font-weight text property
-				Translations.GetString ("Bold") + " 700",
-				Pinta.Resources.Icons.TextBold,
-				Pango.Weight.Bold
-			);
-			weight_btn.AddItem (
-				// Translators: 'Ultrabold' (800) refers to the font-weight text property
-				Translations.GetString ("Ultrabold") + " 800",
-				Pinta.Resources.Icons.TextExtraBold,
-				Pango.Weight.Ultrabold
-			);
-			weight_btn.AddItem (
-				// Translators: 'Heavy' (900) refers to the font-weight text property
-				Translations.GetString ("Heavy") + " 900",
-				Pinta.Resources.Icons.TextExtraBold,
-				Pango.Weight.Heavy
-			);
-			weight_btn.AddItem (
-				// Translators: 'Ultraheavy' (1000) refers to the font-weight text property
-				Translations.GetString ("Ultraheavy") + " 1000",
-				Pinta.Resources.Icons.TextExtraBold,
-				Pango.Weight.Ultraheavy
-			);
-
-			weight_btn.SelectedIndex = Settings.GetSetting (SettingNames.TEXT_WEIGHT, 5);
-			weight_btn.SelectedItemChanged += HandleWeightButtonToggled;
-		}
-
-		tb.Append (weight_btn);
-
-		if (italic_btn == null) {
-			italic_btn = Gtk.ToggleButton.New ();
-			italic_btn.IconName = Pinta.Resources.StandardIcons.FormatTextItalic;
-			italic_btn.TooltipText = Translations.GetString ("Italic");
-			italic_btn.CanFocus = false;
-			italic_btn.Active = Settings.GetSetting (SettingNames.TEXT_ITALIC, false);
-			italic_btn.OnToggled += HandleItalicButtonToggled;
-		}
-
-		tb.Append (italic_btn);
-
-		if (underscore_btn == null) {
-			underscore_btn = Gtk.ToggleButton.New ();
-			underscore_btn.IconName = Pinta.Resources.StandardIcons.FormatTextUnderline;
-			underscore_btn.TooltipText = Translations.GetString ("Underline");
-			underscore_btn.CanFocus = false;
-			underscore_btn.Active = Settings.GetSetting (SettingNames.TEXT_UNDERLINE, false);
-			underscore_btn.OnToggled += HandleUnderscoreButtonToggled;
-		}
-
-		tb.Append (underscore_btn);
-
-		tb.Append (GtkExtensions.CreateToolBarSeparator ());
-
-		TextAlignment alignment = (TextAlignment) Settings.GetSetting (SettingNames.TEXT_ALIGNMENT, (int) TextAlignment.Left);
-
-		if (left_alignment_btn == null) {
-			left_alignment_btn = Gtk.ToggleButton.New ();
-			left_alignment_btn.IconName = Pinta.Resources.StandardIcons.FormatJustifyLeft;
-			left_alignment_btn.TooltipText = Translations.GetString ("Left Align");
-			left_alignment_btn.CanFocus = false;
-			left_alignment_btn.Active = alignment == TextAlignment.Left;
-			left_alignment_btn.OnToggled += HandleLeftAlignmentButtonToggled;
-		}
-
-		tb.Append (left_alignment_btn);
-
-		if (center_alignment_btn == null) {
-			center_alignment_btn = Gtk.ToggleButton.New ();
-			center_alignment_btn.IconName = Pinta.Resources.StandardIcons.FormatJustifyCenter;
-			center_alignment_btn.TooltipText = Translations.GetString ("Center Align");
-			center_alignment_btn.CanFocus = false;
-			center_alignment_btn.Active = alignment == TextAlignment.Center;
-			center_alignment_btn.OnToggled += HandleCenterAlignmentButtonToggled;
-		}
-
-		tb.Append (center_alignment_btn);
-
-		if (right_alignment_btn == null) {
-			right_alignment_btn = Gtk.ToggleButton.New ();
-			right_alignment_btn.IconName = Pinta.Resources.StandardIcons.FormatJustifyRight;
-			right_alignment_btn.TooltipText = Translations.GetString ("Right Align");
-			right_alignment_btn.CanFocus = false;
-			right_alignment_btn.Active = alignment == TextAlignment.Right;
-			right_alignment_btn.OnToggled += HandleRightAlignmentButtonToggled;
-		}
-
-		tb.Append (right_alignment_btn);
-
-		fill_sep ??= GtkExtensions.CreateToolBarSeparator ();
-
-		tb.Append (fill_sep);
-
-		if (fill_label == null) {
-			string textStyleText = Translations.GetString ("Text Style");
-			fill_label = Gtk.Label.New ($" {textStyleText}: ");
-		}
-
-		tb.Append (fill_label);
-
-		if (fill_button == null) {
-			fill_button = ToolBarDropDownButton.New ();
-
-			fill_button.AddItem (Translations.GetString ("Normal"), Pinta.Resources.Icons.FillStyleFill, 0);
-			fill_button.AddItem (Translations.GetString ("Normal and Outline"), Pinta.Resources.Icons.FillStyleOutlineFill, 1);
-			fill_button.AddItem (Translations.GetString ("Outline"), Pinta.Resources.Icons.FillStyleOutline, 2);
-			fill_button.AddItem (Translations.GetString ("Fill Background"), Pinta.Resources.Icons.FillStyleBackground, 3);
-
-			fill_button.SelectedIndex = Settings.GetSetting (SettingNames.TEXT_STYLE, 0);
-			fill_button.SelectedItemChanged += HandleFillButtonToggled;
-		}
-
-		tb.Append (fill_button);
-
-		outline_sep ??= GtkExtensions.CreateToolBarSeparator ();
-
-		tb.Append (outline_sep);
-
-		if (outline_width_label == null) {
-			string outlineWidthText = Translations.GetString ("Outline width");
-			outline_width_label = Gtk.Label.New ($" {outlineWidthText}: ");
-		}
-
-		tb.Append (outline_width_label);
-
-		if (outline_width == null) {
-			outline_width = GtkExtensions.CreateToolBarSpinButton (
-				1,
-				1e5,
-				1,
-				Settings.GetSetting (SettingNames.TEXT_OUTLINE_WIDTH, 2));
-			outline_width.OnValueChanged += (_, __) => HandleFontChanged ();
-		}
-
-		tb.Append (outline_width);
-
-		join_sep ??= GtkExtensions.CreateToolBarSeparator ();
-
-		tb.Append (join_sep);
-
-		if (join_btn == null) {
-			join_btn = ToolBarDropDownButton.New ();
-
-			join_btn.AddItem (
-				// Translators: 'Miter Join' refers to the Cairo.LineJoin property
-				Translations.GetString ("Miter Join"),
-				Pinta.Resources.Icons.JoinMiter,
-				Cairo.LineJoin.Miter
-			);
-			join_btn.AddItem (
-				// Translators: 'Round Join' refers to the Cairo.LineJoin property
-				Translations.GetString ("Round Join"),
-				Pinta.Resources.Icons.JoinRound,
-				Cairo.LineJoin.Round
-			);
-			join_btn.AddItem (
-				// Translators: 'Bevel Join' refers to the Cairo.LineJoin property
-				Translations.GetString ("Bevel Join"),
-				Pinta.Resources.Icons.JoinBevel,
-				Cairo.LineJoin.Bevel
-			);
-
-			join_btn.SelectedIndex = Settings.GetSetting (SettingNames.TEXT_JOIN, 0);
-			join_btn.SelectedItemChanged += HandleJoinButtonToggled;
-		}
-
-		tb.Append (join_btn);
-
-		outline_width.Visible = outline_width_label.Visible = outline_sep.Visible = join_btn.Visible = join_sep.Visible = StrokeText;
-
-		UpdateFont ();
 	}
 
-	private void HandleFontSizeChanged (object? sender, EventArgs e)
-	{
-		var font = font_button.FontDesc!.Copy ()!;
-		font.SetSize (PangoExtensions.UnitsFromPixels (font_size.GetValueAsInt ()));
-		font_button.FontDesc = font;
+	private double FontSizePoints
+		=> font_size?.Value ?? DEFAULT_FONT_SIZE;
 
-		UpdateFont ();
+	private ToolBarDropDownButton SizeUnitDropDown {
+		get {
+			if (size_unit_btn is null) {
+				size_unit_btn = ToolBarDropDownButton.New ();
+				size_unit_btn.AddItem (Translations.GetString ("Points (image DPI)"), Pinta.Resources.Icons.TextNormal, false);
+				size_unit_btn.AddItem (Translations.GetString ("Fixed (96 DPI)"), Pinta.Resources.Icons.TextNormal, true);
+				size_unit_btn.SelectedIndex = Settings.GetSetting (FIXED_DPI_SETTING, false) ? 1 : 0;
+				size_unit_btn.SelectedItemChanged += (_, _) => UpdateFont ();
+			}
+
+			return size_unit_btn;
+		}
 	}
+
+	private ToolBarDropDownButton RenderingDropDown {
+		get {
+			if (rendering_btn is null) {
+				rendering_btn = ToolBarDropDownButton.New (showLabel: true);
+				rendering_btn.AddItem (Translations.GetString ("Smooth"), Pinta.Resources.Icons.AntiAliasingEnabled, TextRenderingMode.Smooth);
+				rendering_btn.AddItem (Translations.GetString ("Sharp (Modern)"), Pinta.Resources.Icons.AntiAliasingDisabled, TextRenderingMode.SharpModern);
+				rendering_btn.AddItem (Translations.GetString ("Sharp (Classic)"), Pinta.Resources.Icons.AntiAliasingDisabled, TextRenderingMode.SharpClassic);
+				rendering_btn.SelectedIndex = Math.Clamp (Settings.GetSetting (RENDERING_SETTING, 0), 0, 2);
+				rendering_btn.SelectedItemChanged += (_, _) => UpdateFont ();
+			}
+
+			return rendering_btn;
+		}
+	}
+
+	private TextRenderingMode RenderingMode
+		=> rendering_btn?.SelectedItem.GetTagOrDefault (TextRenderingMode.Smooth) ?? TextRenderingMode.Smooth;
 
 	protected override void OnSaveSettings (ISettingsService settings)
 	{
 		base.OnSaveSettings (settings);
 
-		if (font_button is not null)
-			settings.PutSetting (SettingNames.TEXT_FONT, font_button.FontDesc!.ToString ()!);
-
-		if (variant_btn is not null)
-			settings.PutSetting (SettingNames.TEXT_VARIANT, variant_btn.SelectedIndex);
-
-		if (weight_btn is not null)
-			settings.PutSetting (SettingNames.TEXT_WEIGHT, weight_btn.SelectedIndex);
-
+		if (font_family_dropdown is not null)
+			settings.PutSetting (SettingNames.TEXT_FONT, FontFamily);
+		if (font_size is not null)
+			settings.PutSetting (SIZE_SETTING, font_size.Value);
+		if (size_unit_btn is not null)
+			settings.PutSetting (FIXED_DPI_SETTING, size_unit_btn.SelectedIndex == 1);
+		if (bold_btn is not null)
+			settings.PutSetting (BOLD_SETTING, bold_btn.Active);
 		if (italic_btn is not null)
 			settings.PutSetting (SettingNames.TEXT_ITALIC, italic_btn.Active);
-
 		if (underscore_btn is not null)
 			settings.PutSetting (SettingNames.TEXT_UNDERLINE, underscore_btn.Active);
-
+		if (strikeout_btn is not null)
+			settings.PutSetting (STRIKEOUT_SETTING, strikeout_btn.Active);
+		if (rendering_btn is not null)
+			settings.PutSetting (RENDERING_SETTING, rendering_btn.SelectedIndex);
 		if (left_alignment_btn is not null)
 			settings.PutSetting (SettingNames.TEXT_ALIGNMENT, (int) Alignment);
-
-		if (fill_button is not null)
-			settings.PutSetting (SettingNames.TEXT_STYLE, fill_button.SelectedIndex);
-
-		if (outline_width is not null)
-			settings.PutSetting (SettingNames.TEXT_OUTLINE_WIDTH, outline_width.GetValueAsInt ());
-
-		if (join_btn is not null)
-			settings.PutSetting (SettingNames.TEXT_JOIN, join_btn.SelectedIndex);
-	}
-
-	private void HandleFontChanged ()
-	{
-		var font = font_button.FontDesc!.Copy ()!;
-		font.SetSize (PangoExtensions.UnitsFromPixels (font_size.GetValueAsInt ()));
-		font_button.FontDesc = font;
-
-		if (workspace.HasOpenDocuments)
-			workspace.ActiveDocument.Workspace.GrabFocusToCanvas ();
-
-		UpdateFont ();
-	}
-
-	private void HandleVariantButtonChanged (object? sender, EventArgs e)
-	{
-		UpdateFont ();
 	}
 
 	private TextAlignment Alignment {
 		get {
-			if (right_alignment_btn.Active)
+			if (right_alignment_btn?.Active == true)
 				return TextAlignment.Right;
-			else if (center_alignment_btn.Active)
+			else if (center_alignment_btn?.Active == true)
 				return TextAlignment.Center;
 			else
 				return TextAlignment.Left;
@@ -567,69 +402,6 @@ public sealed class TextTool : BaseTool
 			RedrawText (is_editing, true);
 	}
 
-	private void HandleLeftAlignmentButtonToggled (object? sender, EventArgs e)
-	{
-		if (left_alignment_btn.Active) {
-			right_alignment_btn.Active = false;
-			center_alignment_btn.Active = false;
-		} else if (!right_alignment_btn.Active && !center_alignment_btn.Active) {
-			left_alignment_btn.Active = true;
-		}
-
-		UpdateFont ();
-	}
-
-	private void HandleCenterAlignmentButtonToggled (object? sender, EventArgs e)
-	{
-		if (center_alignment_btn.Active) {
-			right_alignment_btn.Active = false;
-			left_alignment_btn.Active = false;
-		} else if (!right_alignment_btn.Active && !left_alignment_btn.Active) {
-			center_alignment_btn.Active = true;
-		}
-
-		UpdateFont ();
-	}
-
-	private void HandleRightAlignmentButtonToggled (object? sender, EventArgs e)
-	{
-		if (right_alignment_btn.Active) {
-			center_alignment_btn.Active = false;
-			left_alignment_btn.Active = false;
-		} else if (!center_alignment_btn.Active && !left_alignment_btn.Active) {
-			right_alignment_btn.Active = true;
-		}
-
-		UpdateFont ();
-	}
-
-	private void HandleUnderscoreButtonToggled (object? sender, EventArgs e)
-	{
-		UpdateFont ();
-	}
-
-	private void HandleItalicButtonToggled (object? sender, EventArgs e)
-	{
-		UpdateFont ();
-	}
-
-	private void HandleWeightButtonToggled (object? sender, EventArgs e)
-	{
-		UpdateFont ();
-	}
-
-	private void HandleFillButtonToggled (object? sender, EventArgs e)
-	{
-		outline_width.Visible = outline_width_label.Visible = outline_sep.Visible = join_btn.Visible = join_sep.Visible = StrokeText;
-
-		UpdateFont ();
-	}
-
-	private void HandleJoinButtonToggled (object? sender, EventArgs e)
-	{
-		UpdateFont ();
-	}
-
 	private void HandleSelectedLayerChanged (object? sender, EventArgs e)
 	{
 		UpdateFont ();
@@ -640,16 +412,23 @@ public sealed class TextTool : BaseTool
 		UpdateFont ();
 	}
 
+	protected override void OnBlendModeChanged ()
+	{
+		UpdateFont ();
+	}
+
 	private void UpdateFont ()
 	{
 		if (workspace.HasOpenDocuments) {
+			double dpi = SizeUnitDropDown.SelectedIndex == 1 ? Document.DefaultDpi : workspace.ActiveDocument.Dpi;
 
-			var font = font_button.FontDesc!.Copy ()!; // NRT: Only nullable when nullptr is passed.
-			font.SetVariant ((Pango.Variant) variant_btn.SelectedItem.GetTagOrDefault (Pango.Variant.Normal));
-			font.SetWeight ((Pango.Weight) weight_btn.SelectedItem.GetTagOrDefault (Pango.Weight.Normal));
-			font.SetStyle (italic_btn.Active ? Pango.Style.Italic : Pango.Style.Normal);
+			Pango.FontDescription font = Pango.FontDescription.New ();
+			font.SetFamily (FontFamily);
+			font.SetAbsoluteSize (Pango.Functions.UnitsFromDouble (PointsToPixels (FontSizePoints, dpi)));
+			font.SetWeight (bold_btn?.Active == true ? Pango.Weight.Bold : Pango.Weight.Normal);
+			font.SetStyle (italic_btn?.Active == true ? Pango.Style.Italic : Pango.Style.Normal);
 
-			CurrentTextEngine.SetFont (font, Alignment, underscore_btn.Active);
+			CurrentTextEngine.SetFont (font, Alignment, underscore_btn?.Active == true, strikeout_btn?.Active == true);
 		}
 
 		if (is_editing || (workspace.HasOpenDocuments && CurrentTextEngine.State == TextMode.NotFinalized))
@@ -662,18 +441,6 @@ public sealed class TextTool : BaseTool
 		CurrentTextEngine.PrimaryColor = palette.PrimaryColor;
 		CurrentTextEngine.SecondaryColor = palette.SecondaryColor;
 	}
-
-	private int OutlineWidth
-		=> outline_width.GetValueAsInt ();
-
-	private bool StrokeText
-		=> fill_button.SelectedItem.GetTagOrDefault (0) >= 1 && fill_button.SelectedItem.GetTagOrDefault (0) != 3;
-
-	private bool FillText
-		=> fill_button.SelectedItem.GetTagOrDefault (0) <= 1 || fill_button.SelectedItem.GetTagOrDefault (0) == 3;
-
-	private bool BackgroundFill
-		=> fill_button.SelectedItem.GetTagOrDefault (0) == 3;
 
 	#endregion
 
@@ -697,7 +464,7 @@ public sealed class TextTool : BaseTool
 	protected override void OnCommit (Document? document)
 	{
 		im_context.FocusOut ();
-		StopEditing (false);
+		StopEditing ();
 	}
 
 	protected override void OnDeactivated (Document? document, BaseTool? newTool)
@@ -712,13 +479,22 @@ public sealed class TextTool : BaseTool
 		workspace.LayerRemoved -= HandleSelectedLayerChanged;
 		workspace.SelectedLayerChanged -= HandleSelectedLayerChanged;
 
-		StopEditing (false);
+		StopEditing ();
 	}
 	#endregion
 
 	#region Mouse Handlers
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
+		// Either button on the move nub drags the text.
+		if (is_editing && nub.ContainsPoint (e.WindowPoint)) {
+			tracking = true;
+			start_mouse_xy = e.PointDouble;
+			start_click_point = CurrentTextEngine.Origin;
+			UpdateMouseCursor (document);
+			return;
+		}
+
 		ctrl_key = e.IsControlPressed;
 		im_context.FocusIn (); // Grab focus so we can get keystrokes
 		selection = document.Selection.Clone ();
@@ -753,20 +529,9 @@ public sealed class TextTool : BaseTool
 			return;
 		}
 
-		// We're already editing and the user clicked outside the text,
+		// We're already editing and the user clicked outside the text:
 		// commit the user's work, and start a new edit
-		switch (CurrentTextEngine.State) {
-			// We were editing, save and stop
-			case TextMode.Uncommitted:
-				StopEditing (true);
-				break;
-
-			// We were editing, but nothing had been
-			// keyed. Stop editing.
-			case TextMode.Unchanged:
-				StopEditing (false);
-				break;
-		}
+		StopEditing ();
 
 		if (ctrl_key) {
 			//Go through every UserLayer.
@@ -794,11 +559,6 @@ public sealed class TextTool : BaseTool
 				return;
 			}
 		} else {
-			if (CurrentTextEngine.State == TextMode.NotFinalized) {
-				//The user is making a new text and the old text hasn't been finalized yet.
-				FinalizeText ();
-			}
-
 			if (is_editing)
 				return;
 
@@ -822,7 +582,7 @@ public sealed class TextTool : BaseTool
 
 		//Remember the position of the mouse before the text is dragged.
 		start_mouse_xy = e.PointDouble;
-		start_click_point = click_point;
+		start_click_point = CurrentTextEngine.Origin;
 
 		//Change the cursor to indicate that the text is being dragged.
 		UpdateMouseCursor (document);
@@ -844,6 +604,8 @@ public sealed class TextTool : BaseTool
 			CurrentTextEngine.Origin = click_point;
 
 			RedrawText (true, true);
+		} else if (is_editing && nub.ContainsPoint (e.WindowPoint)) {
+			SetCursor (cursor_move);
 		} else {
 			UpdateMouseCursor (document);
 		}
@@ -860,7 +622,7 @@ public sealed class TextTool : BaseTool
 		click_point = new PointI ((int) (start_click_point.X + delta.X), (int) (start_click_point.Y + delta.Y));
 		CurrentTextEngine.Origin = click_point;
 
-		RedrawText (false, true);
+		RedrawText (is_editing, true);
 		tracking = false;
 		UpdateMouseCursor (document);
 	}
@@ -967,7 +729,7 @@ public sealed class TextTool : BaseTool
 
 					case Gdk.Constants.KEY_Escape:
 						// Escape commits the text, as in Paint.NET.
-						StopEditing (true);
+						StopEditing ();
 						return true;
 					case Gdk.Constants.KEY_Insert:
 						if (e.IsShiftPressed) {
@@ -987,15 +749,11 @@ public sealed class TextTool : BaseTool
 
 								return true;
 							} else if (e.Key.Value == Gdk.Constants.KEY_i) {
-								italic_btn.Toggle ();
-								UpdateFont ();
+								italic_btn?.Toggle ();
 							} else if (e.Key.Value == Gdk.Constants.KEY_b) {
-								// If current font-weight is Bold (8) or bolder, set to Normal (5). Otherwise, set to Bold (8).
-								weight_btn.SelectedIndex = weight_btn.SelectedIndex > 7 ? 5 : 8;
-								UpdateFont ();
+								bold_btn?.Toggle ();
 							} else if (e.Key.Value == Gdk.Constants.KEY_u) {
-								underscore_btn.Toggle ();
-								UpdateFont ();
+								underscore_btn?.Toggle ();
 							} else if (e.Key.Value == Gdk.Constants.KEY_a) {
 								// Select all of the text.
 								CurrentTextEngine.PerformHome (true, false);
@@ -1017,11 +775,11 @@ public sealed class TextTool : BaseTool
 				RedrawText (true, true);
 		} else {
 			switch (e.Key.Value) {
-				case Gdk.Constants.KEY_bracketleft:
-					font_size.Adjustment!.Value--;
+				case Gdk.Constants.KEY_bracketleft when font_size is not null:
+					font_size.Value--;
 					return true;
-				case Gdk.Constants.KEY_bracketright:
-					font_size.Adjustment!.Value++;
+				case Gdk.Constants.KEY_bracketright when font_size is not null:
+					font_size.Value++;
 					return true;
 			}
 		}
@@ -1103,7 +861,11 @@ public sealed class TextTool : BaseTool
 
 	private void StartEditing ()
 	{
-		// Ensure we have an event handler added to finalize re-editable text for the document if the layer is cloned.
+		// A click inside the text while editing only moves the cursor: the undo state stays the one from when editing began.
+		if (is_editing)
+			return;
+
+		// Ensure we have an event handler added to commit the text if the layer is cloned.
 		workspace.ActiveDocument.LayerCloned -= FinalizeText;
 		workspace.ActiveDocument.LayerCloned += FinalizeText;
 
@@ -1130,7 +892,11 @@ public sealed class TextTool : BaseTool
 		ignore_clone_finalizations = false;
 	}
 
-	private void StopEditing (bool finalize)
+	/// <summary>
+	/// Stops editing and, as in Paint.NET, renders the text onto the layer as a single "Text" history item.
+	/// Undoing that item removes the text.
+	/// </summary>
+	private void StopEditing ()
 	{
 		im_context.SetClientWidget (null);
 
@@ -1142,44 +908,44 @@ public sealed class TextTool : BaseTool
 
 		is_editing = false;
 
-		// An empty text box that was empty when editing started changes nothing, so it gets no history items.
+		// An empty text box that was empty when editing started changes nothing, so it gets no history item.
 		if (CurrentTextEngine.State == TextMode.Uncommitted && CurrentTextEngine.IsEmpty () && undo_engine?.IsEmpty () != false)
 			CurrentTextEngine.State = TextMode.Unchanged;
 
-		//Make sure that neither undo surface is null, the user is editing, and there are uncommitted changes.
-		if (text_undo_surface != null && user_undo_surface != null && CurrentTextEngine.State == TextMode.Uncommitted) {
-			Document doc = workspace.ActiveDocument;
-
+		if (text_undo_surface is null || user_undo_surface is null || undo_engine is null || CurrentTextEngine.State != TextMode.Uncommitted) {
 			RedrawText (false, true);
-
-			//Start ignoring any Surface.Clone calls from this point on (so that it doesn't start to loop).
-			ignore_clone_finalizations = true;
-
-			//Create a new TextHistoryItem so that the committing of text can be undone.
-			doc.History.PushNewItem (
-				new TextHistoryItem (
-					workspace,
-					Icon,
-					Name,
-					text_undo_surface.Clone (),
-					user_undo_surface.Clone (),
-					undo_engine!.Clone (), // NRT - Set in StartEditing
-					doc.Layers.CurrentUserLayer
-				)
-			);
-
-			//Stop ignoring any Surface.Clone calls from this point on.
-			ignore_clone_finalizations = false;
-
-			//Now that the text has been committed, change its state.
-			CurrentTextEngine.State = TextMode.NotFinalized;
+			return;
 		}
 
-		RedrawText (false, true);
+		Document doc = workspace.ActiveDocument;
 
-		if (finalize) {
-			FinalizeText ();
-		}
+		//Start ignoring any Surface.Clone calls from this point on (so that it doesn't start to loop).
+		ignore_clone_finalizations = true;
+
+		//Draw the text onto the UserLayer (without the cursor) rather than the TextLayer.
+		RedrawText (false, false);
+
+		//Clear the TextLayer, the text and its boundaries.
+		doc.Layers.CurrentUserLayer.TextLayer.Layer.Clear ();
+		CurrentTextEngine.Clear ();
+		CurrentTextBounds = RectangleI.Zero;
+
+		doc.History.PushNewItem (
+			new TextHistoryItem (
+				workspace,
+				Icon,
+				Name,
+				text_undo_surface.Clone (),
+				user_undo_surface.Clone (),
+				undo_engine.Clone (),
+				doc.Layers.CurrentUserLayer
+			)
+		);
+
+		//Stop ignoring any Surface.Clone calls from this point on.
+		ignore_clone_finalizations = false;
+
+		selection = null;
 	}
 	#endregion
 
@@ -1197,56 +963,91 @@ public sealed class TextTool : BaseTool
 	}
 
 	/// <summary>
+	/// Applies the antialiasing and rendering mode to the text layout.
+	/// Smooth places glyphs at fractional positions with no hinting; the Sharp modes hint the outlines to the pixel grid.
+	/// </summary>
+	private void ApplyFontOptions ()
+	{
+		FontOptions options = new ();
+		options.Antialias = UseAntialiasing ? Antialias.Gray : Antialias.None;
+		(options.HintStyle, options.HintMetrics) = RenderingMode switch {
+			TextRenderingMode.SharpModern => (HintStyle.Slight, HintMetrics.On),
+			TextRenderingMode.SharpClassic => (HintStyle.Full, HintMetrics.On),
+			_ => (HintStyle.None, HintMetrics.Off),
+		};
+
+		Pango.Context context = chrome.MainWindow.GetPangoContext ();
+		PangoCairo.Functions.ContextSetFontOptions (context, options);
+		context.SetRoundGlyphPositions (RenderingMode != TextRenderingMode.Smooth);
+		CurrentTextLayout.Layout.ContextChanged ();
+	}
+
+	private void DrawLayout (Context g, Color color)
+	{
+		g.Antialias = UseAntialiasing ? Antialias.Gray : Antialias.None;
+		g.MoveTo (CurrentTextLayout.LayoutOrigin.X, CurrentTextLayout.LayoutOrigin.Y);
+		g.SetSourceColor (color);
+		PangoCairo.Functions.ShowLayout (g, CurrentTextLayout.Layout);
+	}
+
+	/// <summary>
 	/// Draws the text.
 	/// </summary>
 	/// <param name="showCursor">Whether or not to show the mouse cursor in the drawing.</param>
 	/// <param name="useTextLayer">Whether or not to use the TextLayer (as opposed to the Userlayer).</param>
 	private void RedrawText (bool showCursor, bool useTextLayer)
 	{
+		Document doc = workspace.ActiveDocument;
+		UserLayer layer = doc.Layers.CurrentUserLayer;
+
+		ApplyFontOptions ();
+
 		RectangleI r =
 			CurrentTextLayout
 			.GetLayoutBounds ()
-			.Inflated (10 + OutlineWidth, 10 + OutlineWidth);
+			.Inflated (10, 10);
 
 		InflateAndInvalidate (r);
 		CurrentTextBounds = r;
 
 		RectangleI cursorBounds = RectangleI.Zero;
 
-		ImageSurface surf;
-
 		if (!useTextLayer) {
-			//Draw text on the current UserLayer's surface as finalized text.
-			surf = workspace.ActiveDocument.Layers.CurrentUserLayer.Surface;
-		} else {
-			//Draw text on the current UserLayer's TextLayer's surface as re-editable text.
-			surf = workspace.ActiveDocument.Layers.CurrentUserLayer.TextLayer.Layer.Surface;
+			// Committing: draw the text on its own, then put it on the layer with the tool's blend mode,
+			// as if it were on a new layer merged down.
+			ImageSurface layerSurface = layer.Surface;
+			using ImageSurface text = CairoExtensions.CreateImageSurface (Format.Argb32, layerSurface.Width, layerSurface.Height);
+			using (Context tg = new (text)) {
+				selection?.Clip (tg);
+				DrawLayout (tg, CurrentTextEngine.PrimaryColor);
+			}
 
+			using Context g = new (layerSurface);
+
+			if (UseAlphaBlending) {
+				g.BlendSurface (text, SelectedBlendMode);
+			} else {
+				// Overwrite: the text's pixels replace the layer's wherever a glyph covers them.
+				using ImageSurface mask = CairoExtensions.CreateImageSurface (Format.Argb32, layerSurface.Width, layerSurface.Height);
+				using (Context mg = new (mask)) {
+					selection?.Clip (mg);
+					DrawLayout (mg, new Color (0, 0, 0));
+				}
+
+				g.Operator = Operator.Source;
+				g.SetSourceSurface (text, 0, 0);
+				g.MaskSurface (mask, 0, 0);
+			}
+		} else {
+			// Live text: drawn on the TextLayer, which the canvas blends onto the image with the tool's blend mode.
+			layer.TextLayer.Layer.BlendMode = UseAlphaBlending ? SelectedBlendMode : BlendMode.Normal;
+
+			ImageSurface surf = layer.TextLayer.Layer.Surface;
 			ClearTextLayer ();
-		}
 
-		using Context g = new (surf);
-
-		FontOptions options = new ();
-
-		if (UseAntialiasing) {
-			g.Antialias = Antialias.Gray; // Adjusts antialiasing JUST for the outline brush
-			options.Antialias = Antialias.Gray; // Adjusts antialiasing for PangoCairo's text draw function
-		} else {
-			g.Antialias = Antialias.None;
-			options.Antialias = Antialias.None;
-		}
-
-		g.Save ();
-		PangoCairo.Functions.ContextSetFontOptions (chrome.MainWindow.GetPangoContext (), options);
-
-
-		// Show selection if on text layer
-
-		if (useTextLayer) {
+			using Context g = new (surf);
 
 			// Selected Text
-
 			Color c = new (
 				R: 0.7,
 				G: 0.8,
@@ -1255,83 +1056,54 @@ public sealed class TextTool : BaseTool
 
 			foreach (RectangleI rect in CurrentTextLayout.GetSelectionRectangles ())
 				g.FillRectangle (rect.ToDouble (), c);
-		}
 
-		selection?.Clip (g);
+			g.Save ();
+			selection?.Clip (g);
+			DrawLayout (g, CurrentTextEngine.PrimaryColor);
 
-		g.MoveTo (CurrentTextLayout.LayoutOrigin.X, CurrentTextLayout.LayoutOrigin.Y);
+			if (showCursor) {
 
-		g.SetSourceColor (CurrentTextEngine.PrimaryColor);
+				RectangleI loc = CurrentTextLayout.GetCursorLocation ();
+				Color color = CurrentTextEngine.PrimaryColor;
 
-		//Fill in background
-		if (BackgroundFill) {
-			using Context g2 = new (surf);
-			selection?.Clip (g2);
-			g2.FillRectangle (CurrentTextLayout.GetLayoutBounds ().ToDouble (), CurrentTextEngine.SecondaryColor);
-		}
+				g.DrawLine (
+					new PointD (loc.X, loc.Y),
+					new PointD (loc.X, loc.Y + loc.Height),
+					color, 1);
 
-		// Draws the text stroke
-		if (StrokeText) {
-			g.SetSourceColor (FillText ? CurrentTextEngine.SecondaryColor : CurrentTextEngine.PrimaryColor);
-			g.LineWidth = OutlineWidth;
-			g.LineJoin = (Cairo.LineJoin) join_btn.SelectedIndex;
+				cursorBounds = loc;
+				cursorBounds = cursorBounds.Inflated (2, 10);
+			}
 
-			PangoCairo.Functions.LayoutPath (g, CurrentTextLayout.Layout);
-			g.Stroke ();
+			g.Restore ();
 
-			// Position resets after g.Stroke ();
-			if (FillText) {
-				g.MoveTo (CurrentTextLayout.LayoutOrigin.X, CurrentTextLayout.LayoutOrigin.Y);
-				g.SetSourceColor (CurrentTextEngine.PrimaryColor);
+			if ((is_editing || ctrl_key) && !CurrentTextEngine.IsEmpty ()) {
+
+				//Draw the text edit rectangle.
+
+				g.Save ();
+
+				g.Translate (.5, .5);
+
+				g.AppendPath (g.CreateRectanglePath (CurrentTextBounds.ToDouble ()));
+
+				g.LineWidth = 1;
+
+				g.SetSourceColor (new Color (1, 1, 1));
+				g.StrokePreserve ();
+
+				g.SetDash ([2, 4], 0);
+				g.SetSourceColor (new Color (1, .1, .2));
+
+				g.Stroke ();
+
+				g.Restore ();
 			}
 		}
 
-		// Draws the text fill
-		if (FillText) {
-			PangoCairo.Functions.ShowLayout (g, CurrentTextLayout.Layout);
-		}
+		UpdateNub (doc);
 
-		if (showCursor) {
-
-			RectangleI loc = CurrentTextLayout.GetCursorLocation ();
-			Color color = CurrentTextEngine.PrimaryColor;
-
-			g.DrawLine (
-				new PointD (loc.X, loc.Y),
-				new PointD (loc.X, loc.Y + loc.Height),
-				color, 1);
-
-			cursorBounds = loc;
-			cursorBounds = cursorBounds.Inflated (2, 10);
-		}
-
-		g.Restore ();
-
-
-		if (useTextLayer && (is_editing || ctrl_key) && !CurrentTextEngine.IsEmpty ()) {
-
-			//Draw the text edit rectangle.
-
-			g.Save ();
-
-			g.Translate (.5, .5);
-
-			g.AppendPath (g.CreateRectanglePath (CurrentTextBounds.ToDouble ()));
-
-			g.LineWidth = 1;
-
-			g.SetSourceColor (new Color (1, 1, 1));
-			g.StrokePreserve ();
-
-			g.SetDash ([2, 4], 0);
-			g.SetSourceColor (new Color (1, .1, .2));
-
-			g.Stroke ();
-
-			g.Restore ();
-		}
-
-		InflateAndInvalidate (workspace.ActiveDocument.Layers.CurrentUserLayer.PreviousTextBounds);
+		InflateAndInvalidate (layer.PreviousTextBounds);
 		workspace.Invalidate (old_cursor_bounds);
 		InflateAndInvalidate (r);
 		workspace.Invalidate (cursorBounds);
@@ -1339,59 +1111,29 @@ public sealed class TextTool : BaseTool
 		old_cursor_bounds = cursorBounds;
 	}
 
+	/// <summary>Shows the move nub at the bottom of the text cursor while editing, and hides it otherwise.</summary>
+	private void UpdateNub (Document doc)
+	{
+		doc.Workspace.InvalidateWindowRect (nub.InvalidateRect);
+
+		nub.Active = is_editing;
+		if (is_editing) {
+			RectangleI loc = CurrentTextLayout.GetCursorLocation ();
+			nub.CanvasPosition = new PointD (loc.X, loc.Y + loc.Height);
+			doc.Workspace.InvalidateWindowRect (nub.InvalidateRect);
+		}
+	}
+
 	/// <summary>
-	/// Finalize re-editable text (if applicable).
+	/// Commits the text when its layer is cloned, so the copy and the history get the finished pixels.
 	/// </summary>
 	public void FinalizeText ()
 	{
-		//If this is true, don't finalize any text - this is used to prevent the code from looping recursively.
+		//If this is true, don't commit any text - this is used to prevent the code from looping recursively.
 		if (ignore_clone_finalizations)
 			return;
 
-		//Only bother finalizing text if editing.
-		if (CurrentTextEngine.State == TextMode.Unchanged)
-			return;
-
-		//Start ignoring any Surface.Clone calls from this point on (so that it doesn't start to loop).
-		ignore_clone_finalizations = true;
-		Document doc = workspace.ActiveDocument;
-
-		//Create a backup of everything before redrawing the text and etc.
-		ImageSurface oldTextSurface = doc.Layers.CurrentUserLayer.TextLayer.Layer.Surface.Clone ();
-		ImageSurface oldUserSurface = doc.Layers.CurrentUserLayer.Surface.Clone ();
-		TextEngine oldTextEngine = CurrentTextEngine.Clone ();
-
-		//Draw the text onto the UserLayer (without the cursor) rather than the TextLayer.
-		RedrawText (false, false);
-
-		//Clear the TextLayer.
-		doc.Layers.CurrentUserLayer.TextLayer.Layer.Clear ();
-
-		//Clear the text and its boundaries.
-		CurrentTextEngine.Clear ();
-		CurrentTextBounds = RectangleI.Zero;
-
-		//Create a new TextHistoryItem so that the finalization of the text can be undone. Construct
-		//it on the spot so that it is more memory efficient if the changes are small.
-		TextHistoryItem hist = new (
-			workspace,
-			Icon,
-			FinalizeName,
-			oldTextSurface,
-			oldUserSurface,
-			oldTextEngine,
-			doc.Layers.CurrentUserLayer);
-
-		//Add the new TextHistoryItem.
-		doc.History.PushNewItem (hist);
-
-		//Stop ignoring any Surface.Clone calls from this point on.
-		ignore_clone_finalizations = false;
-
-		//Now that the text has been finalized, change its state.
-		CurrentTextEngine.State = TextMode.Unchanged;
-
-		selection = null;
+		StopEditing ();
 	}
 
 	private void InflateAndInvalidate (in RectangleI passedRectangle)
@@ -1415,8 +1157,8 @@ public sealed class TextTool : BaseTool
 		if (!is_editing)
 			return false;
 
-		// commit a history item to let the undo action undo text history item
-		StopEditing (false);
+		// Commit the text, so that the undo removes it.
+		StopEditing ();
 
 		return false;
 	}
@@ -1428,7 +1170,7 @@ public sealed class TextTool : BaseTool
 			return false;
 
 		//Commit a new TextHistoryItem.
-		StopEditing (false);
+		StopEditing ();
 
 		return true;
 	}

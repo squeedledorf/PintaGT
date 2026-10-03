@@ -49,6 +49,7 @@ public sealed partial class TextEngine
 
 	public TextAlignment Alignment { get; private set; }
 	public bool Underline { get; private set; }
+	public bool Strikethrough { get; private set; }
 
 	public TextPosition CurrentPosition => current_pos;
 
@@ -99,6 +100,7 @@ public sealed partial class TextEngine
 			SecondaryColor = secondary_color,
 			Alignment = Alignment,
 			Underline = Underline,
+			Strikethrough = Strikethrough,
 			Origin = new PointI (Origin.X, Origin.Y)
 		};
 
@@ -147,11 +149,12 @@ public sealed partial class TextEngine
 			ClearSelection ();
 	}
 
-	public void SetFont (Pango.FontDescription font, TextAlignment alignment, bool underline)
+	public void SetFont (Pango.FontDescription font, TextAlignment alignment, bool underline, bool strikethrough = false)
 	{
 		Font = font;
 		Alignment = alignment;
 		Underline = underline;
+		Strikethrough = strikethrough;
 		OnModified ();
 	}
 

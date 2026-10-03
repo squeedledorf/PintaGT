@@ -24,6 +24,25 @@ internal sealed class TextEngineTest
 	}
 
 	[Test]
+	public void Clone_Keeps_Underline_And_Strikethrough ()
+	{
+		TextEngine engine = new (["foo"]);
+		engine.SetFont (Pango.FontDescription.New (), TextAlignment.Center, underline: true, strikethrough: true);
+
+		TextEngine clone = engine.Clone ();
+
+		Assert.That (clone.Underline, Is.True);
+		Assert.That (clone.Strikethrough, Is.True);
+		Assert.That (clone.Alignment, Is.EqualTo (TextAlignment.Center));
+	}
+
+	[TestCase (12, 96, 16)]
+	[TestCase (12, 72, 12)]
+	[TestCase (18.3, 96, 24.4)]
+	public void Points_Scale_With_The_Image_Resolution (double points, double dpi, double pixels)
+		=> Assert.That (Pinta.Tools.TextTool.PointsToPixels (points, dpi), Is.EqualTo (pixels).Within (1e-9));
+
+	[Test]
 	public void PerformEnter ()
 	{
 		TextEngine engine = new (["foo", "bar"]);
