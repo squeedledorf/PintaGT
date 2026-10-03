@@ -180,19 +180,52 @@ partial class GtkExtensions
 		return menu;
 	}
 
-	public static Gtk.Scale CreateToolBarSlider (
+	/// <summary>
+	/// Paint.NET's percent bar (Hardness, Spacing, Tolerance...): "NN%" inside a filled bar, with − and + buttons.
+	/// </summary>
+	public static ToolBarSlider CreateToolBarSlider (
 		int min,
 		int max,
 		int step,
-		int val)
+		int val,
+		double curve = 1)
 	{
-		Gtk.Scale slider = Gtk.Scale.NewWithRange (Gtk.Orientation.Horizontal, min, max, step);
-		slider.WidthRequest = 150;
-		slider.DrawValue = true;
-		slider.ValuePos = Gtk.PositionType.Left;
-		slider.SetValue (val);
-		slider.SetCssClasses ([Styles.ToolBarScale]);
-		return slider;
+		return ToolBarSlider.New (min, max, step, val, curve);
+	}
+
+	/// <summary>
+	/// Puts a spin button's − and + outside its field, as Paint.NET's tool bar does for Brush size.
+	/// </summary>
+	public static Gtk.Box WithOuterStepButtons (this Gtk.SpinButton spin)
+	{
+		// The spin button's own step buttons are its Gtk.Button children.
+		for (Gtk.Widget? child = spin.GetFirstChild (); child is not null; child = child.GetNextSibling ())
+			if (child is Gtk.Button)
+				child.Visible = false;
+
+		Gtk.Button Step (string icon, Gtk.SpinType direction)
+		{
+			Gtk.Button button = Gtk.Button.NewFromIconName (icon);
+			button.AddCssClass (AdwaitaStyles.Flat);
+			button.FocusOnClick = false;
+			button.CanFocus = false;
+			button.Valign = Gtk.Align.Center;
+			button.OnClicked += (_, _) => spin.Spin (direction, 0);
+			return button;
+		}
+
+		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, 2);
+		box.Append (Step ("list-remove-symbolic", Gtk.SpinType.StepBackward));
+		box.Append (spin);
+		box.Append (Step ("list-add-symbolic", Gtk.SpinType.StepForward));
+
+		// Hiding the spin button hides its step buttons too.
+		spin.BindProperty (
+			Gtk.Widget.VisiblePropertyDefinition.UnmanagedName,
+			box,
+			Gtk.Widget.VisiblePropertyDefinition.UnmanagedName,
+			GObject.BindingFlags.SyncCreate);
+		return box;
 	}
 
 	public static void Toggle (this Gtk.ToggleButton button)

@@ -95,12 +95,22 @@ public sealed class PaintBrushTool : BaseBrushTool
 	}
 
 
+	protected override bool ShowDabOptions => true;
+
+	// The Normal brush is Paint.NET's brush; the other types draw their own way.
+	protected override bool PaintsWithDabs => active_brush is Brushes.PlainBrush;
+
+	protected override BrushTip Tip => TipDropDown.SelectedItem.GetTagOrDefault (BrushTip.Circle);
+
 	protected override void OnBuildToolBar (Box tb)
 	{
+		tb.Append (TipDropDown);
 		base.OnBuildToolBar (tb);
+	}
 
-		tb.Append (Separator);
-
+	protected override void OnBuildBrushToolBar (Box tb)
+	{
+		// The brush type sits where Paint.NET has its Fill dropdown, after the PDN options.
 		tb.Append (BrushLabel);
 		tb.Append (BrushComboBox);
 
@@ -110,6 +120,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 		if (active_brush is not null) {
 			active_brush.UpdateLineWidth (BrushWidthCeiling);
 		}
+		SetDabOptionsSensitive (PaintsWithDabs);
 	}
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
@@ -122,6 +133,36 @@ public sealed class PaintBrushTool : BaseBrushTool
 		active_brush?.DoMouseDown ();
 	}
 
+	// TODO: also multiply color by pressure
+	private Color StrokeColor (BasePaintBrush brush)
+	{
+		Color c = mouse_button == MouseButton.Right ? Palette.SecondaryColor : Palette.PrimaryColor;
+		return new (c.R, c.G, c.B, c.A * brush.StrokeAlphaMultiplier);
+	}
+
+	/// <summary>
+	/// Repaints the tool layer inside <paramref name="dirty"/> as the stroke color seen through the stroke mask.
+	/// </summary>
+	private void PaintDabs (Document document, RectangleI dirty, Color strokeColor)
+	{
+		if (dirty.IsEmpty || StrokeMask is null)
+			return;
+
+		using (Context g = document.CreateClippedToolContext ()) {
+			g.Rectangle (dirty.ToDouble ());
+			g.Clip ();
+			g.Operator = Operator.Clear;
+			g.Paint ();
+			g.Operator = Operator.Over;
+			g.SetSourceColor (strokeColor);
+			g.MaskSurface (StrokeMask, 0, 0);
+		}
+
+		surface_modified = true;
+		stroke_dirty_rect = stroke_dirty_rect?.Union (dirty) ?? dirty;
+		document.Workspace.Invalidate (dirty);
+	}
+
 	protected override void OnMouseMove (Document document, ToolMouseEventArgs e)
 	{
 		if (active_brush is null)
@@ -132,21 +173,12 @@ public sealed class PaintBrushTool : BaseBrushTool
 			return;
 		}
 
-		// TODO: also multiply color by pressure
-		Color strokeColor = mouse_button switch {
-			MouseButton.Right => new (
-				Palette.SecondaryColor.R,
-				Palette.SecondaryColor.G,
-				Palette.SecondaryColor.B,
-				Palette.SecondaryColor.A * active_brush.StrokeAlphaMultiplier
-			),
-			MouseButton.Left or _ => new (
-				Palette.PrimaryColor.R,
-				Palette.PrimaryColor.G,
-				Palette.PrimaryColor.B,
-				Palette.PrimaryColor.A * active_brush.StrokeAlphaMultiplier
-			)
-		};
+		Color strokeColor = StrokeColor (active_brush);
+
+		if (StrokeMask is not null) {
+			PaintDabs (document, StampDabs (e.PointDouble), strokeColor);
+			return;
+		}
 
 		if (!last_point.HasValue)
 			last_point = e.Point;
@@ -191,6 +223,9 @@ public sealed class PaintBrushTool : BaseBrushTool
 	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
 	{
 		CancelRepeatingDraw ();
+		if (active_brush is not null && mouse_button is (MouseButton.Left or MouseButton.Right))
+			PaintDabs (document, FinishDabStroke (), StrokeColor (active_brush));
+
 		using Context g = new (document.Layers.CurrentUserLayer.Surface);
 
 		document.Layers.ToolLayer.Draw (g);
@@ -218,6 +253,9 @@ public sealed class PaintBrushTool : BaseBrushTool
 		if (brush_combo_box is not null)
 			settings.PutSetting (SettingNames.PAINT_BRUSH_BRUSH, brush_combo_box.ComboBox.Active);
 
+		if (tip_button is not null)
+			settings.PutSetting (TIP_SETTING, tip_button.SelectedIndex);
+
 		if (active_brush is not null) {
 			foreach (var option in active_brush.Options) {
 				option.SaveValueToSettings (settings);
@@ -236,9 +274,23 @@ public sealed class PaintBrushTool : BaseBrushTool
 
 	private Label? brush_label;
 	private ToolBarComboBox? brush_combo_box;
-	private Gtk.Separator? separator;
+	private ToolBarDropDownButton? tip_button;
 
-	private Gtk.Separator Separator => separator ??= GtkExtensions.CreateToolBarSeparator ();
+	private const string TIP_SETTING = "paint-brush-tip";
+
+	// Paint.NET 4.4 added a square tip beside the circle one.
+	private ToolBarDropDownButton TipDropDown {
+		get {
+			if (tip_button is null) {
+				tip_button = ToolBarDropDownButton.New (showLabel: true);
+				tip_button.AddItem (Translations.GetString ("Circle"), Pinta.Resources.Icons.ToolEllipse, BrushTip.Circle);
+				tip_button.AddItem (Translations.GetString ("Square"), Pinta.Resources.Icons.ToolRectangle, BrushTip.Square);
+				tip_button.SelectedIndex = Math.Clamp (Settings.GetSetting (TIP_SETTING, 0), 0, 1);
+			}
+			return tip_button;
+		}
+	}
+
 	private Label BrushLabel => brush_label ??= Label.New (string.Format (" {0}:  ", Translations.GetString ("Type")));
 
 
@@ -252,6 +304,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 					if (active_brush is not null) {
 						active_brush.UpdateLineWidth (BrushWidthCeiling);
 					}
+					SetDabOptionsSensitive (PaintsWithDabs);
 				};
 
 				RebuildBrushComboBox ();

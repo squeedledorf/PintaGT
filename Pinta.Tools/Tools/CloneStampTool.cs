@@ -37,7 +37,6 @@ public sealed class CloneStampTool : BaseBrushTool
 	private MouseButton paint_button;
 	private PointI? origin = null;
 	private PointI? offset = null;
-	private PointI? last_point = null;
 
 	private readonly SystemManager system_manager;
 	private readonly IWorkspaceService workspace;
@@ -65,6 +64,7 @@ public sealed class CloneStampTool : BaseBrushTool
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_L);
 	public override int Priority => 29;
 	protected override bool ShowAntialiasingButton => true;
+	protected override bool ShowDabOptions => true;
 	public override IEnumerable<IToolHandle> Handles => [handle];
 
 	public override Cursor DefaultCursor {
@@ -106,6 +106,10 @@ public sealed class CloneStampTool : BaseBrushTool
 
 			surface_modified = false;
 			undo_surface = document.Layers.CurrentUserLayer.Surface.Clone ();
+
+			// A click without a drag stamps once.
+			BeginDabStroke (document);
+			OnMouseMove (document, e);
 		} else {
 			origin = e.Point;
 			offset = null;
@@ -126,29 +130,29 @@ public sealed class CloneStampTool : BaseBrushTool
 		if (!painting)
 			return;
 
-		if (!last_point.HasValue) {
-			last_point = e.Point;
+		Clone (document, StampDabs (e.PointDouble));
+	}
+
+	/// <summary>
+	/// Repaints the tool layer inside <paramref name="dirty"/> as the clone source seen through the stroke mask.
+	/// </summary>
+	private void Clone (Document document, RectangleI dirty)
+	{
+		if (dirty.IsEmpty || StrokeMask is null || !offset.HasValue)
 			return;
+
+		using (Cairo.Context g = document.CreateClippedToolContext ()) {
+			g.Rectangle (dirty.ToDouble ());
+			g.Clip ();
+			g.Operator = Cairo.Operator.Clear;
+			g.Paint ();
+			g.Operator = Cairo.Operator.Over;
+			g.SetSourceSurface (document.Layers.CurrentUserLayer.Surface, offset.Value.X, offset.Value.Y);
+			g.MaskSurface (StrokeMask, 0, 0);
 		}
 
-		using Cairo.Context g = document.CreateClippedToolContext ();
-		g.Antialias = UseAntialiasing ? Cairo.Antialias.Subpixel : Cairo.Antialias.None;
-
-		g.MoveTo (last_point.Value.X, last_point.Value.Y);
-		g.LineTo (x, y);
-
-		g.SetSourceSurface (document.Layers.CurrentUserLayer.Surface, offset.Value.X, offset.Value.Y);
-		g.LineWidth = BrushWidth;
-		g.LineCap = Cairo.LineCap.Round;
-
-		g.Stroke ();
-
-		int dirtyPadding = BrushWidthCeiling + 2;
-		RectangleI dirtyRect = RectangleI.FromPoints (last_point.Value, e.Point).Inflated (dirtyPadding, dirtyPadding);
-
-		last_point = e.Point;
 		surface_modified = true;
-		document.Workspace.Invalidate (dirtyRect);
+		document.Workspace.Invalidate (dirty);
 	}
 
 	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
@@ -156,6 +160,9 @@ public sealed class CloneStampTool : BaseBrushTool
 		// Releasing the other button does not end the stroke
 		if (painting && e.MouseButton != paint_button)
 			return;
+
+		if (painting)
+			Clone (document, FinishDabStroke ());
 
 		painting = false;
 
@@ -170,7 +177,6 @@ public sealed class CloneStampTool : BaseBrushTool
 		base.OnMouseUp (document, e);
 
 		// Note: the offset persists until the clone source is reselected.
-		last_point = null;
 
 		document.Layers.ToolLayer.Clear ();
 		document.Layers.ToolLayer.Hidden = true;

@@ -25,6 +25,7 @@
 // THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
 using Cairo;
 using Gtk;
 using Pinta.Core;
@@ -73,12 +74,47 @@ public abstract class BaseBrushTool : BaseTool
 	/// </summary>
 	internal const int BrushWidthLargeStep = 5;
 
+	/// <summary>
+	/// Whether the tool paints Paint.NET style dabs, with Hardness, Spacing and Smoothing options.
+	/// </summary>
+	protected virtual bool ShowDabOptions => false;
+
+	/// <summary>
+	/// Whether the next stroke is painted with dabs (see <see cref="StampDabs"/>).
+	/// </summary>
+	protected virtual bool PaintsWithDabs => ShowDabOptions;
+
+	/// <summary>
+	/// The shape of the dabs.
+	/// </summary>
+	protected virtual BrushTip Tip => BrushTip.Circle;
+
 	protected override void OnBuildToolBar (Box tb)
 	{
 		base.OnBuildToolBar (tb);
 
 		tb.Append (BrushWidthLabel);
-		tb.Append (BrushWidthSpinButton);
+		tb.Append (BrushWidthBox);
+
+		if (!ShowDabOptions)
+			return;
+
+		tb.Append (HardnessLabel);
+		tb.Append (HardnessSlider);
+		tb.Append (SpacingLabel);
+		tb.Append (SpacingSlider);
+
+		OnBuildBrushToolBar (tb);
+
+		tb.Append (DabSeparator);
+		tb.Append (SmoothingDropDown);
+	}
+
+	/// <summary>
+	/// Adds a dab tool's own options, after Spacing and before the Smoothing button.
+	/// </summary>
+	protected virtual void OnBuildBrushToolBar (Box tb)
+	{
 	}
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
@@ -90,6 +126,9 @@ public abstract class BaseBrushTool : BaseTool
 		surface_modified = false;
 		undo_surface = document.Layers.CurrentUserLayer.Surface.Clone ();
 		mouse_button = e.MouseButton;
+
+		if (PaintsWithDabs)
+			BeginDabStroke (document);
 
 		OnMouseMove (document, e);
 	}
@@ -103,6 +142,67 @@ public abstract class BaseBrushTool : BaseTool
 		surface_modified = false;
 		undo_surface = null;
 		mouse_button = MouseButton.None;
+		EndDabStroke ();
+	}
+
+	/// <summary>
+	/// Coverage of the current dab stroke: black pixels whose alpha is how much of each pixel the
+	/// stroke covers. Tools paint through it, recomputing the touched area from the undo surface,
+	/// so a pixel is never painted twice in one stroke.
+	/// </summary>
+	protected ImageSurface? StrokeMask => stroke_mask;
+
+	private ImageSurface? stroke_mask;
+	private BrushDabStroke? dab_stroke;
+
+	protected void BeginDabStroke (Document document)
+	{
+		stroke_mask?.Dispose ();
+		stroke_mask = CairoExtensions.CreateImageSurface (Format.Argb32, document.ImageSize.Width, document.ImageSize.Height);
+		dab_stroke = new BrushDabStroke (
+			BrushWidth,
+			HardnessSlider.GetValue () / 100,
+			SpacingSlider.GetValue () / 100,
+			Smoothing,
+			UseAntialiasing,
+			Tip);
+	}
+
+	/// <summary>
+	/// Stamps the dabs up to the pointer position into <see cref="StrokeMask"/>.
+	/// Returns the area that changed (empty when no dab landed on the image).
+	/// </summary>
+	protected RectangleI StampDabs (PointD position)
+		=> dab_stroke is null ? RectangleI.Zero : Stamp (dab_stroke.AddPoint (position));
+
+	/// <summary>
+	/// Stamps the end of the path that smoothing held back. Call before committing the stroke.
+	/// </summary>
+	protected RectangleI FinishDabStroke ()
+		=> dab_stroke is null ? RectangleI.Zero : Stamp (dab_stroke.Finish ());
+
+	protected void EndDabStroke ()
+	{
+		stroke_mask?.Dispose ();
+		stroke_mask = null;
+		dab_stroke = null;
+	}
+
+	private RectangleI Stamp (List<PointD> dabs)
+	{
+		if (stroke_mask is null || dab_stroke is null || dabs.Count == 0)
+			return RectangleI.Zero;
+
+		stroke_mask.Flush ();
+		Span<ColorBgra> data = stroke_mask.GetPixelData ();
+		RectangleI? dirty = null;
+		foreach (PointD dab in dabs) {
+			RectangleI r = dab_stroke.Stamp (data, stroke_mask.Width, stroke_mask.Height, dab);
+			if (!r.IsEmpty)
+				dirty = dirty?.Union (r) ?? r;
+		}
+		stroke_mask.MarkDirty ();
+		return dirty ?? RectangleI.Zero;
 	}
 
 	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
@@ -125,7 +225,16 @@ public abstract class BaseBrushTool : BaseTool
 
 		if (brush_width is not null)
 			settings.PutSetting (SettingNames.BrushWidth (this), brush_width.Value);
+		if (hardness_slider is not null)
+			settings.PutSetting (DabSettingName ("hardness"), (int) hardness_slider.GetValue ());
+		if (spacing_slider is not null)
+			settings.PutSetting (DabSettingName ("spacing"), (int) spacing_slider.GetValue ());
+		if (smoothing_button is not null)
+			settings.PutSetting (DabSettingName ("smoothing"), Smoothing);
 	}
+
+	private string DabSettingName (string option)
+		=> $"{GetType ().Name.ToLowerInvariant ()}-brush-{option}";
 
 	protected virtual void OnBrushWidthChanged ()
 	{
@@ -159,4 +268,60 @@ public abstract class BaseBrushTool : BaseTool
 	}
 
 	protected Label BrushWidthLabel => brush_width_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Brush size")));
+
+	private Box? brush_width_box;
+	private Box BrushWidthBox => brush_width_box ??= BrushWidthSpinButton.WithOuterStepButtons ();
+
+	// Paint.NET's defaults: Hardness 75%, Spacing 15%, smoothed path.
+	private const int DEFAULT_HARDNESS = 75;
+	private const int DEFAULT_SPACING = 15;
+	// Spacing runs to 500%, with the low values given most of the bar.
+	private const int MAX_SPACING = 500;
+	private const double SPACING_CURVE = 2;
+
+	private Label? hardness_label;
+	private Label? spacing_label;
+	private ToolBarSlider? hardness_slider;
+	private ToolBarSlider? spacing_slider;
+	private ToolBarDropDownButton? smoothing_button;
+	private Gtk.Separator? dab_separator;
+
+	protected Label HardnessLabel => hardness_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Hardness")));
+	protected Label SpacingLabel => spacing_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Spacing")));
+	private Gtk.Separator DabSeparator => dab_separator ??= GtkExtensions.CreateToolBarSeparator ();
+
+	protected ToolBarSlider HardnessSlider => hardness_slider ??= CreateDabSlider (
+		0, 100, Settings.GetSetting (DabSettingName ("hardness"), DEFAULT_HARDNESS), 1,
+		Translations.GetString ("Hardness of the brush edge. Ignored when antialiasing is off."));
+
+	protected ToolBarSlider SpacingSlider => spacing_slider ??= CreateDabSlider (
+		1, MAX_SPACING, Settings.GetSetting (DabSettingName ("spacing"), DEFAULT_SPACING), SPACING_CURVE,
+		Translations.GetString ("Distance between brush stamps, as a percentage of the brush size."));
+
+	private static ToolBarSlider CreateDabSlider (int min, int max, int value, double curve, string tooltip)
+	{
+		ToolBarSlider slider = GtkExtensions.CreateToolBarSlider (min, max, 1, Math.Clamp (value, min, max), curve);
+		slider.TooltipText = tooltip;
+		return slider;
+	}
+
+	/// <summary>
+	/// Greys out Hardness, Spacing and Smoothing, for brushes that do not paint dabs.
+	/// </summary>
+	protected void SetDabOptionsSensitive (bool sensitive)
+		=> HardnessSlider.Sensitive = SpacingSlider.Sensitive = SmoothingDropDown.Sensitive = sensitive;
+
+	protected bool Smoothing => SmoothingDropDown.SelectedItem.GetTagOrDefault (true);
+
+	private ToolBarDropDownButton SmoothingDropDown {
+		get {
+			if (smoothing_button is null) {
+				smoothing_button = ToolBarDropDownButton.New ();
+				smoothing_button.AddItem (Translations.GetString ("Unsmoothed path"), Pinta.Resources.Icons.ToolLine, false);
+				smoothing_button.AddItem (Translations.GetString ("Smoothed path"), Pinta.Resources.Icons.ToolFreeformShape, true);
+				smoothing_button.SelectedIndex = Settings.GetSetting (DabSettingName ("smoothing"), true) ? 1 : 0;
+			}
+			return smoothing_button;
+		}
+	}
 }

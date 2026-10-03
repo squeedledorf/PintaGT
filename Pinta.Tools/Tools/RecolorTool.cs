@@ -50,7 +50,6 @@ public class RecolorTool : BaseBrushTool
 		SecondaryColor = 1,
 	}
 
-	private PointI? last_point = null;
 	private BitMask? stencil;
 	private ColorBgra? sampled_color;
 
@@ -70,17 +69,16 @@ public class RecolorTool : BaseBrushTool
 	private SamplingMode Sampling => SamplingDropDown.SelectedItem.GetTagOrDefault (SamplingMode.Once);
 	public override int Priority => 31;
 
-	protected override void OnBuildToolBar (Box tb)
-	{
-		base.OnBuildToolBar (tb);
+	protected override bool ShowDabOptions => true;
 
-		tb.Append (Separator);
+	protected override void OnBuildBrushToolBar (Box tb)
+	{
+		// Paint.NET's order: Tolerance, then the sampling mode.
+		tb.Append (ToleranceLabel);
+		tb.Append (ToleranceSlider);
 
 		tb.Append (SamplingLabel);
 		tb.Append (SamplingDropDown);
-
-		tb.Append (ToleranceLabel);
-		tb.Append (ToleranceSlider);
 	}
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
@@ -102,10 +100,29 @@ public class RecolorTool : BaseBrushTool
 		if (stencil is null)
 			return;
 
-		if (mouse_button is not (MouseButton.Left or MouseButton.Right)) {
-			last_point = null;
+		if (mouse_button is not (MouseButton.Left or MouseButton.Right))
 			return;
-		}
+
+		Recolor (document, StampDabs (e.PointDouble));
+	}
+
+	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
+	{
+		if (stencil is not null && mouse_button is (MouseButton.Left or MouseButton.Right))
+			Recolor (document, FinishDabStroke ());
+
+		stencil = null;
+		base.OnMouseUp (document, e);
+	}
+
+	/// <summary>
+	/// Recomputes the layer inside <paramref name="dirty"/>: the original pixels, with the
+	/// recolored ones painted over them through the stroke mask.
+	/// </summary>
+	private void Recolor (Document document, RectangleI dirty)
+	{
+		if (dirty.IsEmpty || stencil is null || StrokeMask is null || undo_surface is null)
+			return;
 
 		ColorBgra primary = Palette.PrimaryColor.ToColorBgra ();
 		ColorBgra secondary = Palette.SecondaryColor.ToColorBgra ();
@@ -115,74 +132,55 @@ public class RecolorTool : BaseBrushTool
 		ColorBgra match;
 		ColorBgra replacement = left ? primary : secondary;
 
-		if (Sampling == SamplingMode.SecondaryColor) {
+		if (Sampling == SamplingMode.SecondaryColor)
 			match = left ? secondary : primary;
-		} else if (sampled_color.HasValue) {
+		else if (sampled_color.HasValue)
 			match = sampled_color.Value;
-		} else {
-			last_point = null;
+		else
 			return;
-		}
 
-		var x = e.Point.X;
-		var y = e.Point.Y;
+		surface_modified = true;
 
-		if (!last_point.HasValue)
-			last_point = new PointI (x, y);
-
-		if (document.Workspace.PointInCanvas (e.PointDouble))
-			surface_modified = true;
-
-		var surf = document.Layers.CurrentUserLayer.Surface;
 		var tmp_layer = document.Layers.ToolLayer.Surface;
-
-		int roiPadding = BrushWidthCeiling + 2;
-		RectangleI roi = RectangleI.FromPoints (last_point.Value, new PointI (x, y)).Inflated (roiPadding, roiPadding);
-
-		roi = workspace.ClampToImageSize (roi);
 		var myTolerance = (int) (Tolerance * 256);
 
 		tmp_layer.Flush ();
 
 		var tmp_data = tmp_layer.GetPixelData ();
 		var tmp_width = tmp_layer.Width;
-		var surf_data = surf.GetReadOnlyPixelData ();
-		var surf_width = surf.Width;
+		var orig_data = undo_surface.GetReadOnlyPixelData ();
+		var orig_width = undo_surface.Width;
 
 		// The stencil lets us know if we've already checked this
 		// pixel, providing a nice perf boost
-		// Maybe this should be changed to a BitVector2DSurfaceAdapter?
-		for (var i = roi.X; i <= roi.Right; i++)
-			for (var j = roi.Y; j <= roi.Bottom; j++) {
+		for (var i = dirty.Left; i <= dirty.Right; i++)
+			for (var j = dirty.Top; j <= dirty.Bottom; j++) {
 				if (stencil[i, j])
 					continue;
 
-				ColorBgra surf_color = surf_data[j * surf_width + i];
-				if (ColorBgra.ColorsWithinTolerance (match, surf_color, myTolerance))
-					tmp_data[j * tmp_width + i] = AdjustColorDifference (match, replacement, surf_color);
+				ColorBgra orig_color = orig_data[j * orig_width + i];
+				if (ColorBgra.ColorsWithinTolerance (match, orig_color, myTolerance))
+					tmp_data[j * tmp_width + i] = AdjustColorDifference (match, replacement, orig_color);
 
 				stencil[i, j] = true;
 			}
 
 		tmp_layer.MarkDirty ();
 
-		using Context g = document.CreateClippedContext ();
-		g.Antialias = UseAntialiasing ? Antialias.Subpixel : Antialias.None;
+		using (Context g = document.CreateClippedContext ()) {
+			g.Rectangle (dirty.ToDouble ());
+			g.Clip ();
 
-		g.MoveTo (last_point.Value.X, last_point.Value.Y);
-		g.LineTo (x, y);
+			g.Operator = Operator.Source;
+			g.SetSourceSurface (undo_surface, 0, 0);
+			g.Paint ();
 
-		g.LineWidth = BrushWidth;
-		g.LineJoin = LineJoin.Round;
-		g.LineCap = LineCap.Round;
+			g.Operator = Operator.Over;
+			g.SetSourceSurface (tmp_layer, 0, 0);
+			g.MaskSurface (StrokeMask, 0, 0);
+		}
 
-		g.SetSourceSurface (tmp_layer, 0, 0);
-
-		g.Stroke ();
-
-		document.Workspace.Invalidate (roi);
-
-		last_point = new PointI (x, y);
+		document.Workspace.Invalidate (dirty);
 	}
 
 	protected override void OnSaveSettings (ISettingsService settings)
@@ -217,12 +215,10 @@ public class RecolorTool : BaseBrushTool
 	#endregion
 
 	private Label? tolerance_label;
-	private Scale? tolerance_slider;
-	private Separator? separator;
+	private ToolBarSlider? tolerance_slider;
 
 	private Label ToleranceLabel => tolerance_label ??= Label.New (string.Format ("  {0}: ", Translations.GetString ("Tolerance")));
-	private Scale ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.RECOLOR_TOLERANCE, 50));
-	private Separator Separator => separator ??= GtkExtensions.CreateToolBarSeparator ();
+	private ToolBarSlider ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.RECOLOR_TOLERANCE, 50));
 
 	private Label? sampling_label;
 	private ToolBarDropDownButton? sampling_button;

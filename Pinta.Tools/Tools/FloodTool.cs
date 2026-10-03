@@ -47,7 +47,7 @@ public abstract class FloodTool : BaseTool
 	protected ToolBarDropDownButton? mode_button;
 	protected Separator? mode_sep;
 	protected Label? tolerance_label;
-	protected Scale? tolerance_slider;
+	protected ToolBarSlider? tolerance_slider;
 
 	public FloodTool (IServiceProvider services) : base (services) { }
 
@@ -126,7 +126,7 @@ public abstract class FloodTool : BaseTool
 
 	protected Label ModeLabel => mode_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Flood Mode")));
 	protected Label ToleranceLabel => tolerance_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Tolerance")));
-	protected Scale ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.FloodToolFillTolerance (this), 50));
+	protected ToolBarSlider ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.FloodToolFillTolerance (this), 50));
 	protected Separator Separator => mode_sep ??= GtkExtensions.CreateToolBarSeparator ();
 
 	protected ToolBarDropDownButton ModeDropDown {
