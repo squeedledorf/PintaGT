@@ -25,18 +25,38 @@
 // THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Gtk;
 
 namespace Pinta.Core;
 
 public sealed class RecentFileManager
 {
-	private Gio.File? last_dialog_directory;
+	/// <summary>Paint.NET's File > Open Recent holds the last ten images.</summary>
+	public const int MaxRecentFiles = 10;
+	private const string RECENT_FILES_SETTING = "recent-files";
 
-	public RecentFileManager ()
+	private Gio.File? last_dialog_directory;
+	private readonly ISettingsService? settings;
+	private List<string> recent_uris;
+
+	public RecentFileManager (ISettingsService? settings = null)
 	{
 		last_dialog_directory = DefaultDialogDirectory;
+		this.settings = settings;
+		// URIs never contain a raw newline, so one per line is a safe encoding for the string setting.
+		recent_uris = [.. (settings?.GetSetting (RECENT_FILES_SETTING, "") ?? "")
+			.Split ('\n', StringSplitOptions.RemoveEmptyEntries)
+			.Take (MaxRecentFiles)];
 	}
+
+	/// <summary>
+	/// The URIs of the images most recently opened or saved, newest first.
+	/// </summary>
+	public IReadOnlyList<string> RecentFiles => recent_uris;
+
+	public event EventHandler? RecentFilesChanged;
 
 	public Gio.File? LastDialogDirectory {
 		get => last_dialog_directory;
@@ -74,5 +94,42 @@ public sealed class RecentFileManager
 	public void AddFile (Gio.File file)
 	{
 		RecentManager.GetDefault ().AddItem (file.GetUri ());
+		Remember (file.GetUri ());
+	}
+
+	/// <summary>
+	/// Moves the URI to the top of the Open Recent list, dropping the oldest entry past ten.
+	/// </summary>
+	public void Remember (string uri)
+	{
+		recent_uris.Remove (uri);
+		recent_uris.Insert (0, uri);
+		if (recent_uris.Count > MaxRecentFiles)
+			recent_uris.RemoveRange (MaxRecentFiles, recent_uris.Count - MaxRecentFiles);
+		OnRecentFilesChanged ();
+	}
+
+	/// <summary>
+	/// Removes a URI from the Open Recent list, e.g. one that no longer opens.
+	/// </summary>
+	public void Forget (string uri)
+	{
+		if (recent_uris.Remove (uri))
+			OnRecentFilesChanged ();
+	}
+
+	/// <summary>
+	/// File > Open Recent > Clear this list.
+	/// </summary>
+	public void ClearRecentFiles ()
+	{
+		recent_uris.Clear ();
+		OnRecentFilesChanged ();
+	}
+
+	private void OnRecentFilesChanged ()
+	{
+		settings?.PutSetting (RECENT_FILES_SETTING, string.Join ('\n', recent_uris));
+		RecentFilesChanged?.Invoke (this, EventArgs.Empty);
 	}
 }

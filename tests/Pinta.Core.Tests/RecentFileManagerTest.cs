@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 
 namespace Pinta.Core.Tests;
@@ -27,5 +29,40 @@ internal sealed class RecentFileManagerTest
 			Environment.SetEnvironmentVariable ("XDG_CONFIG_HOME", old_config);
 			Directory.Delete (home, true);
 		}
+	}
+
+	[Test]
+	public void RecentFiles_NewestFirstNoDuplicatesTenMax ()
+	{
+		FakeSettings settings = new ();
+		RecentFileManager recent = new (settings);
+
+		for (int i = 0; i < 12; i++)
+			recent.Remember ($"file:///img{i}.png");
+		recent.Remember ("file:///img5.png");
+
+		Assert.That (recent.RecentFiles, Has.Count.EqualTo (RecentFileManager.MaxRecentFiles));
+		Assert.That (recent.RecentFiles[0], Is.EqualTo ("file:///img5.png"));
+		Assert.That (recent.RecentFiles.Count (u => u == "file:///img5.png"), Is.EqualTo (1));
+		Assert.That (recent.RecentFiles, Does.Not.Contain ("file:///img0.png"));
+
+		// The list survives a restart through the settings.
+		Assert.That (new RecentFileManager (settings).RecentFiles, Is.EqualTo (recent.RecentFiles));
+
+		recent.Forget ("file:///img5.png");
+		Assert.That (recent.RecentFiles, Does.Not.Contain ("file:///img5.png"));
+
+		recent.ClearRecentFiles ();
+		Assert.That (new RecentFileManager (settings).RecentFiles, Is.Empty);
+	}
+
+	private sealed class FakeSettings : ISettingsService
+	{
+		private readonly Dictionary<string, object> values = [];
+		public T GetSetting<T> (string key, T defaultValue) => values.TryGetValue (key, out object? v) ? (T) v : defaultValue;
+		public string GetUserSettingsDirectory () => Path.GetTempPath ();
+		public void PutSetting (string key, object value) => values[key] = value;
+		public event EventHandler? SaveSettingsBeforeQuit { add { } remove { } }
+		public event EventHandler<SettingChangedEventArgs>? SettingChanged { add { } remove { } }
 	}
 }

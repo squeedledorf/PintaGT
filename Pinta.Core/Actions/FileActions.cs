@@ -39,6 +39,17 @@ public sealed class FileActions
 	public Command Save { get; }
 	public Command SaveAs { get; }
 	public Command Print { get; }
+	public Command ClearRecent { get; }
+
+	/// <summary>
+	/// Opens entry N (the action target) of the Open Recent submenu.
+	/// </summary>
+	public Gio.SimpleAction OpenRecent { get; }
+
+	/// <summary>
+	/// The entries section of File > Open Recent, filled in by whoever handles <see cref="OpenRecent"/>.
+	/// </summary>
+	public Gio.Menu RecentMenu { get; } = Gio.Menu.New ();
 
 	public event EventHandler<ModifyCompressionEventArgs>? ModifyCompression;
 
@@ -106,6 +117,15 @@ public sealed class FileActions
 			Resources.StandardIcons.DocumentPrint,
 			shortcuts: ["<Primary>P"]);
 
+		// Paint.NET has no Ctrl shortcut for Open Recent; it is reached with Alt+F, R.
+		ClearRecent = new Command (
+			"ClearRecent",
+			Translations.GetString ("Clear this list"),
+			null,
+			Resources.StandardIcons.WindowClose);
+
+		OpenRecent = Gio.SimpleAction.New ("OpenRecent", GtkExtensions.IntVariantType);
+
 		this.system = system;
 		this.app = app;
 		this.window = window;
@@ -115,14 +135,21 @@ public sealed class FileActions
 	{
 		bool isMac = system.OperatingSystem == OS.Mac;
 
-		// Paint.NET order: New, Open, Acquire | Save, Save As, Save All | Print... | Close | Exit
+		// Paint.NET order: New, Open, Open Recent, Acquire | Save, Save As, Save All | Print... | Close | Exit
 		Gio.Menu acquire_menu = Gio.Menu.New ();
 		acquire_menu.AppendItem (NewScreenshot.CreateMenuItem ());
+
+		Gio.Menu recent_menu = Gio.Menu.New ();
+		recent_menu.AppendSection (null, RecentMenu);
+		Gio.Menu clear_section = Gio.Menu.New ();
+		clear_section.AppendItem (ClearRecent.CreateMenuItem ());
+		recent_menu.AppendSection (null, clear_section);
 
 		Gio.Menu open_section = Gio.Menu.New ();
 		open_section.AppendItem (New.CreateMenuItem ());
 		open_section.AppendItem (Open.CreateMenuItem ());
-		open_section.AppendSubmenu (Translations.GetString ("Acquire"), acquire_menu);
+		open_section.AppendSubmenu (Translations.GetString ("Open _Recent"), recent_menu);
+		open_section.AppendSubmenu (WithAccessLetter (Translations.GetString ("Acquire"), 'q'), acquire_menu);
 
 		Gio.Menu save_section = Gio.Menu.New ();
 		save_section.AppendItem (Save.CreateMenuItem ());
@@ -154,7 +181,17 @@ public sealed class FileActions
 			SaveAs,
 
 			Close,
-			Print]);
+			Print,
+			ClearRecent]);
+		application.AddAction (OpenRecent);
+	}
+
+	// Paint.NET's access letters where the automatic first-letter choice differs (Acquire is Alt+F, Q).
+	// The letter is only marked when the translation still contains it.
+	private static string WithAccessLetter (string label, char letter)
+	{
+		int index = label.IndexOf (letter, StringComparison.OrdinalIgnoreCase);
+		return index < 0 ? label : label.Insert (index, "_");
 	}
 
 	public void RegisterHandlers () { }

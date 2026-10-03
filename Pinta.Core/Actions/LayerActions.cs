@@ -396,6 +396,41 @@ public sealed class LayerActions
 		doc.History.PushNewItem (hist);
 	}
 
+	/// <summary>
+	/// Moves a layer of the active document to another position (both are layer indices, 0 = bottom)
+	/// and selects it, as one "Move Layer" history item. Used by drag-and-drop in the Layers window.
+	/// </summary>
+	public void MoveLayer (int fromIndex, int toIndex)
+	{
+		Document doc = workspace.ActiveDocument;
+		int count = doc.Layers.UserLayers.Count;
+		if (fromIndex == toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= count || toIndex >= count)
+			return;
+
+		tools.Commit ();
+
+		if (doc.Layers.CurrentUserLayerIndex != fromIndex)
+			doc.Layers.SetCurrentUserLayer (fromIndex);
+
+		CompoundHistoryItem hist = new (
+			toIndex > fromIndex ? Resources.StandardIcons.LayerMoveUp : Resources.StandardIcons.LayerMoveDown,
+			Translations.GetString ("Move Layer"));
+
+		while (doc.Layers.CurrentUserLayerIndex < toIndex) {
+			int index = doc.Layers.CurrentUserLayerIndex;
+			hist.Push (new SwapLayersHistoryItem (string.Empty, string.Empty, index, index + 1));
+			doc.Layers.MoveCurrentLayerUp ();
+		}
+
+		while (doc.Layers.CurrentUserLayerIndex > toIndex) {
+			int index = doc.Layers.CurrentUserLayerIndex;
+			hist.Push (new SwapLayersHistoryItem (string.Empty, string.Empty, index, index - 1));
+			doc.Layers.MoveCurrentLayerDown ();
+		}
+
+		doc.History.PushNewItem (hist);
+	}
+
 	private void HandleMoveLayerToBottomActivated (object sender, EventArgs e)
 	{
 		Document doc = workspace.ActiveDocument;

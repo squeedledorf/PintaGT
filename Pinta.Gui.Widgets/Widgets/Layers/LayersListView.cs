@@ -41,6 +41,10 @@ public sealed partial class LayersListView
 	private Document? active_document;
 	private bool changing_selection = false;
 
+	// Drag-and-drop reordering: the list position being dragged, or -1.
+	private const string DRAG_MARKER = "pinta-layer";
+	private int drag_from = -1;
+
 	public static new LayersListView New ()
 		=> NewWithProperties ([]);
 
@@ -84,12 +88,41 @@ public sealed partial class LayersListView
 		PintaCore.Workspace.ActiveDocumentChanged += HandleActiveDocumentChanged;
 	}
 
-	private static void HandleFactorySetup (
+	private void HandleFactorySetup (
 		Gtk.SignalListItemFactory factory,
 		Gtk.SignalListItemFactory.SetupSignalArgs args)
 	{
 		var item = (Gtk.ListItem) args.Object;
-		item.SetChild (LayersListViewItemWidget.New ());
+		LayersListViewItemWidget widget = LayersListViewItemWidget.New ();
+		item.SetChild (widget);
+
+		// Paint.NET 5 reorders layers by dragging a row onto another row's place.
+		Gtk.DragSource dragSource = Gtk.DragSource.New ();
+		dragSource.SetActions (Gdk.DragAction.Move);
+		double dragX = 0, dragY = 0;
+		dragSource.OnPrepare += (_, prepareArgs) => {
+			drag_from = (int) item.Position;
+			(dragX, dragY) = (prepareArgs.X, prepareArgs.Y);
+			return Gdk.ContentProvider.NewForValue (new GObject.Value (DRAG_MARKER));
+		};
+		dragSource.OnDragBegin += (source, _) => source.SetIcon (Gtk.WidgetPaintable.New (widget), (int) dragX, (int) dragY);
+		dragSource.OnDragEnd += (_, _) => drag_from = -1;
+		widget.AddController (dragSource);
+
+		Gtk.DropTarget dropTarget = Gtk.DropTarget.New (GObject.Type.String, Gdk.DragAction.Move);
+		// Decline other drags (text, files) so they reach the window's own drop target instead.
+		dropTarget.OnAccept += (_, _) => drag_from >= 0;
+		dropTarget.OnDrop += (_, dropArgs) => {
+			// Only rows dragged within this list are accepted.
+			if (drag_from < 0 || active_document is null || dropArgs.Value.GetString () != DRAG_MARKER)
+				return false;
+
+			// The list shows the top layer first.
+			int last = active_document.Layers.UserLayers.Count - 1;
+			PintaCore.Actions.Layers.MoveLayer (last - drag_from, last - (int) item.Position);
+			return true;
+		};
+		widget.AddController (dropTarget);
 	}
 
 	private static void HandleFactoryBind (

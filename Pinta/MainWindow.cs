@@ -860,13 +860,16 @@ internal sealed class MainWindow
 				file = Gio.FileHelper.NewForUri (decodedUri);
 			}
 
-			PintaCore.Workspace.OpenFile (file);
+			if (!PintaCore.Workspace.OpenFile (file))
+				continue;
 
 			if (file.GetUriScheme () is string scheme &&
 			   (scheme.StartsWith ("http") || scheme.StartsWith ("ftp"))) {
 				// If the file was likely dragged from a browser, mark as not having a file
 				// so that the user must choose a new file to save to instead of hitting a permission error.
 				PintaCore.Workspace.ActiveDocument.ClearFileReference ();
+			} else {
+				PintaCore.RecentFiles.AddFile (file);
 			}
 		}
 
