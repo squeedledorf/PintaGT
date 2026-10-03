@@ -433,15 +433,30 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 			content.Append (label);
 			content.Append (ToolImage);
 
-			Gtk.Box list = Gtk.Box.New (Gtk.Orientation.Vertical, 0);
+			// A list box gives arrow keys, Home/End and Enter for free.
+			Gtk.ListBox list = Gtk.ListBox.New ();
+			list.SelectionMode = Gtk.SelectionMode.Browse;
+			list.AddCssClass ("navigation-sidebar");
 
 			Gtk.Popover popover = Gtk.Popover.New ();
 			popover.Child = list;
+			List<BaseTool> listed = [];
 			// Rebuild on every show, since add-ins can add or remove tools.
 			popover.OnShow += (_, _) => {
 				list.RemoveAll ();
-				foreach (BaseTool tool in tools)
-					list.Append (CreateToolListItem (tool, popover));
+				listed = [.. tools.OrderBy (t => DropdownOrder (t.Priority))];
+				foreach (BaseTool tool in listed) {
+					Gtk.ListBoxRow row = CreateToolListItem (tool);
+					list.Append (row);
+					if (tool == CurrentTool) {
+						list.SelectRow (row);
+						row.GrabFocus ();
+					}
+				}
+			};
+			list.OnRowActivated += (_, args) => {
+				popover.Popdown ();
+				SetCurrentTool (listed[args.Row.GetIndex ()]);
 			};
 
 			tool_menu_button = Gtk.MenuButton.New ();
@@ -454,22 +469,27 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 		}
 	}
 
-	private Gtk.Button CreateToolListItem (BaseTool tool, Gtk.Popover popover)
+	private static Gtk.ListBoxRow CreateToolListItem (BaseTool tool)
 	{
-		Gtk.Box row = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
-		row.Append (Gtk.Image.NewFromIconName (tool.Icon));
-		row.Append (Gtk.Label.New (tool.Name));
+		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
+		box.Append (Gtk.Image.NewFromIconName (tool.Icon));
+		box.Append (Gtk.Label.New (tool.Name));
 
-		Gtk.Button item = Gtk.Button.New ();
-		item.Child = row;
-		item.HasFrame = false;
-		item.OnClicked += (_, _) => {
-			popover.Popdown ();
-			SetCurrentTool (tool);
-		};
-
-		return item;
+		Gtk.ListBoxRow row = Gtk.ListBoxRow.New ();
+		row.Child = box;
+		return row;
 	}
+
+	/// <summary>
+	/// Paint.NET lists its tools by group in the Tool dropdown: the four selection tools, then the
+	/// move and view tools. The tool box shows those in two columns (left: odd priorities 1, 5, 9, 13;
+	/// right: 3, 7, 11, 15), so the dropdown takes the left column first. Later tools keep their order.
+	/// </summary>
+	internal static int DropdownOrder (int priority)
+		=> priority is >= 1 and < 17 && priority % 2 == 1
+		? (priority % 4 == 1 ? priority / 4 : 4 + priority / 4)
+		: priority;
+
 	private Gtk.Separator ToolSeparator => tool_sep ??= GtkExtensions.CreateToolBarSeparator ();
 	private Gtk.Box ToolWidgetsBox => tool_widgets_box ??= Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 	// Scroll the toolbar contents if they are very long (e.g. the line/curve tool).
