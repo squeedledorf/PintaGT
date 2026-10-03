@@ -65,7 +65,7 @@ public abstract class BaseTransformTool : BaseTool
 	private DragMode mode = DragMode.None;
 	private int active_nub;
 	private bool using_mouse = false;
-	private long pivot_hover_since = -1; // Environment.TickCount64 when the pointer reached the pivot, or -1.
+	private long pivot_hover_since = -1; // Environment.TickCount64 when the pointer reached the pivot, -1 when off it, or long.MaxValue until it leaves.
 	private uint pivot_dwell_timer = 0;
 	private PointD last_hover_point;
 
@@ -129,6 +129,10 @@ public abstract class BaseTransformTool : BaseTool
 			if (mode == DragMode.Pivot)
 				return;
 		}
+
+		// The pivot travels with the pixels, so after a move drag the pointer rests on it again.
+		// It stays a move target until the pointer leaves the pivot and comes back.
+		pivot_hover_since = long.MaxValue;
 
 		IsCopying = e.IsControlPressed;
 		using_mouse = true;
