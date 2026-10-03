@@ -129,7 +129,13 @@ public abstract class SelectTool : BaseTool
 		if (plain_click && DrawMode != SelectionDrawMode.FixedSize && handle.Active && handle.BeginDrag (e.PointDouble, document.ImageSize))
 			return;
 
-		// Start drawing a new shape.
+		// Start drawing a new shape. A Width/Height still being typed is only committed on Enter or
+		// focus-out, and clicking the canvas does neither, so commit it now.
+		if (DrawMode != SelectionDrawMode.AnySize) {
+			SizeWidthSpin.Update ();
+			SizeHeightSpin.Update ();
+		}
+
 		combine_mode = PintaCore.Workspace.SelectionHandler.DetermineCombineMode (e);
 
 		draw_anchor = AdjustMousePosition (document, e.PointDouble);
