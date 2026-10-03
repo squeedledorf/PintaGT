@@ -459,12 +459,21 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 				popover.Popdown ();
 				SetCurrentTool (listed[args.Row.GetIndex ()]);
 			};
+			// GTK hands focus back to the button on close; send it to the canvas instead, so Enter
+			// and tool letters reach the canvas rather than reopening the list or typing into a box.
+			popover.OnClosed += (_, _) => GLib.Functions.IdleAdd (0, () => {
+				if (workspace_manager.HasOpenDocuments)
+					workspace_manager.ActiveWorkspace.GrabFocusToCanvas ();
+
+				return false;
+			});
 
 			tool_menu_button = Gtk.MenuButton.New ();
 			tool_menu_button.Child = content;
 			tool_menu_button.Popover = popover;
 			tool_menu_button.HasFrame = false;
 			tool_menu_button.AlwaysShowArrow = true;
+			tool_menu_button.FocusOnClick = false;
 			label.MnemonicWidget = tool_menu_button;
 
 			return tool_menu_button;
