@@ -140,8 +140,8 @@ public sealed partial class LayersListViewItemWidget
 	{
 		Gtk.DrawingArea itemThumbnail = Gtk.DrawingArea.New ();
 		itemThumbnail.SetDrawFunc ((area, context, width, height) => DrawThumbnail (context, width, height));
-		itemThumbnail.WidthRequest = 60;
-		itemThumbnail.HeightRequest = 40;
+		itemThumbnail.WidthRequest = 42; // Paint.NET's 42x32 layer thumbnails.
+		itemThumbnail.HeightRequest = 32;
 
 		Gtk.Label itemLabel = Gtk.Label.New (string.Empty);
 		itemLabel.Halign = Gtk.Align.Start;
@@ -159,7 +159,9 @@ public sealed partial class LayersListViewItemWidget
 
 		// --- Initialization (Gtk.Widget)
 
+		// Paint.NET's roomy layer rows: about 50px for a 32px thumbnail.
 		this.SetAllMargins (2);
+		MarginTop = MarginBottom = 8;
 		this.AddController (menuGesture);
 
 		// --- Initialization (Gtk.Box)
@@ -299,9 +301,8 @@ public sealed partial class LayersListViewItemWidget
 
 		g.Restore ();
 
-		// TODO: scale this box correctly to match layer aspect ratio
-		g.SetSourceColor (new Color (0.5, 0.5, 0.5));
-		g.Rectangle (offset.X + 0.5, offset.Y + 0.5, draw_width, draw_height);
+		g.SetSourceColor (new Color (0.75, 0.75, 0.75));
+		g.Rectangle (offset.X + 0.5, offset.Y + 0.5, draw_width - 1, draw_height - 1);
 		g.LineWidth = 1;
 
 		g.Stroke ();

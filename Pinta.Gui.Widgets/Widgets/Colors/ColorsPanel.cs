@@ -7,7 +7,7 @@ namespace Pinta.Gui.Widgets;
 
 /// <summary>
 /// A compact Colors window in the style of Paint.NET 5: primary/secondary squares with an
-/// active-slot notch, a live colour wheel with a brightness bar, a "More >>" section with
+/// active-slot notch, a live colour wheel, a "More >>" section with
 /// RGB/hex/HSV/alpha sliders, and the palette strip with its menu.
 /// Left clicks on the wheel or palette set the active slot, right clicks the inactive one.
 /// </summary>
@@ -19,10 +19,9 @@ public sealed partial class ColorsPanel
 	private const int PALETTE_COLUMNS = 16;
 	private const int CELL = 12;
 	private const int COLLAPSED_ROWS = 2;
-	private const int WHEEL_SIZE = 136;
+	private const int WHEEL_SIZE = 144; // A 140px wheel, as in Paint.NET.
 	private const int WHEEL_RADIUS = WHEEL_SIZE / 2 - 2;
 	private const int WHEEL_TOP = 30;
-	private const int VALUE_BAR_WIDTH = 12;
 	private const int SLIDER_WIDTH = 110;
 
 	private static readonly RectangleD primary_rect = new (2, 2, 32, 32);
@@ -38,7 +37,6 @@ public sealed partial class ColorsPanel
 
 	private Gtk.DrawingArea swatches = null!;
 	private Gtk.DrawingArea wheel = null!;
-	private Gtk.DrawingArea value_bar = null!;
 	private Gtk.DrawingArea palette_area = null!;
 	private Gtk.Button more_button = null!;
 	private Gtk.Box details = null!;
@@ -106,7 +104,7 @@ public sealed partial class ColorsPanel
 
 	private Gtk.Box BuildMainColumn ()
 	{
-		// Wheel and brightness bar, with the swatches and More button floating over its top corners.
+		// The wheel, with the swatches and More button floating over its top corners.
 		swatches = Gtk.DrawingArea.New ();
 		swatches.SetSizeRequest (54, 54);
 		swatches.Halign = Gtk.Align.Start;
@@ -122,6 +120,7 @@ public sealed partial class ColorsPanel
 		more_button.Halign = Gtk.Align.End;
 		more_button.Valign = Gtk.Align.Start;
 		more_button.FocusOnClick = false;
+		more_button.AddCssClass ("pdn-push-button");
 		more_button.OnClicked += (_, _) => {
 			expanded = !expanded;
 			settings.PutSetting (EXPANDED_SETTING, expanded);
@@ -134,19 +133,10 @@ public sealed partial class ColorsPanel
 		wheel.TooltipText = Translations.GetString ("Left click to set the active color, right click to set the other one. Ctrl: hue only. Alt: saturation only. Shift: snap the hue.");
 		AddDrag (wheel, PickFromWheel);
 
-		value_bar = Gtk.DrawingArea.New ();
-		// Starts a little lower so the More button floating above it does not cover it.
-		value_bar.SetSizeRequest (VALUE_BAR_WIDTH, WHEEL_SIZE - 8);
-		value_bar.Valign = Gtk.Align.End;
-		value_bar.SetDrawFunc ((_, g, w, h) => DrawValueBar (g, w, h));
-		value_bar.TooltipText = Translations.GetString ("Brightness");
-		AddDrag (value_bar, PickFromValueBar);
-
 		Gtk.Box wheelRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 4);
 		wheelRow.Halign = Gtk.Align.End;
 		wheelRow.MarginTop = WHEEL_TOP;
 		wheelRow.Append (wheel);
-		wheelRow.Append (value_bar);
 
 		Gtk.Overlay top = Gtk.Overlay.New ();
 		top.SetChild (wheelRow);
@@ -157,6 +147,7 @@ public sealed partial class ColorsPanel
 		add_color = Gtk.ToggleButton.New ();
 		add_color.SetChild (IconArea (DrawAddColorIcon));
 		add_color.AddCssClass (AdwaitaStyles.Flat);
+		add_color.AddCssClass ("pdn-flat-button");
 		add_color.FocusOnClick = false;
 		add_color.TooltipText = Translations.GetString ("Add Color: click a palette swatch to replace it with the active color");
 
@@ -171,10 +162,13 @@ public sealed partial class ColorsPanel
 		paletteButton.SetChild (IconArea (DrawPaletteIcon));
 		paletteButton.AlwaysShowArrow = true;
 		paletteButton.AddCssClass (AdwaitaStyles.Flat);
+		paletteButton.AddCssClass ("pdn-flat-button");
 		paletteButton.MenuModel = paletteMenu;
 		paletteButton.TooltipText = Translations.GetString ("Palettes");
 
-		Gtk.Box paletteRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 2);
+		Gtk.Box paletteRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+		add_color.Valign = Gtk.Align.Center;
+		paletteButton.Valign = Gtk.Align.Center;
 		paletteRow.Append (add_color);
 		paletteRow.Append (paletteButton);
 
@@ -304,12 +298,6 @@ public sealed partial class ColorsPanel
 		SetSlotColor (drag_targets_active, Color.FromHsv (hsv, current.A), released);
 	}
 
-	private void PickFromValueBar (PointD point, Gdk.ModifierType state, bool released)
-	{
-		double value = Math.Clamp (1 - point.Y / value_bar.GetHeight (), 0, 1);
-		SetSlotColor (drag_targets_active, DragTargetColor.CopyHsv (value: value), released);
-	}
-
 	private void ApplyExpanded ()
 	{
 		more_button.Label = expanded ? Translations.GetString ("<< Less") : Translations.GetString ("More >>");
@@ -343,7 +331,6 @@ public sealed partial class ColorsPanel
 
 		swatches.QueueDraw ();
 		wheel.QueueDraw ();
-		value_bar.QueueDraw ();
 	}
 
 	// --- Swatches
@@ -491,19 +478,13 @@ public sealed partial class ColorsPanel
 		g.Restore ();
 	}
 
-	// --- Wheel and brightness bar
+	// --- Wheel
 
 	private void DrawWheel (Context g)
 	{
 		wheel_cache ??= RenderWheel ();
 		g.SetSourceSurface (wheel_cache, 0, 0);
 		g.Paint ();
-
-		g.Antialias = Antialias.Default;
-		g.SetSourceColor (new Color (0.5, 0.5, 0.5));
-		g.LineWidth = 1;
-		g.Arc (WHEEL_SIZE / 2.0, WHEEL_SIZE / 2.0, WHEEL_RADIUS + 0.5, 0, 2 * Math.PI);
-		g.Stroke ();
 
 		// Cursor: a small ring at the active colour's hue/saturation.
 		PointD c = ColorWheel.HsvToOffset (ActiveColor.ToHsv (), WHEEL_RADIUS);
@@ -534,27 +515,6 @@ public sealed partial class ColorsPanel
 
 		surface.MarkDirty ();
 		return surface;
-	}
-
-	private void DrawValueBar (Context g, int width, int height)
-	{
-		HsvColor hsv = ActiveColor.ToHsv ();
-		RectangleD r = new (0, 0, width, height);
-
-		using LinearGradient gradient = new (0, 0, 0, height);
-		gradient.AddColorStop (0, Color.FromHsv (hsv with { Val = 1 }));
-		gradient.AddColorStop (1, new Color (0, 0, 0));
-		g.Rectangle (r);
-		g.SetSource (gradient);
-		g.Fill ();
-		g.DrawRectangle (r, new Color (0.5, 0.5, 0.5), 1);
-
-		// Marker: a dark and a light line at the current brightness.
-		double y = Math.Round ((1 - hsv.Val) * (height - 3)) + 1;
-		g.FillRectangle (new RectangleD (0, y - 1, width, 3), new Color (0, 0, 0));
-		g.FillRectangle (new RectangleD (1, y, width - 2, 1), new Color (1, 1, 1));
-
-		g.Dispose ();
 	}
 
 	// --- Palette
@@ -616,23 +576,36 @@ public sealed partial class ColorsPanel
 
 	// --- Icons for the palette buttons
 
+	// Paint.NET draws both as small framed tiles.
+	private static void DrawTile (Context g, Color fill)
+	{
+		g.FillRectangle (new RectangleD (0, 0, 16, 16), new Color (0.62, 0.62, 0.62));
+		g.FillRectangle (new RectangleD (1, 1, 14, 14), fill);
+	}
+
 	private static void DrawAddColorIcon (Context g)
 	{
-		// A black swatch with a green plus, like Paint.NET's Add Color button.
-		g.FillRectangle (new RectangleD (1, 1, 11, 11), new Color (0, 0, 0));
-		g.FillRectangle (new RectangleD (9, 6, 2, 10), new Color (0.2, 0.7, 0.2));
-		g.FillRectangle (new RectangleD (5, 10, 10, 2), new Color (0.2, 0.7, 0.2));
+		// A black tile with a white plus at its bottom right.
+		DrawTile (g, new Color (0, 0, 0));
+		Color edge = new (0.25, 0.55, 0.5);
+		g.FillRectangle (new RectangleD (9, 5, 4, 10), edge);
+		g.FillRectangle (new RectangleD (6, 8, 10, 4), edge);
+		g.FillRectangle (new RectangleD (10, 6, 2, 8), new Color (1, 1, 1));
+		g.FillRectangle (new RectangleD (7, 9, 8, 2), new Color (1, 1, 1));
 		g.Dispose ();
 	}
 
 	private static void DrawPaletteIcon (Context g)
 	{
-		// Four coloured quarters in a frame.
-		g.FillRectangle (new RectangleD (1, 1, 14, 14), new Color (0.35, 0.35, 0.35));
-		g.FillRectangle (new RectangleD (2, 2, 6, 6), new Color (0.9, 0.2, 0.2));
-		g.FillRectangle (new RectangleD (8, 2, 6, 6), new Color (0.95, 0.8, 0.1));
-		g.FillRectangle (new RectangleD (2, 8, 6, 6), new Color (0.2, 0.6, 0.95));
-		g.FillRectangle (new RectangleD (8, 8, 6, 6), new Color (0.3, 0.8, 0.3));
+		// A white tile holding a 3x3 grid of colours.
+		DrawTile (g, new Color (1, 1, 1));
+		Color[] cells = [
+			new (0.45, 0.25, 0.65), new (0.35, 0.3, 0.75), new (0.25, 0.45, 0.9),
+			new (0.9, 0.35, 0.15), new (1, 1, 1), new (0.3, 0.55, 0.95),
+			new (0.98, 0.75, 0.1), new (0.4, 0.7, 0.25), new (0.15, 0.6, 0.45),
+		];
+		for (int i = 0; i < cells.Length; i++)
+			g.FillRectangle (new RectangleD (2 + (i % 3) * 4, 2 + (i / 3) * 4, 4, 4), cells[i]);
 		g.Dispose ();
 	}
 }

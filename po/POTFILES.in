@@ -208,13 +208,10 @@ Pinta.Core/PaletteFormats/PaletteDescriptor.cs
 Pinta.Core/PintaCore.cs
 Pinta.Core/SettingNames.cs
 Pinta.Core/Widgets/ToolBarDropDownButton.cs
-Pinta.Docking/Dock.cs
-Pinta.Docking/DockItem.cs
 Pinta.Docking/DockNotebook.cs
-Pinta.Docking/DockPanel.cs
-Pinta.Docking/DockPlacement.cs
+Pinta.Docking/FloatingPanel.cs
 Pinta.Docking/IDockNotebookItem.cs
-Pinta.Docking/SettingNames.cs
+Pinta.Docking/PanelArea.cs
 Pinta.Effects/Adjustments/AutoLevelEffect.cs
 Pinta.Effects/Adjustments/BlackAndWhiteEffect.cs
 Pinta.Effects/Adjustments/BrightnessContrastEffect.cs
@@ -310,7 +307,6 @@ Pinta.Gui.Widgets/Widgets/PintaColorButton.cs
 Pinta.Gui.Widgets/Widgets/PointPickerGraphic.cs
 Pinta.Gui.Widgets/Widgets/PointPickerWidget.cs
 Pinta.Gui.Widgets/Widgets/Ruler.cs
-Pinta.Gui.Widgets/Widgets/StatusBarColorPaletteWidget.cs
 Pinta.Gui.Widgets/Widgets/ToolBoxWidget.cs
 Pinta.Resources/Icons.cs
 Pinta.Resources/ResourceManager.cs
@@ -403,8 +399,6 @@ Pinta/Actions/View/EditCanvasGridAction.cs
 Pinta/Actions/View/ImageTabsToggledAction.cs
 Pinta/Actions/View/StatusBarToggledAction.cs
 Pinta/Actions/View/ToolBarToggledAction.cs
-Pinta/Actions/View/ToolBoxToggledAction.cs
-Pinta/Actions/View/ToolWindowsToggledAction.cs
 Pinta/Actions/Window/CloseAllDocumentsAction.cs
 Pinta/Actions/Window/SaveAllDocumentsAction.cs
 Pinta/AddinSetupService.cs
@@ -428,9 +422,7 @@ Pinta/MacInterop/Environment.cs
 Pinta/Main.cs
 Pinta/MainWindow.cs
 Pinta/Messages/ActionOptions.cs
-Pinta/Pads/CanvasPad.cs
 Pinta/Pads/HistoryPad.cs
-Pinta/Pads/IDockPad.cs
 Pinta/Pads/LayersPad.cs
 Pinta/SettingNames.cs
 Pinta/WindowShell.cs

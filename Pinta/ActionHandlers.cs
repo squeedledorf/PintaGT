@@ -57,7 +57,7 @@ public sealed class ActionHandlers
 			new SaveDocumentAsAction (actions.File, workspace),
 			new SaveDocumentImplmentationAction (actions.File, actions.Image, chrome, imageFormats, recentFiles, tools),
 			new ModifyCompressionAction (actions.File),
-			//new PrintDocumentAction ();
+			new PrintDocumentAction (actions.File, chrome, workspace, tools),
 			new CloseDocumentAction (actions, chrome, workspace, tools),
 			new ExitProgramAction (actions, chrome, workspace),
 
@@ -81,9 +81,7 @@ public sealed class ActionHandlers
 			// View
 			new ToolBarToggledAction (actions.View, chrome),
 			new ImageTabsToggledAction (actions.View, chrome),
-			new ToolWindowsToggledAction (actions.View, chrome),
 			new StatusBarToggledAction (actions.View, chrome),
-			new ToolBoxToggledAction (actions.View, chrome),
 			new ColorSchemeChangedAction (settings),
 			new EditCanvasGridAction (actions.View, chrome, canvasGrid),
 

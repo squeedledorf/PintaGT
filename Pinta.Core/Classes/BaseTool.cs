@@ -121,6 +121,13 @@ public abstract class BaseTool
 		=> Gdk.Key.Invalid;
 
 	/// <summary>
+	/// Tools in the same group share one Tools window button, which shows the group's icon and
+	/// switches to the member used last (Paint.NET's single Shapes tool). Null for a button of its own.
+	/// </summary>
+	public virtual ToolBoxGroup? ToolBoxGroup
+		=> null;
+
+	/// <summary>
 	/// Affects the order of the tool in the toolbox. Lower numbers will appear first.
 	/// </summary>
 	public virtual int Priority
@@ -427,3 +434,6 @@ public abstract class BaseTool
 	internal void DoMouseUp (Document document, ToolMouseEventArgs args) => OnMouseUp (document, args);
 	#endregion
 }
+
+/// <summary>A set of tools sharing one Tools window button. See <see cref="BaseTool.ToolBoxGroup"/>.</summary>
+public sealed record ToolBoxGroup (string Name, string Icon);

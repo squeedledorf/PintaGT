@@ -41,6 +41,7 @@ public sealed class RectangleTool : ShapeTool
 
 	public override string Name => Translations.GetString ("Rectangle");
 	public override string Icon => Pinta.Resources.Icons.ToolRectangle;
+	public override ToolBoxGroup ToolBoxGroup => ShapesGroup;
 	public override Gdk.Cursor DefaultCursor { get; }
 	public override int Priority => 37;
 

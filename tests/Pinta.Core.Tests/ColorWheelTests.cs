@@ -8,9 +8,9 @@ internal sealed class ColorWheelTests
 	private const double R = 100;
 
 	[TestCase (100, 0, 0, 1)] // 3 o'clock is red
-	[TestCase (0, -50, 90, 0.5)] // hue runs anticlockwise on screen (y down)
+	[TestCase (0, 50, 90, 0.5)] // hue runs clockwise on screen (y down)
 	[TestCase (-100, 0, 180, 1)]
-	[TestCase (0, 100, 270, 1)]
+	[TestCase (0, -100, 270, 1)]
 	[TestCase (300, 0, 0, 1)] // outside the rim clamps to full saturation
 	public void PointToHueAndSat (double x, double y, double hue, double sat)
 	{
@@ -36,7 +36,7 @@ internal sealed class ColorWheelTests
 	[Test]
 	public void CtrlKeepsSaturation ()
 	{
-		HsvColor hsv = ColorWheel.OffsetToHsv (new (0, -R), R, new HsvColor (10, 0.3, 1), keepSat: true);
+		HsvColor hsv = ColorWheel.OffsetToHsv (new (0, R), R, new HsvColor (10, 0.3, 1), keepSat: true);
 		Assert.That (hsv.Hue, Is.EqualTo (90).Within (1e-9));
 		Assert.That (hsv.Sat, Is.EqualTo (0.3));
 	}
@@ -44,13 +44,13 @@ internal sealed class ColorWheelTests
 	[Test]
 	public void AltKeepsHueAndProjectsOntoSpoke ()
 	{
-		// Current spoke points up (hue 90); a pointer up-right projects to y only.
-		HsvColor hsv = ColorWheel.OffsetToHsv (new (40, -60), R, new HsvColor (90, 1, 1), keepHue: true);
+		// Current spoke points down (hue 90); a pointer down-right projects to y only.
+		HsvColor hsv = ColorWheel.OffsetToHsv (new (40, 60), R, new HsvColor (90, 1, 1), keepHue: true);
 		Assert.That (hsv.Hue, Is.EqualTo (90));
 		Assert.That (hsv.Sat, Is.EqualTo (0.6).Within (1e-9));
 
 		// Behind the centre clamps to grey rather than flipping hue.
-		Assert.That (ColorWheel.OffsetToHsv (new (0, 50), R, new HsvColor (90, 1, 1), keepHue: true).Sat, Is.EqualTo (0));
+		Assert.That (ColorWheel.OffsetToHsv (new (0, -50), R, new HsvColor (90, 1, 1), keepHue: true).Sat, Is.EqualTo (0));
 	}
 
 	[Test]
@@ -70,7 +70,7 @@ internal sealed class ColorWheelTests
 	public void ShiftSnapsHue (double degrees, double expected)
 	{
 		double rad = degrees * System.Math.PI / 180;
-		PointD p = new (System.Math.Cos (rad) * 50, -System.Math.Sin (rad) * 50);
+		PointD p = new (System.Math.Cos (rad) * 50, System.Math.Sin (rad) * 50);
 		Assert.That (ColorWheel.OffsetToHsv (p, R, HsvColor.White, snapHue: true).Hue, Is.EqualTo (expected).Within (1e-9));
 	}
 }

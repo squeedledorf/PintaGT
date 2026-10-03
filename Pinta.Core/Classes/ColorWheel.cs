@@ -4,7 +4,7 @@ namespace Pinta.Core;
 
 /// <summary>
 /// Geometry of a hue/saturation colour wheel laid out like Paint.NET's:
-/// red at 3 o'clock, hue increasing anticlockwise on screen (yellow up and to the right), saturation 0 at the centre and 1 on the rim.
+/// red at 3 o'clock, hue increasing clockwise on screen (yellow down and to the right, magenta up and to the right), saturation 0 at the centre and 1 on the rim.
 /// Offsets are in screen coordinates (y down) relative to the wheel's centre.
 /// </summary>
 public static class ColorWheel
@@ -16,7 +16,7 @@ public static class ColorWheel
 		double rad = hsv.Hue * Math.PI / 180;
 		return new (
 			Math.Cos (rad) * hsv.Sat * radius,
-			-Math.Sin (rad) * hsv.Sat * radius);
+			Math.Sin (rad) * hsv.Sat * radius);
 	}
 
 	/// <param name="keepSat">Ctrl: only the hue changes (stay on the current radius).</param>
@@ -30,7 +30,7 @@ public static class ColorWheel
 		bool keepHue = false,
 		bool snapHue = false)
 	{
-		double hue = Math.Atan2 (-offset.Y, offset.X) * 180 / Math.PI;
+		double hue = Math.Atan2 (offset.Y, offset.X) * 180 / Math.PI;
 		if (snapHue)
 			hue = Math.Round (hue / SNAP_DEGREES) * SNAP_DEGREES;
 		hue = (hue % 360 + 360) % 360;

@@ -24,64 +24,61 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 using System;
-using Gtk;
 using Pinta.Core;
 
 namespace Pinta.Actions;
 
-#if false // TODO - printing is not yet enabled, and needs to be ported to GTK4
-public class PrintDocumentAction : IActionHandler
+/// <summary>
+/// File > Print (Ctrl+P): prints the flattened image on one page, centred and scaled down to fit.
+/// </summary>
+internal sealed class PrintDocumentAction : IActionHandler
 {
-#region IActionHandler implementation
+	private readonly FileActions file;
+	private readonly ChromeManager chrome;
+	private readonly WorkspaceManager workspace;
+	private readonly ToolManager tools;
 
-	public void Initialize ()
+	internal PrintDocumentAction (FileActions file, ChromeManager chrome, WorkspaceManager workspace, ToolManager tools)
 	{
-		PintaCore.Actions.File.Print.Activated += HandleActivated;
+		this.file = file;
+		this.chrome = chrome;
+		this.workspace = workspace;
+		this.tools = tools;
 	}
 
-	public void Uninitialize ()
+	void IActionHandler.Initialize () => file.Print.Activated += Activated;
+
+	void IActionHandler.Uninitialize () => file.Print.Activated -= Activated;
+
+	private void Activated (object? sender, EventArgs e)
 	{
-		PintaCore.Actions.File.Print.Activated -= HandleActivated;
-	}
+		if (!workspace.HasOpenDocuments)
+			return;
 
-#endregion
+		tools.Commit ();
+		Document doc = workspace.ActiveDocument;
 
-	void HandleActivated (object sender, EventArgs e)
-	{
-		// Commit any pending changes.
-		PintaCore.Tools.Commit ();
+		Gtk.PrintOperation op = Gtk.PrintOperation.New ();
+		op.SetNPages (1);
+		op.SetJobName (doc.DisplayName);
+		op.OnDrawPage += (_, args) => DrawPage (doc, args.Context);
 
-		var op = new PrintOperation ();
-		op.BeginPrint += HandleBeginPrint;
-		op.DrawPage += HandleDrawPage;
-
-		var result = op.Run (PrintOperationAction.PrintDialog, PintaCore.Chrome.MainWindow);
-
-		if (result == PrintOperationResult.Apply) {
-			// TODO - save print settings.
-		} else if (result == PrintOperationResult.Error) {
-			// TODO - show a proper dialog.
-			System.Console.WriteLine ("Printing error");
+		try {
+			op.Run (Gtk.PrintOperationAction.PrintDialog, chrome.MainWindow);
+		} catch (GLib.GException ex) {
+			_ = chrome.ShowErrorDialog (chrome.MainWindow, Translations.GetString ("Printing failed"), ex.Message, ex.ToString ());
 		}
 	}
 
-	void HandleDrawPage (object o, DrawPageArgs args)
+	private static void DrawPage (Document doc, Gtk.PrintContext context)
 	{
-		var doc = PintaCore.Workspace.ActiveDocument;
+		using Cairo.ImageSurface image = doc.GetFlattenedImage ();
+		Cairo.Context g = context.GetCairoContext ();
 
-		// TODO - support scaling to fit page, centering image, etc.
-
-		using var surface = doc.GetFlattenedImage ();
-		using var context = args.Context.CairoContext;
-		context.SetSourceSurface (surface, 0, 0);
-		context.Paint ();
-	}
-
-	void HandleBeginPrint (object o, BeginPrintArgs args)
-	{
-		PrintOperation op = (PrintOperation) o;
-		op.NPages = 1;
+		double scale = Math.Min (1, Math.Min (context.GetWidth () / image.Width, context.GetHeight () / image.Height));
+		g.Translate ((context.GetWidth () - image.Width * scale) / 2, (context.GetHeight () - image.Height * scale) / 2);
+		g.Scale (scale, scale);
+		g.SetSourceSurface (image, 0, 0);
+		g.Paint ();
 	}
 }
-#endif
-

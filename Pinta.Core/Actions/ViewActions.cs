@@ -42,7 +42,10 @@ public sealed class ViewActions
 	public ToggleCommand ToolWindows { get; }
 	public Command EditCanvasGrid { get; }
 	public ToggleCommand StatusBar { get; }
-	public ToggleCommand ToolBox { get; }
+	public ToggleCommand ToolsWindow { get; }
+	public ToggleCommand HistoryWindow { get; }
+	public ToggleCommand LayersWindow { get; }
+	public ToggleCommand ColorsWindow { get; }
 	public ToggleCommand Rulers { get; }
 	public ToggleCommand PixelGrid { get; }
 	public Gio.SimpleAction RulerMetric { get; }
@@ -109,7 +112,7 @@ public sealed class ViewActions
 
 		ImageTabs = new ToggleCommand (
 			"ImageTabs",
-			Translations.GetString ("Image Tabs"),
+			Translations.GetString ("Image List"),
 			null,
 			null);
 
@@ -132,11 +135,34 @@ public sealed class ViewActions
 			null,
 			null);
 
-		ToolBox = new ToggleCommand (
-			"ToolBox",
-			Translations.GetString ("Tool Box"),
+		// Paint.NET's floating windows, toggled with F5–F8 and the buttons at the right of the menu row.
+		ToolsWindow = new ToggleCommand (
+			"ToolsWindow",
+			Translations.GetString ("Tools"),
 			null,
-			null);
+			Resources.Icons.WindowTools,
+			shortcuts: ["F5"]);
+
+		HistoryWindow = new ToggleCommand (
+			"HistoryWindow",
+			Translations.GetString ("History"),
+			null,
+			Resources.Icons.WindowHistory,
+			shortcuts: ["F6"]);
+
+		LayersWindow = new ToggleCommand (
+			"LayersWindow",
+			Translations.GetString ("Layers"),
+			null,
+			Resources.Icons.WindowLayers,
+			shortcuts: ["F7"]);
+
+		ColorsWindow = new ToggleCommand (
+			"ColorsWindow",
+			Translations.GetString ("Colors"),
+			null,
+			Resources.Icons.WindowColors,
+			shortcuts: ["F8"]);
 
 		Rulers = new ToggleCommand (
 			"Rulers",
@@ -159,7 +185,7 @@ public sealed class ViewActions
 			"Fullscreen",
 			Translations.GetString ("Fullscreen"),
 			null,
-			Resources.StandardIcons.DocumentNew,
+			Resources.StandardIcons.ViewFullscreen,
 			shortcuts: ["F11"]);
 
 		ZoomCollection = default_zoom_levels;
@@ -170,7 +196,10 @@ public sealed class ViewActions
 		ImageTabs.Value = true;
 		ToolWindows.Value = true;
 		StatusBar.Value = true;
-		ToolBox.Value = true;
+		ToolsWindow.Value = true;
+		HistoryWindow.Value = true;
+		LayersWindow.Value = true;
+		ColorsWindow.Value = true;
 
 		this.chrome = chrome;
 		this.workspace = workspace;
@@ -229,7 +258,10 @@ public sealed class ViewActions
 
 		Gio.Menu show_hide_menu = Gio.Menu.New ();
 		show_hide_menu.AppendItem (StatusBar.CreateMenuItem ());
-		show_hide_menu.AppendItem (ToolBox.CreateMenuItem ());
+		show_hide_menu.AppendItem (ToolsWindow.CreateMenuItem ());
+		show_hide_menu.AppendItem (HistoryWindow.CreateMenuItem ());
+		show_hide_menu.AppendItem (LayersWindow.CreateMenuItem ());
+		show_hide_menu.AppendItem (ColorsWindow.CreateMenuItem ());
 		show_hide_menu.AppendItem (ImageTabs.CreateMenuItem ());
 		show_hide_menu.AppendItem (ToolWindows.CreateMenuItem ());
 		if (mainToolbarPresent) show_hide_menu.AppendItem (ToolBar.CreateMenuItem ());
@@ -255,7 +287,10 @@ public sealed class ViewActions
 			PixelGrid,
 			Rulers,
 			StatusBar,
-			ToolBox,
+			ToolsWindow,
+			HistoryWindow,
+			LayersWindow,
+			ColorsWindow,
 			ImageTabs,
 			ToolWindows,
 		]);
@@ -267,11 +302,55 @@ public sealed class ViewActions
 			app.AddCommand (ToolBar);
 	}
 
+	// Paint.NET's status bar zoom: the % box, Zoom to Window, then − slider +. The slider is logarithmic.
 	public void CreateStatusBar (Gtk.Box statusbar)
 	{
-		statusbar.Append (ZoomOut.CreateToolBarItem ());
+		// "3,600%", as narrow as Paint.NET's box.
+		ZoomComboBox.ComboBox.GetEntry ().WidthChars = 6;
+		ZoomComboBox.ComboBox.GetEntry ().MaxWidthChars = 6;
+		// Paint.NET shows the zoom as plain, editable text; the presets live in the zoom buttons and View menu.
+		if (ZoomComboBox.ComboBox.GetFirstChild ()?.GetLastChild () is Gtk.Button presets)
+			presets.Visible = false;
 		statusbar.Append (ZoomComboBox);
+		statusbar.Append (ZoomToWindow.CreateToolBarItem ());
+		statusbar.Append (ZoomOut.CreateToolBarItem ());
+		statusbar.Append (zoom_slider);
 		statusbar.Append (ZoomIn.CreateToolBarItem ());
+	}
+
+	private readonly Gtk.Scale zoom_slider = CreateZoomSlider ();
+	private bool updating_zoom_slider;
+
+	private static Gtk.Scale CreateZoomSlider ()
+	{
+		Gtk.Scale slider = Gtk.Scale.NewWithRange (Gtk.Orientation.Horizontal, Math.Log (MIN_ZOOM), Math.Log (MAX_ZOOM), 0.01);
+		slider.DrawValue = false;
+		slider.WidthRequest = 100;
+		slider.FocusOnClick = false;
+		slider.TooltipText = Translations.GetString ("Zoom");
+		return slider;
+	}
+
+	private const double MIN_ZOOM = 0.01;
+	private const double MAX_ZOOM = 36;
+
+	private void UpdateZoomSlider ()
+	{
+		if (!workspace.HasOpenDocuments)
+			return;
+
+		updating_zoom_slider = true;
+		zoom_slider.SetValue (Math.Log (Math.Clamp (workspace.Scale, MIN_ZOOM, MAX_ZOOM)));
+		updating_zoom_slider = false;
+	}
+
+	private void HandleZoomSliderChanged ()
+	{
+		if (updating_zoom_slider || !workspace.HasOpenDocuments)
+			return;
+
+		// Typing the zoom into the box applies it the same way as the % box does.
+		ZoomComboBox.ComboBox.GetEntry ().SetText (ToPercent (Math.Exp (zoom_slider.GetValue ())));
 	}
 
 	public void RegisterHandlers ()
@@ -279,6 +358,10 @@ public sealed class ViewActions
 		ZoomIn.Activated += HandlePintaCoreActionsViewZoomInActivated;
 		ZoomOut.Activated += HandlePintaCoreActionsViewZoomOutActivated;
 		ZoomComboBox.ComboBox.OnChanged += HandlePintaCoreActionsViewZoomComboBoxComboBoxChanged;
+
+		zoom_slider.OnValueChanged += (_, _) => HandleZoomSliderChanged ();
+		workspace.ViewSizeChanged += (_, _) => UpdateZoomSlider ();
+		workspace.ActiveDocumentChanged += (_, _) => UpdateZoomSlider ();
 
 		Gtk.EventControllerFocus focus_controller = Gtk.EventControllerFocus.New ();
 		focus_controller.OnEnter += Entry_FocusInEvent;

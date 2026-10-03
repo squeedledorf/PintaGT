@@ -1,22 +1,37 @@
-/* Paint.NET 5 density: Segoe-UI-sized 9pt text everywhere, tight menus. */
+/* Paint.NET 5 density: 9pt Segoe UI everywhere, tight menus. Where Segoe UI is missing, Selawik
+   (its open metric twin) or Liberation Sans keep the narrower set width ("Adjustments" ~66px). */
 window, popover {
+    font-family: "Segoe UI", "Selawik", "Liberation Sans", sans-serif;
     font-size: 9pt;
 }
 
-popovermenubar {
+menubar {
     min-height: 0;
     padding: 0;
 }
 
-popovermenubar > item {
+menubar > item {
     min-height: 0;
-    padding: 3px 7px;
+    padding: 6px 6px 7px;
     border-radius: 0;
 }
 
+menubar > item:hover, menubar > item:selected {
+    background-color: alpha(#0078d7, 0.18);
+}
+
+/* Square Win32 menus: no rounded popover, no arrow, a thin grey frame. */
 popover.menu > contents {
     padding: 2px;
-    border-radius: 4px;
+    border-radius: 0;
+    box-shadow: 0 0 0 1px alpha(@window_fg_color, 0.3), 2px 2px 3px alpha(black, 0.2);
+}
+
+popover.menu > arrow {
+    background: none;
+    border: none;
+    min-width: 0;
+    min-height: 0;
 }
 
 popover.menu modelbutton {
@@ -25,73 +40,26 @@ popover.menu modelbutton {
     border-radius: 0;
 }
 
+popover.menu modelbutton:hover, popover.menu modelbutton:selected {
+    background-color: alpha(#0078d7, 0.18);
+}
+
+/* Short, light Windows-style tooltips. */
+tooltip {
+    border-radius: 0;
+    padding: 2px 5px;
+    background-color: @view_bg_color;
+    color: @view_fg_color;
+    box-shadow: none;
+    border: 1px solid alpha(@window_fg_color, 0.45);
+}
+
+tooltip > box > label {
+    font-size: 9pt;
+}
+
 popover.menu separator {
     margin: 2px 0;
-}
-
-/* Compact Paint.NET-style toolbox: 16px icons in a two-column grid. */
-.tool-box-button {
-    -gtk-icon-size: 16px;
-    min-width: 22px;
-    min-height: 22px;
-    padding: 2px;
-    margin: 1px;
-}
-
-.tool-box-button:checked {
-    background-color: alpha(@accent_bg_color, 0.25);
-    box-shadow: inset 0 0 0 1px @accent_color;
-}
-
-/* Compact toolbar rows. */
-#main_toolbar, #tool_toolbar {
-    padding: 2px;
-}
-
-/* Fixed tool options height (as in Paint.NET), so the canvas does not jump when switching tools.
-   Spin buttons are 24px; the tolerance slider is pulled in with negative margins to fit. */
-#tool_toolbar {
-    min-height: 28px;
-}
-
-#main_toolbar button, #tool_toolbar button {
-    -gtk-icon-size: 16px;
-    min-width: 24px;
-    min-height: 24px;
-    padding: 0 4px;
-}
-
-/* Paint.NET's option fields are about 22px tall, not Adwaita's 34px. */
-#tool_toolbar spinbutton, #tool_toolbar entry, #statusbar entry {
-    min-height: 24px;
-}
-
-#tool_toolbar spinbutton > text, #tool_toolbar spinbutton > button {
-    min-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-#tool_toolbar spinbutton > button {
-    min-width: 20px;
-    padding-left: 2px;
-    padding-right: 2px;
-}
-
-#main_toolbar separator, #tool_toolbar separator {
-    min-width: 1px;
-    margin: 4px;
-}
-
-.tool-bar-scale {
-    margin-top: -6px;
-    margin-bottom: -6px;
-}
-
-#statusbar button {
-    min-width: 22px;
-    min-height: 22px;
-    padding: 0 3px;
 }
 
 /* Grey surround of the image (Paint.NET's canvas border). The dark variant is
@@ -106,37 +74,284 @@ popover.menu separator {
 
 /* Soft drop shadow around the image instead of a hard ring. */
 #canvas {
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 1px 2px 6px 1px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 8px 2px rgba(0, 0, 0, 0.22);
 }
 
 #new-image-preview {
     box-shadow: 0px 0px 2px 2px #7F7F7F;
 }
 
+/* ---------------------------------------------------------------------------------------
+   Paint.NET 5 chrome. Win32-flat controls: square corners, regular-weight text, light-blue
+   fill with a 1px blue border for hover and pressed/checked states.
+   --------------------------------------------------------------------------------------- */
+
+/* Top rows: title, menu bar, main toolbar and tool options on a plain view background. */
+.pdn-top, #tool_toolbar {
+    background-color: @view_bg_color;
+}
+
+.pdn-title {
+    min-height: 28px;
+    padding: 0 8px;
+}
+
+.pdn-title label {
+    font-size: 9pt;
+}
+
+/* The menus sit in a tab: a 1px frame on the left, top and right. The rule beside it
+   continues the tab's bottom edge to the window's right edge. */
+.pdn-top menubar {
+    margin: 2px 0 0 4px;
+    border: 1px solid alpha(@window_fg_color, 0.3);
+    border-bottom: none;
+    background: none;
+}
+
+.pdn-top-rule {
+    background-color: alpha(@window_fg_color, 0.3);
+    min-height: 1px;
+}
+
+#main_toolbar, #tool_toolbar, #statusbar {
+    padding: 1px 4px;
+    min-height: 0;
+    border-spacing: 0;
+}
+
+/* Fixed tool options height (as in Paint.NET), so the canvas does not jump when switching tools. */
+#tool_toolbar {
+    min-height: 26px;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.15);
+}
+
+#main_toolbar button, #tool_toolbar button, #statusbar button, #window_buttons button,
+.pdn-panel-footer button, .pdn-flat-button {
+    -gtk-icon-size: 16px;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 1px 2px;
+    margin: 0;
+    border-radius: 0;
+    font-weight: normal;
+    background: none;
+    box-shadow: none;
+}
+
+#main_toolbar button {
+    -gtk-icon-size: 20px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0 1px;
+}
+
+#main_toolbar button:hover, #tool_toolbar button:hover, #statusbar button:hover, #window_buttons button:hover,
+.pdn-panel-footer button:hover, .pdn-flat-button:hover, .tool-box-button:hover {
+    background-color: alpha(#0078d7, 0.1);
+    box-shadow: inset 0 0 0 1px alpha(#0078d7, 0.6);
+}
+
+#main_toolbar button:checked, #tool_toolbar button:checked, #statusbar button:checked, #window_buttons button:checked,
+#main_toolbar button:active, #tool_toolbar button:active, .pdn-panel-footer button:active,
+.tool-box-button:checked, .pdn-flat-button:active {
+    background-color: alpha(#0078d7, 0.22);
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+button label, menubutton label, dropdown label {
+    font-weight: normal;
+}
+
+#main_toolbar separator, #tool_toolbar separator, #window_buttons separator {
+    min-width: 1px;
+    margin: 4px 4px;
+    background-color: alpha(@window_fg_color, 0.25);
+}
+
+/* Small filled triangles on dropdowns instead of chevrons. */
+#tool_toolbar arrow, #statusbar arrow, .pdn-panel arrow, .pdn-top arrow {
+    -gtk-icon-source: -gtk-icontheme("pinta-pan-down-symbolic");
+    -gtk-icon-size: 8px;
+    min-width: 8px;
+    min-height: 8px;
+    margin-left: 3px;
+}
+
+#statusbar arrow {
+    -gtk-icon-source: -gtk-icontheme("pinta-pan-up-symbolic");
+}
+
+/* Option fields: white box, 1px grey border, square corners, compact. */
+#tool_toolbar entry, #tool_toolbar spinbutton, #tool_toolbar combobox entry {
+    min-height: 20px;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-radius: 0;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@window_fg_color, 0.4);
+    outline: none;
+}
+
+#tool_toolbar entry:focus-within, #tool_toolbar spinbutton:focus-within {
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+#tool_toolbar spinbutton > text {
+    min-height: 0;
+    padding: 0 4px;
+}
+
+#tool_toolbar spinbutton > button {
+    -gtk-icon-size: 10px;
+    min-width: 14px;
+    min-height: 0;
+    padding: 0 2px;
+    border: none;
+    box-shadow: none;
+    background: none;
+    border-radius: 0;
+}
+
+#tool_toolbar spinbutton > button:hover {
+    background-color: alpha(#0078d7, 0.12);
+}
+
+#tool_toolbar dropdown > button, #tool_toolbar combobox > box > button, #tool_toolbar menubutton > button {
+    min-height: 20px;
+    padding: 0 3px;
+}
+
+#tool_toolbar label {
+    font-weight: normal;
+}
+
+/* No Adwaita padding around the option sliders, so they fit the fixed row. */
+#tool_toolbar scale {
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+}
+
+/* Status bar: grey with a top rule, plain readouts, a resize grip in the corner. */
+#statusbar {
+    background-color: mix(@window_bg_color, @window_fg_color, 0.05);
+    border-top: 1px solid alpha(@window_fg_color, 0.15);
+    padding: 0 0 0 6px;
+    min-height: 24px;
+}
+
+#statusbar button {
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0 2px;
+}
+
+/* Zoom box: plain "100%" text, editable on click. */
+#statusbar combobox entry, #statusbar entry {
+    min-height: 20px;
+    padding: 0 2px;
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+    outline: none;
+}
+
+#statusbar combobox entry:focus-within {
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+/* Thin-line zoom slider with a small pointed thumb and no fill. */
+#statusbar scale {
+    padding: 0 6px;
+}
+
+/* The trough is as tall as the thumb, so the thumb keeps its full size; its line is a 1px background. */
+#statusbar scale trough {
+    min-height: 20px;
+    background-color: transparent;
+    background-image: linear-gradient(to right, alpha(@window_fg_color, 0.55), alpha(@window_fg_color, 0.55));
+    background-size: 100% 1px;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 0;
+}
+
+#statusbar scale highlight {
+    background: none;
+}
+
+#statusbar scale slider {
+    min-width: 11px;
+    min-height: 20px;
+    margin: 0;
+    border-radius: 0;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    /* Icon images render square, so the 11x20 thumb is drawn centred in a 20px icon and clipped to the node. */
+    background: -gtk-icontheme("pinta-slider-thumb") no-repeat center / 20px 20px;
+}
+
+/* Paint.NET's toolbox: about 53px wide, two 24px columns of 20px icons. */
+.tool-box-button {
+    -gtk-icon-size: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 2px;
+    margin: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+
+/* The top-right window toggles touch edge to edge. */
+#window_buttons {
+    padding: 2px 4px;
+}
+
+#window_buttons button {
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0;
+}
+
 /* Floating tool windows over the canvas (Paint.NET's Tools, History, Layers and Colors).
    Structure:  .pdn-panel > .pdn-panel-header > (.pdn-panel-title label, .pdn-panel-close button)
-               followed by the panel content. */
+               followed by the panel content. When the pointer is elsewhere the whole panel fades
+               (FloatingPanel.Faded sets its opacity). */
 .pdn-panel {
-    background-color: @view_bg_color;
-    color: @view_fg_color;
-    border: 1px solid alpha(@view_fg_color, 0.3);
+    background-color: mix(@view_bg_color, @view_fg_color, 0.035);
+    color: alpha(@view_fg_color, 1.25);
+    border: 1px solid alpha(@view_fg_color, 0.4);
     border-radius: 0;
-    box-shadow: 0 1px 5px 1px alpha(black, 0.22);
+    box-shadow: 1px 1px 3px alpha(black, 0.15);
+}
+
+.pdn-panel listview, .pdn-panel list, .pdn-panel scrolledwindow, .pdn-panel viewport {
+    background: none;
+    color: inherit;
 }
 
 .pdn-panel-header {
-    min-height: 20px;
-    padding: 2px 2px 2px 6px;
+    background-color: @view_bg_color;
+    min-height: 26px;
+    padding: 0 1px 0 5px;
+    border-spacing: 2px;
 }
 
 .pdn-panel-title {
     font-size: 9pt;
+    color: alpha(@view_fg_color, 1.25);
 }
 
-.pdn-panel-close {
-    -gtk-icon-size: 10px;
+.pdn-panel-header > button.pdn-panel-close {
+    -gtk-icon-size: 6px;
     min-width: 18px;
-    min-height: 14px;
+    min-height: 16px;
     padding: 0;
     border-radius: 0;
     background-color: #c75050;
@@ -144,12 +359,39 @@ popover.menu separator {
     box-shadow: none;
 }
 
-.pdn-panel-close:hover {
+.pdn-panel-header > button.pdn-panel-close:hover {
     background-color: #e04343;
 }
 
-.pdn-panel-close:active {
+.pdn-panel-header > button.pdn-panel-close:active {
     background-color: #993d3d;
+}
+
+/* Footer button rows of History and Layers, under a thin rule. */
+.pdn-panel-footer {
+    padding: 2px 3px;
+}
+
+.pdn-panel-footer-row {
+    border-top: 1px solid alpha(@view_fg_color, 0.15);
+}
+
+.pdn-panel-footer button {
+    -gtk-icon-size: 20px; /* The icons' 13x11 layer squares and 16px arrows, as in Paint.NET. */
+    min-width: 20px;
+    min-height: 20px;
+    padding: 1px;
+}
+
+/* Disabled toolbar and footer buttons turn grey, as in Paint.NET. */
+#main_toolbar button:disabled image, .pdn-panel-footer button:disabled image {
+    filter: grayscale(1) opacity(0.55);
+}
+
+/* Compact 20px History rows: a 16px icon and 9pt text. */
+.pdn-panel listview.history-list > row {
+    min-height: 0;
+    padding: 2px 3px;
 }
 
 /* Paint.NET's list selection: pale blue fill with a blue outline. */
@@ -157,4 +399,104 @@ popover.menu separator {
     background-color: alpha(#0078d7, 0.3);
     box-shadow: inset 0 0 0 1px #0078d7;
     color: inherit;
+}
+
+/* Small square check boxes with a plain tick (the layer visibility boxes). */
+.pdn-panel checkbutton > check {
+    min-width: 13px;
+    min-height: 13px;
+    margin: 0 4px 0 0;
+    padding: 0;
+    border-radius: 0;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.8);
+    color: alpha(@view_fg_color, 1.25);
+    -gtk-icon-size: 13px;
+}
+
+.pdn-panel checkbutton > check:checked {
+    background-color: @view_bg_color;
+    -gtk-icon-source: -gtk-icontheme("pinta-check-tick-symbolic");
+}
+
+/* Rectangular Win32 push button (the Colors window's More >>). */
+.pdn-push-button {
+    min-height: 20px;
+    padding: 0 8px;
+    border-radius: 0;
+    font-weight: normal;
+    background-color: mix(@view_bg_color, @view_fg_color, 0.06);
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.4);
+}
+
+.pdn-push-button:hover {
+    background-color: alpha(#0078d7, 0.1);
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+.pdn-push-button label {
+    font-weight: normal;
+}
+
+/* Fields inside the tool windows (the Colors window's More section). */
+.pdn-panel entry, .pdn-panel spinbutton {
+    min-height: 20px;
+    border-radius: 0;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.4);
+    outline: none;
+}
+
+.pdn-panel entry:focus-within, .pdn-panel spinbutton:focus-within {
+    box-shadow: inset 0 0 0 1px #0078d7;
+}
+
+.pdn-panel .heading {
+    font-weight: normal;
+}
+
+/* Option sliders (Tolerance, Hardness...) as Paint.NET's blue bar in a box, without a knob. */
+#tool_toolbar scale trough {
+    min-height: 18px;
+    border-radius: 0;
+    background-color: @view_bg_color;
+    box-shadow: inset 0 0 0 1px alpha(@window_fg_color, 0.4);
+}
+
+#tool_toolbar scale highlight {
+    min-height: 18px;
+    border-radius: 0;
+    background-color: #0078d7;
+}
+
+#tool_toolbar scale slider {
+    min-width: 2px;
+    min-height: 18px;
+    margin: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    outline: none;
+}
+
+/* Check boxes in the tool options (Arrow 1 / 2, Antialiasing...) fit the fixed row. */
+#tool_toolbar checkbutton {
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+#tool_toolbar checkbutton > check {
+    min-width: 13px;
+    min-height: 13px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/* The Colors window's Add Color and Palettes tiles sit side by side, level. */
+menubutton.pdn-flat-button > button {
+    min-width: 0;
+    min-height: 20px;
+    padding: 1px 2px;
+    border-radius: 0;
 }

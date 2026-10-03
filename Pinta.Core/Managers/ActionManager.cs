@@ -97,12 +97,13 @@ public sealed class ActionManager
 			header.PackStart (item);
 	}
 
-	// Paint.NET order: New, Open, Save | Cut, Copy, Paste, Crop, Deselect | Undo, Redo | Pixel Grid, Rulers
+	// Paint.NET order: New, Open, Save | Print | Cut, Copy, Paste, Crop, Deselect | Undo, Redo | Pixel Grid, Rulers
 	private Gtk.Widget[] CreateToolBarItems () => [
 		File.New.CreateToolBarItem (),
 		File.Open.CreateToolBarItem (),
 		File.Save.CreateToolBarItem (),
-		// Printing is disabled for now until it is fully functional.
+		GtkExtensions.CreateToolBarSeparator (),
+		File.Print.CreateToolBarItem (),
 		GtkExtensions.CreateToolBarSeparator (),
 		Edit.Cut.CreateToolBarItem (),
 		Edit.Copy.CreateToolBarItem (),
@@ -127,35 +128,83 @@ public sealed class ActionManager
 		return button;
 	}
 
+	/// <summary>
+	/// The right side of Paint.NET's status bar: image size, cursor position, selection size,
+	/// units, and the zoom controls.
+	/// </summary>
 	public void CreateStatusBar (Gtk.Box statusbar, WorkspaceManager workspaceManager)
 	{
-		// Cursor position widget - left aligned with enough space to display coordinates up to tens of thousands (e.g. 10000, 10000).
-		statusbar.Append (Gtk.Image.NewFromIconName (Resources.Icons.CursorPosition));
-		var cursor = Gtk.Label.New ("0, 0");
-		cursor.Xalign = 0.0f;
-		cursor.Halign = Gtk.Align.Start;
-		cursor.WidthChars = 11;
-		statusbar.Append (cursor);
+		// Each readout has enough room for sizes and coordinates up to tens of thousands (e.g. 10000 × 10000).
+		static Gtk.Label AppendReadout (Gtk.Box box, string icon, string tooltip)
+		{
+			Gtk.Box item = Gtk.Box.New (Gtk.Orientation.Horizontal, 3);
+			item.TooltipText = tooltip;
+			item.Append (Gtk.Image.NewFromIconName (icon));
+			Gtk.Label label = Gtk.Label.New (string.Empty);
+			label.Xalign = 0.0f;
+			label.WidthChars = 11;
+			item.Append (label);
+			box.Append (item);
+			return label;
+		}
+
+		Gtk.Label image_size = AppendReadout (statusbar, Resources.Icons.ImageResize, Translations.GetString ("Image Size"));
+		Gtk.Label cursor = AppendReadout (statusbar, Resources.Icons.CursorPosition, Translations.GetString ("Cursor Position"));
+		Gtk.Label selection_size = AppendReadout (statusbar, Resources.Icons.ToolSelectRectangle, Translations.GetString ("Selection Size"));
+
+		void UpdateImageSize ()
+		{
+			Size? size = workspaceManager.ActiveDocumentOrDefault?.ImageSize;
+			image_size.SetText (size is Size s ? $"{s.Width} × {s.Height}" : string.Empty);
+		}
+
+		// As in Paint.NET, the selection size only shows while there is a selection.
+		void UpdateSelectionSize ()
+		{
+			Document? document = workspaceManager.ActiveDocumentOrDefault;
+			bool visible = document is not null && document.Selection.Visible;
+			selection_size.Parent!.Visible = visible;
+			if (visible) {
+				RectangleD bounds = document!.Selection.GetBounds ();
+				selection_size.SetText ($"{bounds.Width} × {bounds.Height}");
+			}
+		}
 
 		chrome.LastCanvasCursorPointChanged += delegate {
 			var pt = chrome.LastCanvasCursorPoint;
 			cursor.SetText ($"{pt.X}, {pt.Y}");
 		};
+		workspaceManager.SelectionChanged += (_, _) => UpdateSelectionSize ();
+		workspaceManager.ActiveDocumentChanged += (_, _) => { UpdateImageSize (); UpdateSelectionSize (); };
+		workspaceManager.ViewSizeChanged += (_, _) => UpdateImageSize ();
+		UpdateImageSize ();
+		UpdateSelectionSize ();
 
-		// Selection size widget - left aligned with enough space to display coordinates up to tens of thousands (e.g. 10000, 10000).
-		statusbar.Append (Gtk.Image.NewFromIconName (Resources.Icons.ToolSelectRectangle));
-		var selection_size = Gtk.Label.New ("0, 0");
-		selection_size.Xalign = 0.0f;
-		selection_size.Halign = Gtk.Align.Start;
-		selection_size.WidthChars = 11;
-		statusbar.Append (selection_size);
+		// Units, as View > Pixels / Inches / Centimeters.
+		Gio.Menu units_menu = Gio.Menu.New ();
+		units_menu.Append (Translations.GetString ("Pixels"), $"app.{View.RulerMetric.Name}(0)");
+		units_menu.Append (Translations.GetString ("Inches"), $"app.{View.RulerMetric.Name}(1)");
+		units_menu.Append (Translations.GetString ("Centimeters"), $"app.{View.RulerMetric.Name}(2)");
 
-		workspaceManager.SelectionChanged += delegate {
-			var bounds = workspaceManager.HasOpenDocuments ? workspaceManager.ActiveDocument.Selection.GetBounds () : new RectangleD ();
-			selection_size.SetText ($"{bounds.Width}, {bounds.Height}");
-		};
+		Gtk.MenuButton units = Gtk.MenuButton.New ();
+		units.MenuModel = units_menu;
+		units.Direction = Gtk.ArrowType.Up;
+		units.TooltipText = Translations.GetString ("Units");
+		units.AddCssClass (AdwaitaStyles.Flat);
+		statusbar.Append (units);
 
-		// Document zoom widget
+		void UpdateUnits (GLib.Variant? state)
+		{
+			units.Label = (state?.GetInt32 () ?? 0) switch {
+				1 => Translations.GetString ("in"),
+				2 => Translations.GetString ("cm"),
+				_ => Translations.GetString ("px"),
+			};
+		}
+		View.RulerMetric.OnActivate += (_, args) => UpdateUnits (args.Parameter);
+		UpdateUnits (View.RulerMetric.GetState ());
+
+		// Document zoom widgets
 		View.CreateStatusBar (statusbar);
 	}
 

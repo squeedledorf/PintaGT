@@ -35,12 +35,12 @@ public static class StandardIcons
 
 	public const string DialogError = "dialog-error-symbolic";
 
-	public const string DocumentNew = "document-new-symbolic";
-	public const string DocumentOpen = "document-open-symbolic";
-	public const string DocumentPrint = "document-print-symbolic";
+	public const string DocumentNew = "pinta-document-new";
+	public const string DocumentOpen = "pinta-document-open";
+	public const string DocumentPrint = "pinta-document-print";
 	public const string DocumentRevert = "document-revert-symbolic";
-	public const string DocumentSave = "document-save-symbolic";
-	public const string DocumentSaveAs = "document-save-as-symbolic";
+	public const string DocumentSave = "pinta-document-save";
+	public const string DocumentSaveAs = "pinta-document-save-as";
 
 	public const string FormatJustifyLeft = "pinta-format-justify-left";
 	public const string FormatJustifyCenter = "pinta-format-justify-center";
@@ -48,23 +48,23 @@ public static class StandardIcons
 	public const string FormatTextItalic = "pinta-format-text-italic";
 	public const string FormatTextUnderline = "pinta-format-text-underline";
 
-	public const string EditCopy = "edit-copy-symbolic";
-	public const string EditCut = "edit-cut-symbolic";
-	public const string EditPaste = "edit-paste-symbolic";
-	public const string EditRedo = "edit-redo-symbolic";
+	public const string EditCopy = "pinta-edit-copy";
+	public const string EditCut = "pinta-edit-cut";
+	public const string EditPaste = "pinta-edit-paste";
+	public const string EditRedo = "pinta-edit-redo";
 	public const string EditSelectAll = "pinta-edit-select-all";
-	public const string EditUndo = "edit-undo-symbolic";
+	public const string EditUndo = "pinta-edit-undo";
 	public const string EditSwap = "pinta-edit-swap";
 
 	public const string GoPrevious = "go-previous-symbolic";
 
 	public const string HelpAbout = "help-about-symbolic";
-	public const string HelpBrowser = "help-browser-symbolic";
+	public const string HelpBrowser = "pinta-help";
 
 	public const string ImageGeneric = "image-x-generic-symbolic";
 	public const string ImageMissing = "image-missing-symbolic";
 
-	public const string Preferences = "preferences-system-symbolic";
+	public const string Preferences = "pinta-preferences";
 
 	public const string LayerMoveUp = "pinta-layer-move-up";
 	public const string LayerMoveDown = "pinta-layer-move-down";
@@ -97,6 +97,12 @@ public static class StandardIcons
 
 public static class Icons
 {
+	// Toggles for the floating Tools, History, Layers and Colors windows (Silk icons, see icons/pinta-icons.md).
+	public const string WindowTools = "pinta-window-tools";
+	public const string WindowHistory = "pinta-window-history";
+	public const string WindowLayers = "pinta-window-layers";
+	public const string WindowColors = "pinta-window-colors";
+
 	public const string AddinsManage = "addins-manage";
 
 	public const string AdjustmentsDefault = "adjustments-default-symbolic";
@@ -261,6 +267,7 @@ public static class Icons
 	public const string ToolRecolor = "tool-recolor";
 	public const string ToolRectangle = "tool-rectangle";
 	public const string ToolRectangleRounded = "tool-rectangle-rounded";
+	public const string ToolShapes = "tool-shapes";
 	public const string ToolSelectEllipse = "tool-select-ellipse";
 	public const string ToolSelectLasso = "tool-select-lasso";
 	public const string ToolSelectMagicWand = "tool-select-magicwand";

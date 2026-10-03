@@ -30,55 +30,25 @@ using Pinta.Gui.Widgets;
 
 namespace Pinta;
 
-internal sealed class LayersPad : IDockPad
+/// <summary>
+/// Paint.NET's Layers window: the layer list with its button row below it.
+/// </summary>
+internal static class LayersPad
 {
-	private readonly LayerActions layer_actions;
-	internal LayersPad (LayerActions layerActions)
+	internal static FloatingPanel Create (LayerActions layer_actions)
 	{
-		layer_actions = layerActions;
-	}
+		FloatingPanel panel = FloatingPanel.New ("layers", Translations.GetString ("Layers"), LayersListView.New (), resizable: true);
 
-	public void Initialize (Dock workspace)
-	{
-		LayersListView layers = LayersListView.New ();
-		DockItem layers_item = DockItem.New (
-			child: layers,
-			uniqueName: "Layers",
-			iconName: Resources.Icons.LayerDuplicate
-		);
-		layers_item.Label = Translations.GetString ("Layers");
-
-		Gio.Menu hamburger_menu = Gio.Menu.New ();
-
-		Gio.Menu flip_section = Gio.Menu.New ();
-		flip_section.AppendItem (layer_actions.FlipHorizontal.CreateMenuItem ());
-		flip_section.AppendItem (layer_actions.FlipVertical.CreateMenuItem ());
-		flip_section.AppendItem (layer_actions.RotateZoom.CreateMenuItem ());
-
-		Gio.Menu prop_section = Gio.Menu.New ();
-		prop_section.AppendItem (layer_actions.Properties.CreateMenuItem ());
-
-		hamburger_menu.AppendItem (layer_actions.ImportFromFile.CreateMenuItem ());
-		hamburger_menu.AppendSection (null, flip_section);
-		hamburger_menu.AppendSection (null, prop_section);
-
-		Gtk.MenuButton hamburger_button = GtkExtensions.CreateMenuButton (
-			hamburger_menu, Resources.StandardIcons.OpenMenu);
-
-		hamburger_button.Direction = Gtk.ArrowType.Up;
-
-		Gtk.Box layers_tb = layers_item.AddToolBar ();
-		layers_tb.AppendMultiple ([
+		panel.Footer.AppendMultiple ([
 			layer_actions.AddNewLayer.CreateDockToolBarItem (),
 			layer_actions.DeleteLayer.CreateDockToolBarItem (),
 			layer_actions.DuplicateLayer.CreateDockToolBarItem (),
 			layer_actions.MergeLayerDown.CreateDockToolBarItem (),
 			layer_actions.MoveLayerUp.CreateDockToolBarItem (),
 			layer_actions.MoveLayerDown.CreateDockToolBarItem (),
-			layer_actions.Properties.CreateDockToolBarItem (),
-			hamburger_button
+			layer_actions.Properties.CreateDockToolBarItem ()
 		]);
 
-		workspace.AddItem (layers_item, DockPlacement.Right);
+		return panel;
 	}
 }

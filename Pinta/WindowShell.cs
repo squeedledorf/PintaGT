@@ -33,7 +33,6 @@ public sealed class WindowShell
 	private readonly Gtk.ApplicationWindow app_window;
 	private readonly Adw.HeaderBar? header_bar;
 	private readonly Gtk.Box shell_layout;
-	private Gtk.Box? workspace_layout;
 	private Gtk.Box? main_toolbar;
 
 	public WindowShell (
@@ -56,10 +55,11 @@ public sealed class WindowShell
 			app_layout.AddTopBar (header_bar);
 		} else {
 			// If the header bar isn't being used, we use a regular Gtk.ApplicationWindow
-			// to have a traditional titlebar with the standard close / minimize buttons,
-			// and a menubar in the window unless a global menu is used (e.g. macOS)
+			// to have a traditional titlebar with the standard close / minimize buttons.
+			// The menu bar is part of Paint.NET's top row (see MainWindow), except for
+			// macOS's global menu.
 			app_window = Gtk.ApplicationWindow.New (app);
-			app_window.ShowMenubar = true;
+			app_window.ShowMenubar = SystemManager.GetOperatingSystem () == OS.Mac;
 			app_window.SetChild (app_layout);
 		}
 
@@ -102,15 +102,8 @@ public sealed class WindowShell
 		return statusbar;
 	}
 
-	public Gtk.Box CreateWorkspace ()
-	{
-		workspace_layout = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
-		workspace_layout.Name = "workspace_layout";
-		workspace_layout.Hexpand = true;
-		workspace_layout.Halign = Gtk.Align.Fill;
-
-		shell_layout.Append (workspace_layout);
-
-		return workspace_layout;
-	}
+	/// <summary>
+	/// Add a row (top bar, canvas area) below the previous ones.
+	/// </summary>
+	public void Append (Gtk.Widget widget) => shell_layout.Append (widget);
 }

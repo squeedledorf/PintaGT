@@ -102,7 +102,8 @@ public sealed class FileActions
 			"print",
 			Translations.GetString ("Print"),
 			null,
-			Resources.StandardIcons.DocumentPrint);
+			Resources.StandardIcons.DocumentPrint,
+			shortcuts: ["<Primary>P"]);
 
 		this.system = system;
 		this.app = app;
@@ -134,16 +135,15 @@ public sealed class FileActions
 		menu.AppendSection (null, save_section);
 		menu.AppendSection (null, close_section);
 
+		Gio.Menu print_section = Gio.Menu.New ();
+		print_section.AppendItem (Print.CreateMenuItem ());
+		menu.AppendSection (null, print_section);
+
 		if (!isMac) { // This is part of the application menu on macOS
 			Gio.Menu exit_section = Gio.Menu.New ();
 			exit_section.AppendItem (app.Exit.CreateMenuItem ());
 			menu.AppendSection (null, exit_section);
 		}
-#if false
-		// Printing is disabled for now until it is fully functional.
-		menu.Append (Print.CreateAcceleratedMenuItem (Gdk.Key.P, Gdk.ModifierType.ControlMask));
-		menu.AppendSeparator ();
-#endif
 		application.AddCommands ([
 			New,
 			NewScreenshot,
@@ -152,7 +152,8 @@ public sealed class FileActions
 			Save,
 			SaveAs,
 
-			Close]);
+			Close,
+			Print]);
 	}
 
 	public void RegisterHandlers () { }
