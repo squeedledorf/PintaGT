@@ -1,21 +1,21 @@
-// 
+//
 // BaseTransformTool.cs
-//  
+//
 // Author:
 //       Volodymyr <${AuthorEmail}>
-// 
+//
 // Copyright (c) 2012 Volodymyr
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in
 // all copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -25,19 +25,38 @@
 // THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Cairo;
 using Pinta.Core;
 
 namespace Pinta.Tools;
 
+/// <summary>
+/// Shared behaviour of Paint.NET's two move tools: 8 control nubs on a frame that turns with the
+/// content, a movable centre of rotation, a rotate corridor just outside the frame, and Ctrl to
+/// work on a copy.
+/// </summary>
 public abstract class BaseTransformTool : BaseTool
 {
-	private readonly int rotate_steps = 24; // Shift snaps rotation to 15 degrees, as in Paint.NET
+	private enum DragMode { None, Move, Rotate, Scale, Pivot }
+
+	// Width in window pixels of the corridor just outside the frame where a drag rotates.
+	private const double ROTATE_CORRIDOR = 16;
+
+	private static Gdk.Cursor? rotate_cursor;
+	private static Gdk.Cursor? nub_cursor;
+
+	private readonly IWorkspaceService workspace;
 	private readonly Matrix transform = CairoExtensions.CreateIdentityMatrix ();
-	private RectangleD source_rect;
+	private readonly TransformFrame frame = new ();
+	private TransformFrame drag_frame = new ();
+	private bool frame_valid = false;
+	private readonly MoveHandle[] nubs;
+	private readonly MoveHandle pivot_handle;
 	private PointD original_point;
-	private bool is_dragging = false;
-	private bool is_rotating = false;
+	private DragMode mode = DragMode.None;
+	private int active_nub;
 	private bool using_mouse = false;
 
 	/// <summary>
@@ -45,26 +64,63 @@ public abstract class BaseTransformTool : BaseTool
 	/// </summary>
 	public BaseTransformTool (IServiceProvider services) : base (services)
 	{
+		workspace = services.GetService<IWorkspaceService> ();
+
+		nubs = Enumerable.Range (0, TransformFrame.NUB_COUNT).Select (_ => new MoveHandle (workspace)).ToArray ();
+		pivot_handle = new MoveHandle (workspace) { Radius = 6, Crosshair = true };
+
+		// Any selection change made elsewhere (other tools, undo, Deselect) starts a fresh frame.
+		workspace.SelectionChanged += (_, _) => {
+			if (!IsActive)
+				frame_valid = false;
+		};
+		workspace.ActiveDocumentChanged += (_, _) => frame_valid = false;
+	}
+
+	public override IEnumerable<IToolHandle> Handles {
+		get {
+			UpdateHandles ();
+			return [.. nubs, pivot_handle];
+		}
+	}
+
+	/// <summary>
+	/// Whether the current drag was started with Ctrl, which works on a copy and leaves the original in place.
+	/// </summary>
+	protected bool IsCopying { get; private set; }
+
+	/// <summary>
+	/// Whether the nubs are shown. By default only while there is a visible selection.
+	/// </summary>
+	protected virtual bool ShowFrame (Document document)
+		=> document.Selection.Visible;
+
+	protected override void OnActivated (Document? document)
+	{
+		base.OnActivated (document);
+		frame_valid = false;
 	}
 
 	protected override void OnMouseDown (
 		Document document,
 		ToolMouseEventArgs e)
 	{
-		if (IsActive)
+		if (mode != DragMode.None)
 			return;
 
+		// As in Paint.NET, the drag may start anywhere, even outside the canvas.
 		original_point = e.PointDouble;
 
-		if (!document.Workspace.PointInCanvas (e.PointDouble))
-			return;
+		if (e.MouseButton == MouseButton.Right) {
+			mode = DragMode.Rotate; // The right button always rotates.
+		} else {
+			(mode, active_nub) = HitTest (document, e.WindowPoint);
 
-		// Ctrl+drag is a plain move for now (no scaling); Paint.NET's Ctrl copy-move is not implemented yet.
-		if (e.MouseButton == MouseButton.Right)
-			is_rotating = true;
-		else
-			is_dragging = true;
+			if (mode == DragMode.Pivot)
+				return;
+		}
 
+		IsCopying = e.IsControlPressed;
 		using_mouse = true;
 
 		OnStartTransform (document);
@@ -74,39 +130,40 @@ public abstract class BaseTransformTool : BaseTool
 		Document document,
 		ToolMouseEventArgs e)
 	{
-		if (!IsActive || !using_mouse)
+		if (mode == DragMode.Pivot) {
+			// The centre of rotation can go anywhere, even off-canvas.
+			frame.PivotLocal = frame.ToLocal (e.PointDouble);
+			document.Workspace.Invalidate ();
 			return;
-
-		bool constrain = e.IsShiftPressed;
-
-		PointD center = source_rect.GetCenter ();
-
-		// The cursor position can be a subpixel value. Round to an integer
-		// so that we only translate by entire pixels.
-		// (Otherwise, blurring / anti-aliasing may be introduced)
-
-		double dx = Math.Floor (e.PointDouble.X - original_point.X);
-		double dy = Math.Floor (e.PointDouble.Y - original_point.Y);
-
-		PointD c1 = original_point - center;
-		PointD c2 = e.PointDouble - center;
-
-		RadiansAngle angle = new (Math.Atan2 (c1.Y, c1.X) - Math.Atan2 (c2.Y, c2.X));
-
-		transform.InitIdentity ();
-
-		if (is_rotating) {
-
-			if (constrain)
-				angle = Utility.GetNearestStepAngle (angle, rotate_steps);
-
-			transform.Translate (center.X, center.Y);
-			transform.Rotate (-angle.Radians);
-			transform.Translate (-center.X, -center.Y);
-
-		} else {
-			transform.Translate (dx, dy);
 		}
+
+		if (!IsActive || !using_mouse) {
+			UpdateCursor (document, e.WindowPoint);
+			return;
+		}
+
+		switch (mode) {
+			case DragMode.Rotate:
+				transform.InitMatrix (drag_frame.ComputeRotation (original_point, e.PointDouble, e.IsShiftPressed));
+				break;
+			case DragMode.Scale:
+				transform.InitMatrix (drag_frame.ComputeScale (active_nub, e.PointDouble, keepAspect: e.IsShiftPressed, fromCenter: e.IsAltPressed));
+				break;
+			default:
+				// The cursor position can be a subpixel value. Round to an integer
+				// so that we only translate by entire pixels.
+				// (Otherwise, blurring / anti-aliasing may be introduced)
+				transform.InitIdentity ();
+				transform.Translate (
+					Math.Floor (e.PointDouble.X - original_point.X),
+					Math.Floor (e.PointDouble.Y - original_point.Y));
+				break;
+		}
+
+		UpdateFrame ();
+
+		if (mode == DragMode.Rotate)
+			PintaCore.Chrome.SetStatusBarText (Translations.GetString ("Angle: {0}°", frame.AngleDegrees.ToString ("F2")));
 
 		OnUpdateTransform (document, transform);
 	}
@@ -115,17 +172,23 @@ public abstract class BaseTransformTool : BaseTool
 		Document document,
 		ToolMouseEventArgs e)
 	{
+		if (mode == DragMode.Pivot) {
+			mode = DragMode.None;
+			return;
+		}
+
 		if (!IsActive || !using_mouse)
 			return;
 
 		OnFinishTransform (document, transform);
+		UpdateCursor (document, e.WindowPoint);
 	}
 
 	protected override bool OnKeyDown (
 		Document document,
 		ToolKeyEventArgs e)
 	{
-		if (using_mouse) // Don't handle the arrow keys while already interacting via the mouse.
+		if (using_mouse || mode == DragMode.Pivot) // Don't handle the arrow keys while already interacting via the mouse.
 			return base.OnKeyDown (document, e);
 
 		double dx = 0.0;
@@ -151,11 +214,13 @@ public abstract class BaseTransformTool : BaseTool
 		}
 
 		if (!IsActive) {
-			is_dragging = true;
+			mode = DragMode.Move;
+			IsCopying = false;
 			OnStartTransform (document);
 		}
 
 		transform.Translate (dx, dy);
+		UpdateFrame ();
 		OnUpdateTransform (document, transform);
 
 		return true;
@@ -175,7 +240,8 @@ public abstract class BaseTransformTool : BaseTool
 
 	protected virtual void OnStartTransform (Document document)
 	{
-		source_rect = GetSourceRectangle (document);
+		EnsureFrame (document);
+		drag_frame = frame.Clone ();
 		transform.InitIdentity ();
 	}
 
@@ -188,12 +254,124 @@ public abstract class BaseTransformTool : BaseTool
 		Document document,
 		Matrix transform)
 	{
-		is_dragging = false;
-		is_rotating = false;
+		if (mode == DragMode.Rotate) // Put the tool's hint back in place of the angle readout.
+			PintaCore.Chrome.SetStatusBarText ($" {Name}: {StatusBarText}");
+
+		mode = DragMode.None;
 		using_mouse = false;
+		IsCopying = false;
 	}
 
 	private bool IsActive
-		=> is_dragging || is_rotating;
-}
+		=> mode is DragMode.Move or DragMode.Rotate or DragMode.Scale;
 
+	private void EnsureFrame (Document document)
+	{
+		if (frame_valid)
+			return;
+
+		frame.Reset (GetSourceRectangle (document));
+		frame_valid = true;
+	}
+
+	private void UpdateFrame ()
+		=> frame.Matrix.InitMatrix (TransformFrame.Compose (drag_frame.Matrix, transform));
+
+	private void UpdateHandles ()
+	{
+		bool visible = workspace.HasOpenDocuments && ShowFrame (workspace.ActiveDocument);
+
+		if (visible) {
+			EnsureFrame (workspace.ActiveDocument);
+
+			for (int i = 0; i < nubs.Length; i++)
+				nubs[i].CanvasPosition = frame.GetNub (i);
+
+			pivot_handle.CanvasPosition = frame.Pivot;
+		}
+
+		foreach (MoveHandle handle in nubs)
+			handle.Active = visible;
+
+		pivot_handle.Active = visible;
+	}
+
+	private (DragMode, int) HitTest (Document document, PointD windowPoint)
+	{
+		UpdateHandles ();
+
+		if (!pivot_handle.Active)
+			return (DragMode.Move, 0);
+
+		for (int i = 0; i < nubs.Length; i++) {
+			if (nubs[i].ContainsPoint (windowPoint))
+				return (DragMode.Scale, i);
+		}
+
+		if (pivot_handle.ContainsPoint (windowPoint))
+			return (DragMode.Pivot, 0);
+
+		PointD[] outline = frame.GetCorners ().Select (document.Workspace.CanvasPointToView).ToArray ();
+
+		return TransformFrame.HitTest (outline, windowPoint, ROTATE_CORRIDOR) == TransformFrameZone.Rotate
+			? (DragMode.Rotate, 0)
+			: (DragMode.Move, 0);
+	}
+
+	private void UpdateCursor (Document document, PointD windowPoint)
+	{
+		Gdk.Cursor? cursor = HitTest (document, windowPoint).Item1 switch {
+			DragMode.Rotate => rotate_cursor ??= CreateRotateCursor (),
+			DragMode.Scale or DragMode.Pivot => nub_cursor ??= GdkExtensions.CursorFromName (Pinta.Resources.StandardCursors.Grab),
+			_ => DefaultCursor,
+		};
+
+		if (cursor != CurrentCursor)
+			SetCursor (cursor);
+	}
+
+	/// <summary>
+	/// A double-headed curved arrow, Paint.NET's sign that a drag rotates.
+	/// </summary>
+	private static Gdk.Cursor CreateRotateCursor ()
+	{
+		const int SIZE = 24;
+		PointD a = new (7, 3), c1 = new (15, 7), c2 = new (17, 14), b = new (14, 21);
+
+		using ImageSurface surface = CairoExtensions.CreateImageSurface (Format.Argb32, SIZE, SIZE);
+		using Context g = new (surface);
+		g.LineCap = LineCap.Round;
+		g.LineJoin = LineJoin.Round;
+
+		void ArrowHead (PointD tip, PointD from)
+		{
+			double dx = tip.X - from.X, dy = tip.Y - from.Y;
+			double len = Math.Sqrt (dx * dx + dy * dy);
+			dx /= len;
+			dy /= len;
+			g.MoveTo (tip.X + dx, tip.Y + dy);
+			g.LineTo (tip.X - 5 * dx - 3.5 * dy, tip.Y - 5 * dy + 3.5 * dx);
+			g.LineTo (tip.X - 5 * dx + 3.5 * dy, tip.Y - 5 * dy - 3.5 * dx);
+			g.ClosePath ();
+			g.FillPreserve ();
+			g.Stroke ();
+		}
+
+		void Arrow (double width, Color color)
+		{
+			g.SetSourceColor (color);
+			g.LineWidth = width;
+			g.MoveTo (a.X, a.Y);
+			g.CurveTo (c1.X, c1.Y, c2.X, c2.Y, b.X, b.Y);
+			g.Stroke ();
+			ArrowHead (a, c1);
+			ArrowHead (b, c2);
+		}
+
+		// A white halo first so the arrow shows on dark images.
+		Arrow (3.5, new Color (1, 1, 1));
+		Arrow (1.5, new Color (0, 0, 0));
+
+		return Gdk.Cursor.NewFromTexture (surface.ToTexture (), SIZE / 2, SIZE / 2, null);
+	}
+}

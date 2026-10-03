@@ -80,8 +80,10 @@ public sealed partial class ToolBarComboBox
 	{
 		// Return focus to the canvas after selecting a combobox item, which normally focuses the entry widget.
 		// We don't want this if the user is actually typing in the entry, of course.
+		// Typed text that matches no item (Active < 0) is never a pick: right after a dialog closes
+		// IsEditingText () can read false mid-typing, and grabbing then lost the rest of the keys.
 
-		if (!comboBox.HasEntry)
+		if (!comboBox.HasEntry || comboBox.Active < 0)
 			return;
 
 		if (!comboBox.GetEntry ().IsEditingText ()) {

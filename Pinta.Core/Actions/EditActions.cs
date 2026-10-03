@@ -98,7 +98,7 @@ public sealed class EditActions
 
 		CopyMerged = new Command (
 			"copymerged",
-			Translations.GetString ("Copy Flattened"),
+			Translations.GetString ("Copy Merged"),
 			null,
 			Resources.StandardIcons.EditCopy,
 			shortcuts: ["<Primary><Shift>C"]);
@@ -291,10 +291,12 @@ public sealed class EditActions
 			if (workspace.HasOpenDocuments)
 				visible = workspace.ActiveDocument.Selection.Visible;
 
-			// As in Paint.NET, Cut and Copy need a selection.
-			Cut.Sensitive = visible;
-			Copy.Sensitive = visible;
-			CopyMerged.Sensitive = visible;
+			// As in Paint.NET, with no selection Cut, Copy and Copy Merged act on the whole layer or image
+			// (a hidden selection covers the whole canvas).
+			bool hasDocument = workspace.HasOpenDocuments;
+			Cut.Sensitive = hasDocument;
+			Copy.Sensitive = hasDocument;
+			CopyMerged.Sensitive = hasDocument;
 			Deselect.Sensitive = visible;
 			EraseSelection.Sensitive = visible;
 			FillSelection.Sensitive = visible;
@@ -654,6 +656,8 @@ public sealed class EditActions
 
 		historyItem.TakeSnapshot ();
 
+		// The inverted selection no longer matches the old handle rectangle, so drop it (the select tools hide their handles).
+		doc.Selection.HandleBounds = RectangleD.Zero;
 		doc.Selection.Invert (doc.ImageSize);
 
 		doc.History.PushNewItem (historyItem);

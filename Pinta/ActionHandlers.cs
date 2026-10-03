@@ -103,6 +103,9 @@ public sealed class ActionHandlers
 		PintaCore.Workspace.DocumentActivated += Workspace_DocumentCreated;
 		PintaCore.Workspace.DocumentClosed += Workspace_DocumentClosed;
 
+		// As in Paint.NET, Zoom to Selection needs a visible selection.
+		PintaCore.Workspace.SelectionChanged += (_, _) => PintaCore.Actions.View.ZoomToSelection.Sensitive = HasVisibleSelection ();
+
 		// Initially, no documents are open.
 		ToggleActions (false);
 	}
@@ -117,6 +120,9 @@ public sealed class ActionHandlers
 	{
 		ToggleActions (true);
 	}
+
+	private static bool HasVisibleSelection ()
+		=> PintaCore.Workspace.ActiveDocumentOrDefault?.Selection.Visible == true;
 
 	private static void ToggleActions (bool enable)
 	{
@@ -138,7 +144,7 @@ public sealed class ActionHandlers
 		PintaCore.Actions.View.ActualSize.Sensitive = enable;
 		PintaCore.Actions.View.ZoomIn.Sensitive = enable;
 		PintaCore.Actions.View.ZoomOut.Sensitive = enable;
-		PintaCore.Actions.View.ZoomToSelection.Sensitive = enable;
+		PintaCore.Actions.View.ZoomToSelection.Sensitive = enable && HasVisibleSelection ();
 		PintaCore.Actions.View.ZoomToWindow.Sensitive = enable;
 		PintaCore.Actions.View.ZoomComboBox.Sensitive = enable;
 

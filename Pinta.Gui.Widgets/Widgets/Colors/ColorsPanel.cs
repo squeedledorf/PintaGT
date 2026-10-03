@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Cairo;
 using Pinta.Core;
@@ -150,13 +152,19 @@ public sealed partial class ColorsPanel
 		add_color.AddCssClass ("pdn-flat-button");
 		add_color.FocusOnClick = false;
 		add_color.TooltipText = Translations.GetString ("Add Color: click a palette swatch to replace it with the active color");
+		add_color.OnToggled += (_, _) => HandleAddColorToggled ();
+
+		// Paint.NET's palette menu: the palettes in the palettes folder first, then the commands.
+		Gio.SimpleAction loadAction = Gio.SimpleAction.New ("load-palette", GLib.VariantType.String);
+		loadAction.OnActivate += (_, e) => LoadPaletteFile (e.Parameter!.GetString (out nuint _));
+		Gio.SimpleAction openFolderAction = Gio.SimpleAction.New ("open-palettes-folder", null);
+		openFolderAction.OnActivate += (_, _) => OpenPalettesFolder ();
+		Gio.SimpleActionGroup paletteActions = Gio.SimpleActionGroup.New ();
+		paletteActions.AddAction (loadAction);
+		paletteActions.AddAction (openFolderAction);
+		InsertActionGroup ("colorspanel", paletteActions);
 
 		Gio.Menu paletteMenu = Gio.Menu.New ();
-		EditActions edit = PintaCore.Actions.Edit;
-		paletteMenu.AppendItem (edit.LoadPalette.CreateMenuItem ());
-		paletteMenu.AppendItem (edit.SavePalette.CreateMenuItem ());
-		paletteMenu.AppendItem (edit.ResetPalette.CreateMenuItem ());
-		paletteMenu.AppendItem (edit.ResizePalette.CreateMenuItem ());
 
 		Gtk.MenuButton paletteButton = Gtk.MenuButton.New ();
 		paletteButton.SetChild (IconArea (DrawPaletteIcon));
@@ -164,6 +172,8 @@ public sealed partial class ColorsPanel
 		paletteButton.AddCssClass (AdwaitaStyles.Flat);
 		paletteButton.AddCssClass ("pdn-flat-button");
 		paletteButton.MenuModel = paletteMenu;
+		// Rebuilt on every open so palettes saved or copied into the folder show up.
+		paletteButton.SetCreatePopupFunc (_ => FillPaletteMenu (paletteMenu));
 		paletteButton.TooltipText = Translations.GetString ("Palettes");
 
 		Gtk.Box paletteRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
@@ -519,6 +529,70 @@ public sealed partial class ColorsPanel
 
 	// --- Palette
 
+	private string PalettesFolder => System.IO.Path.Combine (settings.GetUserSettingsDirectory (), "Palettes");
+
+	private void FillPaletteMenu (Gio.Menu menu)
+	{
+		menu.RemoveAll ();
+
+		Gio.Menu palettes = Gio.Menu.New ();
+		if (System.IO.Directory.Exists (PalettesFolder)) {
+			IEnumerable<string> files = System.IO.Directory.EnumerateFiles (PalettesFolder)
+				.Where (f => PintaCore.PaletteFormats.GetFormatByFilename (f) is PaletteDescriptor d && !d.IsWriteOnly ())
+				.Order (StringComparer.CurrentCultureIgnoreCase);
+			foreach (string file in files)
+				palettes.Append (System.IO.Path.GetFileNameWithoutExtension (file), $"colorspanel.load-palette({GLib.Variant.NewString (file).Print (false)})");
+		}
+		menu.AppendSection (null, palettes);
+
+		// Paint.NET's labels and sections; Pinta's Open... and Set Number of Colors go in a last section.
+		EditActions edit = PintaCore.Actions.Edit;
+		Gio.Menu fileCommands = Gio.Menu.New ();
+		fileCommands.Append (Translations.GetString ("Save Current Palette As..."), edit.SavePalette.FullName);
+		fileCommands.Append (Translations.GetString ("Open Palettes Folder"), "colorspanel.open-palettes-folder");
+		menu.AppendSection (null, fileCommands);
+
+		Gio.Menu reset = Gio.Menu.New ();
+		reset.Append (Translations.GetString ("Reset to Default Palette"), edit.ResetPalette.FullName);
+		menu.AppendSection (null, reset);
+
+		Gio.Menu extras = Gio.Menu.New ();
+		extras.AppendItem (edit.LoadPalette.CreateMenuItem ());
+		extras.AppendItem (edit.ResizePalette.CreateMenuItem ());
+		menu.AppendSection (null, extras);
+	}
+
+	private void LoadPaletteFile (string path)
+	{
+		try {
+			palette.CurrentPalette.Load (PintaCore.PaletteFormats, Gio.FileHelper.NewForPath (path));
+		} catch (Exception e) {
+			Console.Error.WriteLine ($"Failed to load palette {path}: {e.Message}");
+		}
+	}
+
+	private async void OpenPalettesFolder ()
+	{
+		// Like Paint.NET, create the folder if it does not exist yet.
+		try {
+			System.IO.Directory.CreateDirectory (PalettesFolder);
+			await Gtk.FileLauncher.New (Gio.FileHelper.NewForPath (PalettesFolder)).LaunchAsync (PintaCore.Chrome.MainWindow);
+		} catch (Exception e) {
+			Console.Error.WriteLine ($"Failed to open the palettes folder: {e.Message}");
+		}
+	}
+
+	private void HandleAddColorToggled ()
+	{
+		// Paint.NET highlights the palette while it waits for the click.
+		palette_area.QueueDraw ();
+
+		if (add_color.Active)
+			PintaCore.Chrome.SetStatusBarText (" " + Translations.GetString ("Add Color: click a palette swatch to replace it with the active color. Click the button again to cancel."));
+		else if (PintaCore.Tools.CurrentTool is BaseTool tool)
+			PintaCore.Chrome.SetStatusBarText ($" {tool.Name}: {tool.StatusBarText}");
+	}
+
 	private int PaletteIndexAt (PointD p)
 	{
 		int col = (int) (p.X / CELL);
@@ -569,6 +643,11 @@ public sealed partial class ColorsPanel
 			if (colors[i].A < 1)
 				g.FillRectangle (r, checker);
 			g.FillRectangle (r, colors[i]);
+		}
+
+		if (add_color.Active && visible > 0) {
+			int rows = (visible + PALETTE_COLUMNS - 1) / PALETTE_COLUMNS;
+			g.DrawRectangle (new RectangleD (1, 1, PALETTE_COLUMNS * CELL - 2, rows * CELL - 2), new Color (0, 0.47, 0.84), 2);
 		}
 
 		g.Dispose ();

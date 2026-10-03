@@ -75,20 +75,33 @@ public sealed partial class ResizeCanvasDialog
 
 		Gtk.SpinButton percentageSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
 		percentageSpinner.OnValueChanged += percentageSpinner_ValueChanged;
+		// Follow the percentage while it is typed, not only once it is committed.
+		percentageSpinner.OnChanged += (_, _) => {
+			if (TryGetTypedValue (percentageSpinner, out int percent))
+				ApplyPercentage (percent);
+		};
 		percentageSpinner.SetActivatesDefaultImmediate (true);
 
 		Gtk.Label widthLabel = Gtk.Label.New (Translations.GetString ("Width:"));
 		widthLabel.Halign = Gtk.Align.End;
 
 		Gtk.SpinButton widthSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
-		widthSpinner.OnValueChanged += widthSpinner_ValueChanged;
+		widthSpinner.OnValueChanged += (_, _) => UpdateHeightFromWidth (widthSpinner.GetValueAsInt ());
+		widthSpinner.OnChanged += (_, _) => {
+			if (TryGetTypedValue (widthSpinner, out int width))
+				UpdateHeightFromWidth (width);
+		};
 		widthSpinner.SetActivatesDefaultImmediate (true);
 
 		Gtk.Label heightLabel = Gtk.Label.New (Translations.GetString ("Height:"));
 		heightLabel.Halign = Gtk.Align.End;
 
 		Gtk.SpinButton heightSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
-		heightSpinner.OnValueChanged += heightSpinner_ValueChanged;
+		heightSpinner.OnValueChanged += (_, _) => UpdateWidthFromHeight (heightSpinner.GetValueAsInt ());
+		heightSpinner.OnChanged += (_, _) => {
+			if (TryGetTypedValue (heightSpinner, out int height))
+				UpdateWidthFromHeight (height);
+		};
 		heightSpinner.SetActivatesDefaultImmediate (true);
 
 		Gtk.Button resetButton = Gtk.Button.NewFromIconName (Resources.StandardIcons.EditUndo);
@@ -265,12 +278,14 @@ public sealed partial class ResizeCanvasDialog
 		Anchor savedAnchor = (Anchor) settings.GetSetting (SettingNames.RESIZE_CANVAS_ANCHOR, (int) Anchor.Center);
 		SetAnchor (savedAnchor);
 
-		if (settings.GetSetting (SettingNames.RESIZE_CANVAS_USE_PERCENTAGE, true))
+		// Paint.NET opens in "By absolute size" with Width selected, so typing a number sets the width.
+		if (settings.GetSetting (SettingNames.RESIZE_CANVAS_USE_PERCENTAGE, false)) {
 			percentage_radio.Active = true;
-		else
+			percentage_spinner.GrabFocus ();
+		} else {
 			absolute_radio.Active = true;
-
-		percentage_spinner.GrabFocus ();
+			width_spinner.GrabFocus ();
+		}
 	}
 
 	public static ResizeCanvasDialog New (IChromeService chrome, IWorkspaceService workspace, ISettingsService settings)
@@ -307,7 +322,13 @@ public sealed partial class ResizeCanvasDialog
 		return new (newSize, anchor, null);
 	}
 
-	private void heightSpinner_ValueChanged (object? sender, EventArgs e)
+	/// <summary>
+	/// The number currently typed into a spin button, before GTK commits it as the value.
+	/// </summary>
+	private static bool TryGetTypedValue (Gtk.SpinButton spinner, out int value)
+		=> int.TryParse (spinner.GetText (), out value) && value > 0;
+
+	private void UpdateWidthFromHeight (int height)
 	{
 		if (value_changing)
 			return;
@@ -316,11 +337,11 @@ public sealed partial class ResizeCanvasDialog
 			return;
 
 		value_changing = true;
-		width_spinner.Value = (int) (height_spinner.Value * workspace.ImageSize.Width / workspace.ImageSize.Height);
+		width_spinner.Value = (int) ((double) height * workspace.ImageSize.Width / workspace.ImageSize.Height);
 		value_changing = false;
 	}
 
-	private void widthSpinner_ValueChanged (object? sender, EventArgs e)
+	private void UpdateHeightFromWidth (int width)
 	{
 		if (value_changing)
 			return;
@@ -329,14 +350,17 @@ public sealed partial class ResizeCanvasDialog
 			return;
 
 		value_changing = true;
-		height_spinner.Value = (int) (width_spinner.Value * workspace.ImageSize.Height / workspace.ImageSize.Width);
+		height_spinner.Value = (int) ((double) width * workspace.ImageSize.Height / workspace.ImageSize.Width);
 		value_changing = false;
 	}
 
 	private void percentageSpinner_ValueChanged (object? sender, EventArgs e)
+		=> ApplyPercentage (percentage_spinner.GetValueAsInt ());
+
+	private void ApplyPercentage (int percent)
 	{
-		width_spinner.Value = (int) (workspace.ImageSize.Width * (percentage_spinner.GetValueAsInt () / 100f));
-		height_spinner.Value = (int) (workspace.ImageSize.Height * (percentage_spinner.GetValueAsInt () / 100f));
+		width_spinner.Value = (int) (workspace.ImageSize.Width * (percent / 100f));
+		height_spinner.Value = (int) (workspace.ImageSize.Height * (percent / 100f));
 	}
 
 	void OnResetButtonClicked (Gtk.Button button, EventArgs eventArgs)

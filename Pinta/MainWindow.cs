@@ -519,6 +519,7 @@ internal sealed class MainWindow
 				// column and is attached first, so the thumbnails draw over the rule.
 				Gtk.Box menuRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 				Gtk.PopoverMenuBar menus = Gtk.PopoverMenuBar.NewFromModel (menu_bar);
+				PdnMenus.Attach (menus);
 				menuRow.Append (menus);
 				Gtk.Box rule = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 				rule.AddCssClass ("pdn-top-rule");
@@ -550,8 +551,32 @@ internal sealed class MainWindow
 		Gtk.Box window_buttons = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 		window_buttons.Name = "window_buttons";
 		window_buttons.Valign = Gtk.Align.Center;
-		foreach (ToggleCommand toggle in panel_toggles)
-			window_buttons.Append (CreateWindowToggle (toggle));
+		Dictionary<Gtk.Widget, ToggleCommand> toggle_buttons = [];
+		foreach (ToggleCommand toggle in panel_toggles) {
+			Gtk.ToggleButton button = CreateWindowToggle (toggle);
+			toggle_buttons[button] = toggle;
+			window_buttons.Append (button);
+		}
+
+		// Ctrl+Shift+click on a window's toggle resets the window, as in Paint.NET. The box catches
+		// the press before the button does, so the button doesn't also toggle.
+		Gtk.GestureClick reset_click = Gtk.GestureClick.New ();
+		reset_click.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+		reset_click.OnPressed += (gesture, args) => {
+			ToggleCommand? toggle = null;
+			Gdk.ModifierType state = gesture.GetCurrentEventState ();
+			if (state.IsControlPressed () && state.IsShiftPressed ())
+				for (Gtk.Widget? w = window_buttons.Pick (args.X, args.Y, Gtk.PickFlags.Default); w is not null && toggle is null; w = w.Parent)
+					toggle_buttons.TryGetValue (w, out toggle);
+
+			if (toggle is null) {
+				gesture.SetState (Gtk.EventSequenceState.Denied);
+				return;
+			}
+			gesture.SetState (Gtk.EventSequenceState.Claimed);
+			ResetPanel (toggle);
+		};
+		window_buttons.AddController (reset_click);
 
 		window_buttons.Append (GtkExtensions.CreateToolBarSeparator ());
 
@@ -564,6 +589,7 @@ internal sealed class MainWindow
 
 		Gtk.MenuButton help = GtkExtensions.CreateMenuButton (help_menu, StandardIcons.HelpBrowser, Translations.GetString ("Help"));
 		help.AddCssClass (AdwaitaStyles.Flat);
+		PdnMenus.Attach (help);
 		window_buttons.Append (help);
 
 		top.Attach (window_buttons, 2, rows == 3 ? 1 : 0, 1, 1);
@@ -572,16 +598,33 @@ internal sealed class MainWindow
 	}
 
 	// A flat icon button that is pressed while its window is shown.
+	// The pressed state is bound to the command by hand rather than through ActionName: the action
+	// helper sometimes left the Tools button unpressed while its window was shown.
 	private static Gtk.ToggleButton CreateWindowToggle (ToggleCommand command)
 	{
 		Gtk.ToggleButton button = Gtk.ToggleButton.New ();
-		button.ActionName = command.FullName;
+		button.Active = command.Value;
+		button.OnToggled += (_, _) => command.Value = button.Active;
+		command.Action.OnNotify += (_, e) => {
+			if (e.Pspec.GetName () == "state")
+				button.Active = command.Value;
+		};
 		button.IconName = command.IconName;
 		button.TooltipText = $"{command.Label} ({command.Shortcuts[0]})"; // F5–F8
 		button.Valign = Gtk.Align.Center;
 		button.FocusOnClick = false;
 		button.AddCssClass (AdwaitaStyles.Flat);
 		return button;
+	}
+
+	// The floating windows' ids, in the order of panel_toggles.
+	private static readonly string[] panel_ids = ["tools", "history", "layers", "colors"];
+
+	// Paint.NET's Ctrl+Shift+F5–F8: put the window back at its default place and show it.
+	private void ResetPanel (ToggleCommand toggle)
+	{
+		panel_area.ResetPanel (panel_ids[Array.IndexOf (panel_toggles, toggle)]);
+		toggle.Value = true;
 	}
 
 	private void CreateHeaderBarMenus (Adw.HeaderBar headerBar)
@@ -709,6 +752,13 @@ internal sealed class MainWindow
 		BindPanel (view.HistoryWindow, history);
 		BindPanel (view.LayersWindow, layers);
 		BindPanel (view.ColorsWindow, colors);
+
+		foreach (ToggleCommand toggle in panel_toggles) {
+			Gio.SimpleAction reset = Gio.SimpleAction.New ($"reset-{toggle.Name}", null);
+			reset.OnActivate += (_, _) => ResetPanel (toggle);
+			window_shell.Window.AddAction (reset);
+			app.SetAccelsForAction ($"win.reset-{toggle.Name}", [$"<Control><Shift>{toggle.Shortcuts[0]}"]);
+		}
 
 		// View > Tool Windows (F12) hides all of them, and brings back the ones it hid.
 		view.ToolWindows.Toggled += (shown, _) => {
@@ -853,20 +903,8 @@ internal sealed class MainWindow
 		if (PintaCore.Workspace.ImageFitsInWindow) {
 			PintaCore.Actions.View.ActualSize.Activate ();
 		} else {
-			int image_x = PintaCore.Workspace.ImageSize.Width;
-			int image_y = PintaCore.Workspace.ImageSize.Height;
-
-			var canvas_viewport = PintaCore.Workspace.ActiveWorkspace.Canvas.Parent!;
-
-			int window_x = canvas_viewport.GetAllocatedWidth ();
-			int window_y = canvas_viewport.GetAllocatedHeight ();
-
-			double ratio =
-				(image_x / (double) window_x >= image_y / (double) window_y)
-				? (window_x - 20) / (double) image_x
-				: (window_y - 20) / (double) image_y;
-
-			// The image is more constrained by width than height
+			Size image = PintaCore.Workspace.ImageSize;
+			double ratio = DocumentWorkspace.GetFitScale (image.Width, image.Height, PintaCore.Workspace.ActiveWorkspace.WindowSize, DocumentWorkspace.FitMargin);
 
 			PintaCore.Workspace.Scale = ratio;
 			PintaCore.Actions.View.SuspendZoomUpdate ();

@@ -149,7 +149,11 @@ public sealed partial class LevelsDialog
 		spinOutHigh.OnValueChanged += HandleSpinOutHighValueChanged;
 		spinOutHigh.SetActivatesDefaultImmediate (true);
 
-		Gtk.SpinButton spinOutGamma = Gtk.SpinButton.NewWithRange (0, 100, 0.1);
+		// Paint.NET shows the gamma as "1.00". The value is the exponent applied to the output, so
+		// as in Paint.NET's own Levels screenshot (0.78 with the grey arrow above centre), a value
+		// below 1 raises the grey arrow and brightens the image.
+		Gtk.SpinButton spinOutGamma = Gtk.SpinButton.NewWithRange (UnaryPixelOps.Level.MinGamma, UnaryPixelOps.Level.MaxGamma, 0.1);
+		spinOutGamma.Digits = 2;
 		spinOutGamma.Value = 1;
 		spinOutGamma.OnValueChanged += HandleSpinOutGammaValueChanged;
 		spinOutGamma.SetActivatesDefaultImmediate (true);

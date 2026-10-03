@@ -903,8 +903,10 @@ public sealed partial class ColorPickerDialog
 
 						double magnitude = Math.Sqrt (magnitudeSquared);
 
-						double h = (MathF.Atan2 (vector.Y, -vector.X) + MathF.PI) / (2f * MathF.PI) * 360f;
-						double s = Math.Min (magnitude / radius, 1);
+						// Same layout as the Colors window's wheel.
+						HsvColor wheel = ColorWheel.OffsetToHsv (new PointD (vector.X, vector.Y), radius, HsvColor.White);
+						double h = wheel.Hue;
+						double s = wheel.Sat;
 						double v = picker_surface_option_draw_value.Active ? CurrentColor.ToHsv ().Val : 1;
 
 						double d = radius - magnitude;
@@ -945,14 +947,8 @@ public sealed partial class ColorPickerDialog
 	private PointD HsvToPickerLocation (HsvColor hsv, int radius)
 	{
 		switch (picker_surface_type) {
-			case ColorSurfaceType.HueAndSat: {
-					double rad = hsv.Hue * (Math.PI / 180.0);
-					int mult = radius;
-					double mag = hsv.Sat * mult;
-					double x = Math.Cos (rad) * mag;
-					double y = Math.Sin (rad) * mag;
-					return new (x, -y);
-				}
+			case ColorSurfaceType.HueAndSat:
+				return ColorWheel.HsvToOffset (hsv, radius);
 
 			case ColorSurfaceType.SatAndVal: {
 					int size = radius * 2;
@@ -986,10 +982,9 @@ public sealed partial class ColorPickerDialog
 
 			PointI vecCursor = cursor - centre;
 
-			double hue = (Math.Atan2 (vecCursor.Y, -vecCursor.X) + Math.PI) / (2f * Math.PI) * 360f;
-			double sat = Math.Min (vecCursor.Magnitude () / picker_surface_radius, 1);
+			HsvColor wheel = ColorWheel.OffsetToHsv (new PointD (vecCursor.X, vecCursor.Y), picker_surface_radius, CurrentColor.ToHsv ());
 
-			CurrentColor = CurrentColor.CopyHsv (hue: hue, sat: sat);
+			CurrentColor = CurrentColor.CopyHsv (hue: wheel.Hue, sat: wheel.Sat);
 
 		} else if (picker_surface_type == ColorSurfaceType.SatAndVal) {
 

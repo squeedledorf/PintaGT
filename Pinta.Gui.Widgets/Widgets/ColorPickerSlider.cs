@@ -23,6 +23,7 @@ public sealed partial class ColorPickerSlider
 
 	private const int PADDING_WIDTH = 14;
 	private const int PADDING_HEIGHT = 10;
+	private const int MIN_SLIDER_HEIGHT = 20;
 
 	private bool suppress_input_events;
 
@@ -75,9 +76,9 @@ public sealed partial class ColorPickerSlider
 
 	private void Configure (Component component, int initialWidth)
 	{
-		gradient_slider.SetSizeRequest (initialWidth, this.GetHeight ());
+		gradient_slider.SetSizeRequest (initialWidth, MIN_SLIDER_HEIGHT);
 		gradient_slider.SetDrawFunc ((_, context, width, height) => {
-			DrawGradient (context, width, height, CreateGradient (color, component));
+			DrawGradient (context, width, height, color, this.component);
 		});
 
 		slider_label.SetText (GetLabelText (component));
@@ -138,7 +139,7 @@ public sealed partial class ColorPickerSlider
 		return true;
 	}
 
-	private void DrawCursor (Context context, int width, int height)
+	private static void DrawCursor (Context context, int width, int height, Color color, Component component)
 	{
 		const int OUTLINE_WIDTH = 2;
 
@@ -228,23 +229,33 @@ public sealed partial class ColorPickerSlider
 		}
 	}
 
-	private void DrawGradient (Context context, int width, int height, ColorGradient<Color> colors)
+	/// <summary>
+	/// Draws the slider's gradient bar over a transparency checkerboard, plus the cursor.
+	/// Must return for any size: compact layouts can allocate only a few pixels of height.
+	/// </summary>
+	public static void DrawGradient (Context context, int width, int height, Color color, Component component)
 	{
+		ColorGradient<Color> colors = CreateGradient (color, component);
+
 		context.Antialias = Antialias.None;
+
+		// Short rows (the Colors window's compact More section) shrink the vertical padding
+		// so the bar keeps some height. The checker size must stay positive or the loops below never advance.
+		int paddingHeight = Math.Min (PADDING_HEIGHT, height / 4);
 
 		Size drawSize = new (
 			Width: width - PADDING_WIDTH * 2,
-			Height: height - PADDING_HEIGHT * 2);
+			Height: height - paddingHeight * 2);
 
 		PointI p = new (
 			X: PADDING_WIDTH + drawSize.Width,
-			Y: PADDING_HEIGHT + drawSize.Height);
+			Y: paddingHeight + drawSize.Height);
 
-		int bsize = drawSize.Height / 2;
+		int bsize = Math.Max (1, drawSize.Height / 2);
 
 		// Draw transparency background
 		context.FillRectangle (
-			new RectangleD (PADDING_WIDTH, PADDING_HEIGHT, drawSize.Width, drawSize.Height),
+			new RectangleD (PADDING_WIDTH, paddingHeight, drawSize.Width, drawSize.Height),
 			new Color (1, 1, 1));
 
 		for (int x = PADDING_WIDTH; x < p.X; x += bsize * 2) {
@@ -255,7 +266,7 @@ public sealed partial class ColorPickerSlider
 				: bsize;
 
 			context.FillRectangle (
-				new RectangleD (x, PADDING_HEIGHT, bwidth, bsize),
+				new RectangleD (x, paddingHeight, bwidth, bsize),
 				new Color (.8, .8, .8));
 		}
 
@@ -267,13 +278,13 @@ public sealed partial class ColorPickerSlider
 				: bsize;
 
 			context.FillRectangle (
-				new RectangleD (x, PADDING_HEIGHT + drawSize.Height / 2, bwidth, bsize),
+				new RectangleD (x, paddingHeight + drawSize.Height / 2, bwidth, bsize),
 				new Color (.8, .8, .8));
 		}
 
 		LinearGradient pat = new (
 			x0: PADDING_WIDTH,
-			y0: PADDING_HEIGHT,
+			y0: paddingHeight,
 			x1: p.X,
 			y1: p.Y);
 
@@ -288,14 +299,14 @@ public sealed partial class ColorPickerSlider
 
 		context.Rectangle (
 			PADDING_WIDTH,
-			PADDING_HEIGHT,
+			paddingHeight,
 			drawSize.Width,
 			drawSize.Height);
 
 		context.SetSource (pat);
 		context.Fill ();
 
-		DrawCursor (context, width, height);
+		DrawCursor (context, width, height, color, component);
 	}
 
 	private static double ExtractValue (Color color, Component component) => component switch {

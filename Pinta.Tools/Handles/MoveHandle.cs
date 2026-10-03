@@ -9,12 +9,13 @@ namespace Pinta.Tools;
 /// </summary>
 public sealed class MoveHandle : IToolHandle
 {
-	private static readonly Gdk.RGBA fill_color = new () { Red = 0, Green = 0, Blue = 1, Alpha = 1 };
-	private static readonly Gdk.RGBA selection_fill_color = new () { Red = 1, Green = 0.5f, Blue = 0, Alpha = 1 };
-	private static readonly Gdk.RGBA stroke_color = new () { Red = 1, Green = 1, Blue = 1, Alpha = 0.7f };
+	// Paint.NET's nubs: white with a dark outline.
+	private static readonly Gdk.RGBA fill_color = new () { Red = 1, Green = 1, Blue = 1, Alpha = 1 };
+	private static readonly Gdk.RGBA selection_fill_color = new () { Red = 0.6f, Green = 0.8f, Blue = 1, Alpha = 1 };
+	private static readonly Gdk.RGBA stroke_color = new () { Red = 0.15f, Green = 0.15f, Blue = 0.15f, Alpha = 1 };
 	private static readonly Gdk.Cursor default_cursor = GdkExtensions.CursorFromName (Pinta.Resources.StandardCursors.Default);
 
-	private const double RADIUS = 4.5;
+	private const double DEFAULT_RADIUS = 4.5;
 
 	private readonly IWorkspaceService workspace;
 
@@ -37,6 +38,13 @@ public sealed class MoveHandle : IToolHandle
 
 	public Gdk.Cursor Cursor { get; init; } = default_cursor;
 
+	public double Radius { get; init; } = DEFAULT_RADIUS;
+
+	/// <summary>
+	/// Draws a cross inside the circle, as for Paint.NET's centre of rotation.
+	/// </summary>
+	public bool Crosshair { get; init; } = false;
+
 	/// <summary>
 	/// Tests whether the window point is inside the handle's area.
 	/// The area to grab a handle is a bit larger than the rendered area for easier selection.
@@ -56,7 +64,7 @@ public sealed class MoveHandle : IToolHandle
 	{
 		Gsk.PathBuilder pathBuilder = Gsk.PathBuilder.New ();
 		PointD windowPt = workspace.CanvasPointToView (CanvasPosition);
-		pathBuilder.AddCircle (windowPt.ToGraphenePoint (), (float) RADIUS);
+		pathBuilder.AddCircle (windowPt.ToGraphenePoint (), (float) Radius);
 		Gsk.Path path = pathBuilder.ToPath ();
 
 		Gdk.RGBA fillColor = Selected ? selection_fill_color : fill_color;
@@ -64,6 +72,16 @@ public sealed class MoveHandle : IToolHandle
 
 		Gsk.Stroke stroke = Gsk.Stroke.New (lineWidth: 1.0f);
 		snapshot.AppendStroke (path, stroke, stroke_color);
+
+		if (Crosshair) {
+			float x = (float) windowPt.X, y = (float) windowPt.Y, r = (float) Radius;
+			Gsk.PathBuilder cross = Gsk.PathBuilder.New ();
+			cross.MoveTo (x - r, y);
+			cross.LineTo (x + r, y);
+			cross.MoveTo (x, y - r);
+			cross.LineTo (x, y + r);
+			snapshot.AppendStroke (cross.ToPath (), stroke, stroke_color);
+		}
 	}
 
 	/// <summary>
@@ -76,10 +94,8 @@ public sealed class MoveHandle : IToolHandle
 	/// </summary>
 	private RectangleD ComputeWindowRect ()
 	{
-		const double DIAMETER = 2 * RADIUS;
-
 		PointD windowPt = workspace.CanvasPointToView (CanvasPosition);
-		return new RectangleD (windowPt.X - RADIUS, windowPt.Y - RADIUS, DIAMETER, DIAMETER);
+		return new RectangleD (windowPt.X - Radius, windowPt.Y - Radius, 2 * Radius, 2 * Radius);
 	}
 
 	/// <summary>

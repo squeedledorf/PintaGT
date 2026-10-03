@@ -66,6 +66,7 @@ public sealed partial class HistoryItemWidget
 		SetOrientation (Gtk.Orientation.Horizontal);
 
 		label.Halign = Gtk.Align.Start;
+		label.Ellipsize = Pango.EllipsizeMode.End; // Long names end in "..." instead of being clipped.
 
 		Append (image);
 		Append (label);
