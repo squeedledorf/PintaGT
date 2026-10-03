@@ -547,8 +547,9 @@ public sealed partial class ColorsPanel
 			IEnumerable<string> files = System.IO.Directory.EnumerateFiles (PalettesFolder)
 				.Where (f => PintaCore.PaletteFormats.GetFormatByFilename (f) is PaletteDescriptor d && !d.IsWriteOnly ())
 				.Order (StringComparer.CurrentCultureIgnoreCase);
+			// Menu labels take "_" as an access-letter marker, so double it to show "my_palette" as written.
 			foreach (string file in files)
-				palettes.AppendItem (MenuItem (System.IO.Path.GetFileNameWithoutExtension (file), $"colorspanel.load-palette({GLib.Variant.NewString (file).Print (false)})", Resources.Icons.WindowColors));
+				palettes.AppendItem (MenuItem (System.IO.Path.GetFileNameWithoutExtension (file).Replace ("_", "__"), $"colorspanel.load-palette({GLib.Variant.NewString (file).Print (false)})", Resources.Icons.WindowColors));
 		}
 		if (palettes.GetNItems () > 0) // An empty section still leaves a gap at the top.
 			menu.AppendSection (null, palettes);
