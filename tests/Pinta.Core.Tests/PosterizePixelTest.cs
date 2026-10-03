@@ -25,6 +25,18 @@ internal sealed class PosterizePixelTest
 		}
 	}
 
+	// Every channel unticked must not disturb translucent pixels either (straight/premultiplied round trip).
+	[Test]
+	public void AllUntickedLeavesTranslucentPixelsAlone ()
+	{
+		UnaryPixelOps.PosterizePixel op = new (256, 256, 256, 256);
+		for (int a = 1; a < 255; a++)
+			for (int v = 0; v <= a; v++) {
+				ColorBgra c = ColorBgra.FromBgra ((byte) v, (byte) (a - v), (byte) (v / 2), (byte) a);
+				Assert.That (op.Apply (c), Is.EqualTo (c), $"a={a} v={v}");
+			}
+	}
+
 	[TestCase (2)]
 	[TestCase (16)]
 	[TestCase (64)]
