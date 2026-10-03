@@ -1,3 +1,34 @@
+/* Paint.NET 5 density: Segoe-UI-sized 9pt text everywhere, tight menus. */
+window, popover {
+    font-size: 9pt;
+}
+
+popovermenubar {
+    min-height: 0;
+    padding: 0;
+}
+
+popovermenubar > item {
+    min-height: 0;
+    padding: 3px 7px;
+    border-radius: 0;
+}
+
+popover.menu > contents {
+    padding: 2px;
+    border-radius: 4px;
+}
+
+popover.menu modelbutton {
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 0;
+}
+
+popover.menu separator {
+    margin: 2px 0;
+}
+
 /* Compact Paint.NET-style toolbox: 16px icons in a two-column grid. */
 .tool-box-button {
     -gtk-icon-size: 16px;
@@ -20,13 +51,31 @@
 /* Fixed tool options height (as in Paint.NET), so the canvas does not jump when switching tools.
    Matches the tallest options widget, a spin button. */
 #tool_toolbar {
-    min-height: 34px;
+    min-height: 28px;
 }
 
 #main_toolbar button, #tool_toolbar button {
+    -gtk-icon-size: 16px;
     min-width: 24px;
     min-height: 24px;
-    padding: 2px 4px;
+    padding: 0 4px;
+}
+
+/* Paint.NET's option fields are about 22px tall, not Adwaita's 34px. */
+#tool_toolbar spinbutton, #tool_toolbar entry, #statusbar entry {
+    min-height: 24px;
+}
+
+#tool_toolbar spinbutton > text, #tool_toolbar spinbutton > button {
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+#tool_toolbar spinbutton > button {
+    min-width: 20px;
+    padding-left: 2px;
+    padding-right: 2px;
 }
 
 #main_toolbar separator, #tool_toolbar separator {
@@ -37,6 +86,12 @@
 .tool-bar-scale {
     margin-top: -4px;
     margin-bottom: -5px;
+}
+
+#statusbar button {
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0 3px;
 }
 
 /* Grey surround of the image (Paint.NET's canvas border). The dark variant is
@@ -56,4 +111,50 @@
 
 #new-image-preview {
     box-shadow: 0px 0px 2px 2px #7F7F7F;
+}
+
+/* Floating tool windows over the canvas (Paint.NET's Tools, History, Layers and Colors).
+   Structure:  .pdn-panel > .pdn-panel-header > (.pdn-panel-title label, .pdn-panel-close button)
+               followed by the panel content. */
+.pdn-panel {
+    background-color: @view_bg_color;
+    color: @view_fg_color;
+    border: 1px solid alpha(@view_fg_color, 0.3);
+    border-radius: 0;
+    box-shadow: 0 1px 5px 1px alpha(black, 0.22);
+}
+
+.pdn-panel-header {
+    min-height: 20px;
+    padding: 2px 2px 2px 6px;
+}
+
+.pdn-panel-title {
+    font-size: 9pt;
+}
+
+.pdn-panel-close {
+    -gtk-icon-size: 10px;
+    min-width: 18px;
+    min-height: 14px;
+    padding: 0;
+    border-radius: 0;
+    background-color: #c75050;
+    color: white;
+    box-shadow: none;
+}
+
+.pdn-panel-close:hover {
+    background-color: #e04343;
+}
+
+.pdn-panel-close:active {
+    background-color: #993d3d;
+}
+
+/* Paint.NET's list selection: pale blue fill with a blue outline. */
+.pdn-panel listview > row:selected, .pdn-panel list > row:selected {
+    background-color: alpha(#0078d7, 0.3);
+    box-shadow: inset 0 0 0 1px #0078d7;
+    color: inherit;
 }
