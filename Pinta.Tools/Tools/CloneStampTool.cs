@@ -34,6 +34,7 @@ namespace Pinta.Tools;
 public sealed class CloneStampTool : BaseBrushTool
 {
 	private bool painting;
+	private MouseButton paint_button;
 	private PointI? origin = null;
 	private PointI? offset = null;
 	private PointI? last_point = null;
@@ -91,6 +92,7 @@ public sealed class CloneStampTool : BaseBrushTool
 				return;
 
 			painting = true;
+			paint_button = e.MouseButton;
 
 			if (!offset.HasValue)
 				offset = new (e.Point.X - origin.Value.X, e.Point.Y - origin.Value.Y);
@@ -151,6 +153,10 @@ public sealed class CloneStampTool : BaseBrushTool
 
 	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
 	{
+		// Releasing the other button does not end the stroke
+		if (painting && e.MouseButton != paint_button)
+			return;
+
 		painting = false;
 
 		if (e.IsControlPressed)
