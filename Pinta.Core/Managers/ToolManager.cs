@@ -444,7 +444,8 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 			// Rebuild on every show, since add-ins can add or remove tools.
 			popover.OnShow += (_, _) => {
 				list.RemoveAll ();
-				listed = [.. tools.OrderBy (t => DropdownOrder (t.Priority))];
+				// Priority order, as PDN's Tool dropdown lists the toolbox row by row.
+				listed = [.. tools];
 				foreach (BaseTool tool in listed) {
 					Gtk.ListBoxRow row = CreateToolListItem (tool);
 					list.Append (row);
@@ -479,16 +480,6 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 		row.Child = box;
 		return row;
 	}
-
-	/// <summary>
-	/// Paint.NET lists its tools by group in the Tool dropdown: the four selection tools, then the
-	/// move and view tools. The tool box shows those in two columns (left: odd priorities 1, 5, 9, 13;
-	/// right: 3, 7, 11, 15), so the dropdown takes the left column first. Later tools keep their order.
-	/// </summary>
-	internal static int DropdownOrder (int priority)
-		=> priority is >= 1 and < 17 && priority % 2 == 1
-		? (priority % 4 == 1 ? priority / 4 : 4 + priority / 4)
-		: priority;
 
 	private Gtk.Separator ToolSeparator => tool_sep ??= GtkExtensions.CreateToolBarSeparator ();
 	private Gtk.Box ToolWidgetsBox => tool_widgets_box ??= Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
