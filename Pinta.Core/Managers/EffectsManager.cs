@@ -164,8 +164,10 @@ public sealed class EffectsManager
 
 		string category = effects_categories[effectType];
 
-		if (last_effect?.GetType () == effectType)
+		if (last_effect?.GetType () == effectType) {
 			last_effect = null;
+			action_manager.Effects.ClearRepeatableEffect ();
+		}
 
 		effects.Remove (effectType);
 		action_manager.Effects.RemoveEffect (category, action);

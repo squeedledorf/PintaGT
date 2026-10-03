@@ -118,18 +118,25 @@ public sealed class EffectsActions
 	/// Updates the Repeat menu item to name the last applied effect, and enables it.
 	/// </summary>
 	public void SetRepeatableEffect (string effectName)
+		=> UpdateRepeatItem (true, Translations.GetString ("Repeat {0}", effectName));
+
+	/// <summary>
+	/// Resets the Repeat menu item to its initial disabled state, e.g. when the repeated effect is removed.
+	/// </summary>
+	public void ClearRepeatableEffect ()
+		=> UpdateRepeatItem (false, RepeatEffect.Label);
+
+	private void UpdateRepeatItem (bool repeatable, string label)
 	{
-		has_repeatable_effect = true;
-		RepeatEffect.Sensitive = true;
+		has_repeatable_effect = repeatable;
+		RepeatEffect.Sensitive = repeatable;
 
 		if (repeat_section is null)
 			return;
 
 		// Menu items are immutable once added, so replace the item to change its label.
 		repeat_section.RemoveAll ();
-		repeat_section.AppendItem (Gio.MenuItem.New (
-			Translations.GetString ("Repeat {0}", effectName),
-			RepeatEffect.FullName));
+		repeat_section.AppendItem (Gio.MenuItem.New (label, RepeatEffect.FullName));
 	}
 	#endregion
 }
