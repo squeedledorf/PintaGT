@@ -110,15 +110,15 @@ public sealed partial class LevelsDialog
 		BoxStyle horizontalSpaced = new (Gtk.Orientation.Horizontal, SPACING);
 		BoxStyle verticalSpaced = new (Gtk.Orientation.Vertical, SPACING);
 
-		Gtk.CheckButton checkRed = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Red"));
+		Gtk.CheckButton checkRed = Gtk.CheckButton.NewWithLabel (Translations.GetString ("R"));
 		checkRed.Active = true;
 		checkRed.OnToggled += HandleCheckRedToggled;
 
-		Gtk.CheckButton checkGreen = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Green"));
+		Gtk.CheckButton checkGreen = Gtk.CheckButton.NewWithLabel (Translations.GetString ("G"));
 		checkGreen.Active = true;
 		checkGreen.OnToggled += HandleCheckGreenToggled;
 
-		Gtk.CheckButton checkBlue = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Blue"));
+		Gtk.CheckButton checkBlue = Gtk.CheckButton.NewWithLabel (Translations.GetString ("B"));
 		checkBlue.Active = true;
 		checkBlue.OnToggled += HandleCheckBlueToggled;
 
@@ -130,6 +130,8 @@ public sealed partial class LevelsDialog
 				checkBlue
 			]
 		);
+		hboxChecks.Halign = Gtk.Align.Center; // Paint.NET centres "R G B" under the gradients.
+		hboxChecks.Spacing = 18;
 
 		Gtk.SpinButton spinInLow = Gtk.SpinButton.NewWithRange (0, 254, 1);
 		spinInLow.OnValueChanged += HandleSpinInLowValueChanged;
@@ -192,10 +194,10 @@ public sealed partial class LevelsDialog
 		colorPanelOutHigh.ClickGesture.OnPressed += HandleColorPanelButtonPressEvent;
 
 		HistogramWidget histogramInput = HistogramWidget.New ();
-		histogramInput.WidthRequest = 200;
+		histogramInput.WidthRequest = 120;
 		histogramInput.FlipHorizontal = true;
 		HistogramWidget histogramOutput = HistogramWidget.New ();
-		histogramOutput.WidthRequest = 200;
+		histogramOutput.WidthRequest = 120;
 
 		Gtk.Box vboxInput = GtkExtensions.Box (
 			verticalSpaced,
@@ -215,13 +217,23 @@ public sealed partial class LevelsDialog
 			]
 		);
 
+		// The gamma and its swatch sit mid-column, as in Paint.NET, with the black level at the bottom.
+		Gtk.Box vboxOutMid = GtkExtensions.Box (
+			verticalSpaced,
+			[
+				spinOutGamma.WithStackedStepButtons (),
+				colorPanelOutMid
+			]
+		);
+		vboxOutMid.Vexpand = true;
+		vboxOutMid.Valign = Gtk.Align.Center;
+
 		Gtk.Box vboxOutput = GtkExtensions.Box (
 			verticalSpaced,
 			[
 				spinOutHigh.WithStackedStepButtons (),
 				colorPanelOutHigh,
-				spinOutGamma.WithStackedStepButtons (),
-				colorPanelOutMid,
+				vboxOutMid,
 				colorPanelOutLow,
 				spinOutLow.WithStackedStepButtons ()
 			]
@@ -270,19 +282,23 @@ public sealed partial class LevelsDialog
 
 		// Plain buttons rather than dialog responses, which would close the dialog.
 		button_auto = Gtk.Button.NewWithLabel (Translations.GetString ("Auto"));
-		button_auto.Hexpand = true;
-		button_auto.Halign = Gtk.Align.End;
 		button_auto.OnClicked += HandleButtonAutoClicked;
 
 		button_reset = Gtk.Button.NewWithLabel (Translations.GetString ("Reset"));
+		button_reset.Hexpand = true;
+		button_reset.Halign = Gtk.Align.Start;
 		button_reset.OnClicked += HandleButtonResetClicked;
-
-		hboxChecks.Append (button_auto);
-		hboxChecks.Append (button_reset);
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
 		this.PressOkOnEnter ();
+
+		// Paint.NET has one bottom row: Auto and Reset at the left, OK and Cancel at the right.
+		Gtk.Box actionArea = (Gtk.Box) GetWidgetForResponse ((int) Gtk.ResponseType.Ok)!.GetParent ()!;
+		actionArea.Halign = Gtk.Align.Fill;
+		actionArea.Homogeneous = false;
+		actionArea.Prepend (button_reset);
+		actionArea.Prepend (button_auto);
 
 		Gtk.Box hboxLayout = GtkExtensions.Box (
 			horizontalSpaced,
@@ -294,8 +310,6 @@ public sealed partial class LevelsDialog
 			]
 		);
 		hboxLayout.SetAllMargins (SPACING);
-
-		hboxChecks.SetAllMargins (SPACING);
 
 		Gtk.Box contentArea = this.GetContentAreaBox ();
 		contentArea.Append (hboxLayout);
@@ -310,13 +324,11 @@ public sealed partial class LevelsDialog
 			widget.Vexpand = true;
 			widget.Valign = Gtk.Align.Fill;
 
-			Gtk.Label label_widget = Gtk.Label.New (label);
-			label_widget.Halign = Gtk.Align.Start;
-
+			// Captions with rules, which run on into the next column's caption as in Paint.NET.
 			Gtk.Box vbox = GtkExtensions.Box (
 				verticalSpaced,
 				[
-					label_widget,
+					GtkExtensions.SectionHeader (label),
 					widget
 				]
 			);

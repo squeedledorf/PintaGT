@@ -360,19 +360,9 @@ internal sealed class ImageSizeFields
 		grid.Attach (units, 2, row, 2, 1);
 	}
 
-	/// <summary>A Win32-style group caption: the text, then a rule to the right edge.</summary>
 	public static Gtk.Widget SectionHeader (Gtk.Label label)
-	{
-		label.Xalign = 0;
-		Gtk.Separator rule = Gtk.Separator.New (Gtk.Orientation.Horizontal);
-		rule.Hexpand = true;
-		rule.Valign = Gtk.Align.Center;
-		Gtk.Box box = Gtk.Box.New (Gtk.Orientation.Horizontal, SPACING);
-		box.Append (label);
-		box.Append (rule);
-		return box;
-	}
+		=> GtkExtensions.SectionHeader (label);
 
 	public static Gtk.Widget SectionHeader (string text)
-		=> SectionHeader (Gtk.Label.New (text));
+		=> GtkExtensions.SectionHeader (text);
 }

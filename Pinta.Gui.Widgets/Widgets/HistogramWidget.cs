@@ -142,7 +142,7 @@ public sealed partial class HistogramWidget
 			sum3 -= hist[i - 1];
 		}
 
-		byte intensity = selected[channel] ? (byte) 96 : (byte) 32;
+		byte intensity = selected[channel] ? (byte) 128 : (byte) 32; // Paint.NET fills its histograms at about half opacity.
 		ColorBgra pen_color = ColorBgra.Lerp (ColorBgra.Black, color, intensity);
 		ColorBgra brush_color = color.NewAlpha (intensity);
 

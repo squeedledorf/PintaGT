@@ -106,10 +106,10 @@ public sealed partial class CurvesDialog
 		Gtk.GestureDrag dragController = CreateCurvesDragController ();
 
 		BoxStyle horizontalSpaced = new (Gtk.Orientation.Horizontal, SPACING);
+		// Paint.NET: a "Transfer Map" group caption, then the combo with the (x, y) readout at the right.
 		Gtk.Box boxAbove = GtkExtensions.Box (
 			horizontalSpaced,
 			[
-				Gtk.Label.New (Translations.GetString ("Transfer Map")),
 				comboMap,
 				labelPoint
 			]
@@ -129,7 +129,7 @@ public sealed partial class CurvesDialog
 		curvesDrawing.WidthRequest = 256;
 		curvesDrawing.HeightRequest = 256;
 		curvesDrawing.Focusable = true;
-		curvesDrawing.SetAllMargins (8);
+		curvesDrawing.MarginTop = curvesDrawing.MarginBottom = 4;
 		curvesDrawing.SetDrawFunc ((area, context, width, height) => HandleDrawingDrawnEvent (context));
 		curvesDrawing.AddController (motionController);
 		curvesDrawing.AddController (dragController);
@@ -138,6 +138,7 @@ public sealed partial class CurvesDialog
 		content_area.SetAllMargins (12);
 		content_area.Spacing = SPACING;
 		content_area.AppendMultiple ([
+			GtkExtensions.SectionHeader (Translations.GetString ("Transfer Map")),
 			boxAbove,
 			curvesDrawing,
 			boxBelow,
@@ -639,9 +640,6 @@ public sealed partial class CurvesDialog
 				g.MoveTo (0, i * SIZE / 4);
 				g.LineTo (SIZE, i * SIZE / 4);
 			}
-
-			g.MoveTo (0, SIZE - 1);
-			g.LineTo (SIZE - 1, 0);
 
 			g.Stroke ();
 
