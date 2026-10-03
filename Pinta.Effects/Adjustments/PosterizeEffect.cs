@@ -16,8 +16,6 @@ namespace Pinta.Effects;
 
 public sealed class PosterizeEffect : BaseEffect
 {
-	UnaryPixelOps.PosterizePixel? op = null;
-
 	public sealed override bool IsTileable => true;
 
 	public override string Icon => Pinta.Resources.Icons.AdjustmentsPosterize;
@@ -41,10 +39,9 @@ public sealed class PosterizeEffect : BaseEffect
 
 	public override async Task<bool> LaunchConfiguration ()
 	{
-		using PosterizeDialog dialog = PosterizeDialog.New (chrome);
+		using PosterizeDialog dialog = PosterizeDialog.New (chrome, Data);
 		dialog.Title = Name;
 		dialog.IconName = Icon;
-		dialog.EffectData = Data; // TODO: Delegate `EffectData` changes to event handlers or similar
 
 		Gtk.ResponseType response = await dialog.RunAsync ();
 
@@ -55,7 +52,13 @@ public sealed class PosterizeEffect : BaseEffect
 
 	public override void Render (ImageSurface src, ImageSurface dest, ReadOnlySpan<RectangleI> rois)
 	{
-		op ??= new UnaryPixelOps.PosterizePixel (Data.Red, Data.Green, Data.Blue);
+		PosterizeData data = Data;
+		// 256 levels leave a channel unchanged, so an unticked channel passes through.
+		UnaryPixelOps.PosterizePixel op = new (
+			data.RedEnabled ? data.Red : 256,
+			data.GreenEnabled ? data.Green : 256,
+			data.BlueEnabled ? data.Blue : 256,
+			data.AlphaEnabled ? data.Alpha : 256);
 
 		op.Apply (dest, src, rois);
 	}
@@ -66,4 +69,10 @@ public sealed class PosterizeData : EffectData
 	public int Red { get; set; } = 16;
 	public int Green { get; set; } = 16;
 	public int Blue { get; set; } = 16;
+	public int Alpha { get; set; } = 16;
+	public bool RedEnabled { get; set; } = true;
+	public bool GreenEnabled { get; set; } = true;
+	public bool BlueEnabled { get; set; } = true;
+	public bool AlphaEnabled { get; set; } = true;
+	public bool Linked { get; set; } = true;
 }

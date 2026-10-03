@@ -524,6 +524,9 @@ public sealed partial class SimpleEffectDialog
 		widget.IncrementValue = attributes.OfType<IncrementValueAttribute> ().Select (i => i.Value).FirstOrDefault (1.0);
 		widget.DigitsValue = attributes.OfType<DigitsValueAttribute> ().Select (d => d.Value).FirstOrDefault (0);
 
+		foreach (SliderTrackAttribute track in attributes.OfType<SliderTrackAttribute> ())
+			widget.AddTrackCssClass (track.CssClass);
+
 		widget.ValueChanged += (_, _) => {
 			DelayedUpdate (() => {
 				SetAndNotify (settings.reflector, effectData, widget.ValueAsInt);

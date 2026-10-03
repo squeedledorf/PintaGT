@@ -874,6 +874,33 @@ window.dialog scale:disabled > trough > slider {
     background-color: alpha(@view_fg_color, 0.35);
 }
 
+/* Hue / Saturation tracks are painted with what the slider does: a hue rainbow centred on red,
+   grey into full colour, and black to white. (SliderTrackAttribute names these classes.) */
+window.dialog scale.pdn-track-hue > trough,
+window.dialog scale.pdn-track-saturation > trough,
+window.dialog scale.pdn-track-lightness > trough {
+    min-height: 4px;
+}
+
+window.dialog scale.pdn-track-hue > trough > slider,
+window.dialog scale.pdn-track-saturation > trough > slider,
+window.dialog scale.pdn-track-lightness > trough > slider {
+    margin: -8px -4px;
+}
+
+window.dialog scale.pdn-track-hue > trough {
+    background-image: linear-gradient(to right, #00ffff, #0000ff, #ff00ff, #ff0000, #ffff00, #00ff00, #00ffff);
+}
+
+window.dialog scale.pdn-track-saturation > trough {
+    background-image: linear-gradient(to right, #808080, alpha(#808080, 0)),
+                      linear-gradient(to right, #ff00ff, #ff0000, #ffff00, #00ff00);
+}
+
+window.dialog scale.pdn-track-lightness > trough {
+    background-image: linear-gradient(to right, #000000, #808080, #ffffff);
+}
+
 /* Effect property titles (Angle, Center, combo titles) are plain 9pt labels like their slider siblings. */
 window.dialog .heading, window.dialog .title-4 {
     font-size: 9pt;

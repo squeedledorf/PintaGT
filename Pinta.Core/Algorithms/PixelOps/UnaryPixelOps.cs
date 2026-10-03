@@ -553,12 +553,24 @@ public static class UnaryPixelOps
 		private readonly ImmutableArray<byte> red_levels;
 		private readonly ImmutableArray<byte> green_levels;
 		private readonly ImmutableArray<byte> blue_levels;
+		private readonly ImmutableArray<byte> alpha_levels;
+		private readonly bool red_identity;
+		private readonly bool green_identity;
+		private readonly bool blue_identity;
 
-		public PosterizePixel (int red, int green, int blue)
+		/// <summary>
+		/// Each argument is the number of levels (2 to 256) for that channel; 256 leaves the channel unchanged.
+		/// Channels are posterized on straight (non-premultiplied) values.
+		/// </summary>
+		public PosterizePixel (int red, int green, int blue, int alpha = 256)
 		{
 			red_levels = CalcLevels (red);
 			green_levels = CalcLevels (green);
 			blue_levels = CalcLevels (blue);
+			alpha_levels = CalcLevels (alpha);
+			red_identity = red >= 256;
+			green_identity = green >= 256;
+			blue_identity = blue >= 256;
 		}
 
 		private static ImmutableArray<byte> CalcLevels (int levelCount)
@@ -589,11 +601,32 @@ public static class UnaryPixelOps
 		}
 
 		public override ColorBgra Apply (in ColorBgra color)
-			=> ColorBgra.FromBgra (
-				b: blue_levels[color.B],
-				g: green_levels[color.G],
-				r: red_levels[color.R],
+		{
+			if (color.A == 255) // Opaque: premultiplied and straight values are the same.
+				return ColorBgra.FromBgra (
+					b: blue_levels[color.B],
+					g: green_levels[color.G],
+					r: red_levels[color.R],
+					a: 255);
+
+			ColorBgra straight = color.ToStraightAlpha ();
+			ColorBgra result = ColorBgra.FromBgra (
+				b: blue_levels[straight.B],
+				g: green_levels[straight.G],
+				r: red_levels[straight.R],
+				a: alpha_levels[straight.A]).ToPremultipliedAlpha ();
+
+			// The straight/premultiplied round trip is lossy, so when alpha is unchanged
+			// keep the original value of every channel left at 256 levels (unticked).
+			if (result.A != color.A)
+				return result;
+
+			return ColorBgra.FromBgra (
+				b: blue_identity ? color.B : result.B,
+				g: green_identity ? color.G : result.G,
+				r: red_identity ? color.R : result.R,
 				a: color.A);
+		}
 	}
 
 }
