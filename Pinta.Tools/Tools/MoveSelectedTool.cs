@@ -187,6 +187,16 @@ public sealed class MoveSelectedTool : BaseTransformTool
 		UpdateFinishButton ();
 	}
 
+	// As in Paint.NET, Esc drops the floating pixels like Finish does (but not in the middle of a drag).
+	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
+	{
+		if (e.Key.Value != Gdk.Constants.KEY_Escape || hist is not null || !document.Layers.ShowSelectionLayer)
+			return base.OnKeyDown (document, e);
+
+		OnCommit (document);
+		return true;
+	}
+
 	protected override void OnDeactivated (Document? document, BaseTool? newTool)
 	{
 		base.OnDeactivated (document, newTool);
