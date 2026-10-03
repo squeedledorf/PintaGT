@@ -127,7 +127,7 @@ internal sealed class MainWindow
 		PintaCore.Actions.View.PixelGrid.Toggled += PixelGrid_Toggled;
 
 		// TODO: These need to be [re]moved when we redo zoom support
-		PintaCore.Actions.View.ZoomToWindow.Activated += ZoomToWindow_Activated;
+		PintaCore.Actions.View.ZoomToWindow.Activated += ZoomToWindowCommand_Activated;
 		PintaCore.Actions.View.ZoomToSelection.Activated += ZoomToSelection_Activated;
 
 		PintaCore.Workspace.ActiveDocumentChanged += ActiveDocumentChanged;
@@ -895,6 +895,48 @@ internal sealed class MainWindow
 	private void ZoomToSelection_Activated (object sender, EventArgs e)
 	{
 		PintaCore.Workspace.ActiveWorkspace.ZoomToCanvasRectangle (PintaCore.Workspace.ActiveDocument.Selection.GetBounds ());
+	}
+
+	// The zoom and scroll position before Ctrl+B, and the zoom it fitted to.
+	private (Document Document, double Scale, double X, double Y, double FitScale)? zoom_before_fit;
+
+	// As in Paint.NET, Ctrl+B a second time goes back to the zoom and position from before the first.
+	private void ZoomToWindowCommand_Activated (object sender, EventArgs e)
+	{
+		ViewActions view = PintaCore.Actions.View;
+		DocumentWorkspace workspace = PintaCore.Workspace.ActiveWorkspace;
+		Document document = PintaCore.Workspace.ActiveDocument;
+		Gtk.Viewport viewport = (Gtk.Viewport) workspace.Canvas.Parent!;
+
+		// Re-fitting after an edit (e.g. a crop) while in Zoom to Window mode is not a second Ctrl+B.
+		if (view.RefittingToWindow) {
+			zoom_before_fit = null;
+			ZoomToWindow_Activated (sender, e);
+			return;
+		}
+
+		if (zoom_before_fit is var (fit_document, scale, x, y, fit_scale) && fit_document == document && workspace.Scale == fit_scale) {
+			zoom_before_fit = null;
+			view.ZoomToWindowActivated = false;
+			workspace.Scale = scale;
+			view.SuspendZoomUpdate ();
+			view.ZoomComboBox.ComboBox.GetEntry ().SetText (ViewActions.ToPercent (scale));
+			view.ResumeZoomUpdate ();
+			// Scroll once the scrollbars have caught up with the new size, which can take a few
+			// layout passes at high zoom; until then the values get clamped to the old range.
+			int tries = 0;
+			GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT_IDLE, () => {
+				Gtk.Adjustment h = viewport.Hadjustment!, v = viewport.Vadjustment!;
+				h.Value = x;
+				v.Value = y;
+				return (h.Value != x || v.Value != y) && ++tries < 20;
+			});
+			return;
+		}
+
+		(double Scale, double X, double Y) before = (workspace.Scale, viewport.Hadjustment!.Value, viewport.Vadjustment!.Value);
+		ZoomToWindow_Activated (sender, e);
+		zoom_before_fit = (document, before.Scale, before.X, before.Y, workspace.Scale);
 	}
 
 	private void ZoomToWindow_Activated (object sender, EventArgs e)

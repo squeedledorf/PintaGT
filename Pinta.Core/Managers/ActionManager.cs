@@ -152,10 +152,20 @@ public sealed class ActionManager
 		Gtk.Label cursor = AppendReadout (statusbar, Resources.Icons.CursorPosition, Translations.GetString ("Cursor Position"));
 		Gtk.Label selection_size = AppendReadout (statusbar, Resources.Icons.ToolSelectRectangle, Translations.GetString ("Selection Size"));
 
+		// The readouts use the View menu's units, as in Paint.NET.
+		int units = 0;
+		string Length (double pixels) => ViewActions.FormatLength (pixels, units);
+
 		void UpdateImageSize ()
 		{
 			Size? size = workspaceManager.ActiveDocumentOrDefault?.ImageSize;
-			image_size.SetText (size is Size s ? $"{s.Width} × {s.Height}" : string.Empty);
+			image_size.SetText (size is Size s ? $"{Length (s.Width)} × {Length (s.Height)}" : string.Empty);
+		}
+
+		void UpdateCursor ()
+		{
+			var pt = chrome.LastCanvasCursorPoint;
+			cursor.SetText ($"{Length (pt.X)}, {Length (pt.Y)}");
 		}
 
 		// As in Paint.NET, the selection size only shows while there is a selection.
@@ -166,14 +176,11 @@ public sealed class ActionManager
 			selection_size.Parent!.Visible = visible;
 			if (visible) {
 				RectangleD bounds = document!.Selection.GetBounds ();
-				selection_size.SetText ($"{bounds.Width} × {bounds.Height}");
+				selection_size.SetText ($"{Length (bounds.Width)} × {Length (bounds.Height)}");
 			}
 		}
 
-		chrome.LastCanvasCursorPointChanged += delegate {
-			var pt = chrome.LastCanvasCursorPoint;
-			cursor.SetText ($"{pt.X}, {pt.Y}");
-		};
+		chrome.LastCanvasCursorPointChanged += delegate { UpdateCursor (); };
 		workspaceManager.SelectionChanged += (_, _) => UpdateSelectionSize ();
 		workspaceManager.ActiveDocumentChanged += (_, _) => { UpdateImageSize (); UpdateSelectionSize (); };
 		workspaceManager.ViewSizeChanged += (_, _) => UpdateImageSize ();
@@ -186,22 +193,30 @@ public sealed class ActionManager
 		units_menu.Append (Translations.GetString ("Inches"), $"app.{View.RulerMetric.Name}(1)");
 		units_menu.Append (Translations.GetString ("Centimeters"), $"app.{View.RulerMetric.Name}(2)");
 
-		Gtk.MenuButton units = Gtk.MenuButton.New ();
-		units.MenuModel = units_menu;
-		units.Direction = Gtk.ArrowType.Up;
-		units.TooltipText = Translations.GetString ("Units");
-		units.AddCssClass (AdwaitaStyles.Flat);
-		statusbar.Append (units);
+		Gtk.MenuButton unitsButton = Gtk.MenuButton.New ();
+		unitsButton.MenuModel = units_menu;
+		unitsButton.Direction = Gtk.ArrowType.Up;
+		unitsButton.TooltipText = Translations.GetString ("Units");
+		unitsButton.AddCssClass (AdwaitaStyles.Flat);
+		statusbar.Append (unitsButton);
 
 		void UpdateUnits (GLib.Variant? state)
 		{
-			units.Label = (state?.GetInt32 () ?? 0) switch {
+			units = state?.GetInt32 () ?? 0;
+			unitsButton.Label = units switch {
 				1 => Translations.GetString ("in"),
 				2 => Translations.GetString ("cm"),
 				_ => Translations.GetString ("px"),
 			};
+			UpdateImageSize ();
+			UpdateCursor ();
+			UpdateSelectionSize ();
 		}
-		View.RulerMetric.OnActivate += (_, args) => UpdateUnits (args.Parameter);
+		View.RulerMetric.OnActivate += (_, args) => {
+			// Change the state here too, so the units also switch while no image is open.
+			View.RulerMetric.ChangeState (args.Parameter!);
+			UpdateUnits (args.Parameter);
+		};
 		UpdateUnits (View.RulerMetric.GetState ());
 
 		// Document zoom widgets

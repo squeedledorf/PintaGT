@@ -27,6 +27,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Linq;
 
 namespace Pinta.Core;
 
@@ -64,6 +65,12 @@ public sealed class ViewActions
 			old_zoom_text = ZoomComboBox.ComboBox.GetActiveText ()!;
 		}
 	}
+
+	/// <summary>
+	/// True while Zoom to Window runs again by itself to keep the image fitted (e.g. after a crop),
+	/// rather than because the user asked for it.
+	/// </summary>
+	public bool RefittingToWindow { get; private set; }
 
 	private readonly ChromeManager chrome;
 	private readonly WorkspaceManager workspace;
@@ -205,32 +212,67 @@ public sealed class ViewActions
 		this.workspace = workspace;
 	}
 
+	/// <summary>
+	/// Paint.NET's zoom steps, largest first: 100, 150, 200, 300 ... 6400% in, 67, 50, 33, 25, 20 ... 1% out.
+	/// </summary>
+	public static readonly ImmutableArray<double> ZoomLevels = [
+		64, 56, 48, 40, 32, 28, 24, 20, 16, 14, 12, 10, 8, 6, 5, 4, 3, 2, 1.5,
+		1,
+		0.67, 0.5, 0.33, 0.25, 0.2, 0.16, 0.12, 0.1, 0.08, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01,
+	];
+
+	/// <summary>
+	/// The largest zoom, as a percentage. Paint.NET goes up to 6400%.
+	/// </summary>
+	public const double MaxZoomPercent = 6400;
+
+	/// <summary>
+	/// The smallest zoom, as a percentage.
+	/// </summary>
+	public const double MinZoomPercent = 1;
+
 	private static readonly ImmutableArray<string> default_zoom_levels = [
-		ToPercent (36),
-		ToPercent (24),
-		ToPercent (16),
-		ToPercent (12),
-		ToPercent (8),
-		ToPercent (7),
-		ToPercent (6),
-		ToPercent (5),
-		ToPercent (4),
-		ToPercent (3),
-		ToPercent (2),
-		ToPercent (1.75),
-		ToPercent (1.5),
-		ToPercent (1.25),
-		ToPercent (1),
-		ToPercent (0.66),
-		ToPercent (0.5),
-		ToPercent (0.33),
-		ToPercent (0.25),
-		ToPercent (0.16),
-		ToPercent (0.12),
-		ToPercent (0.08),
-		ToPercent (0.05),
+		.. ZoomLevels.Select (ToPercent),
 		Translations.GetString ("Window")
 	];
+
+	/// <summary>
+	/// The index in <see cref="ZoomLevels"/> of the next step in or out from the given zoom
+	/// (a percentage), or -1 when there is none.
+	/// </summary>
+	public static int GetZoomStep (double percent, bool zoomIn)
+	{
+		// Compare in whole percents, so a zoom shown as "67%" counts as being on the 67% step.
+		double current = Math.Round (percent);
+		if (zoomIn) {
+			for (int i = ZoomLevels.Length - 1; i >= 0; i--)
+				if (Math.Round (ZoomLevels[i] * 100) > current)
+					return i;
+		} else {
+			for (int i = 0; i < ZoomLevels.Length; i++)
+				if (Math.Round (ZoomLevels[i] * 100) < current)
+					return i;
+		}
+		return -1;
+	}
+
+	/// <summary>
+	/// Image pixels per unit for the View menu's units (0 pixels, 1 inches, 2 centimeters),
+	/// at Paint.NET's default resolution of 96 pixels per inch.
+	/// </summary>
+	public static double PixelsPerUnit (int metric) => metric switch {
+		1 => 96,
+		2 => 96 / 2.54,
+		_ => 1,
+	};
+
+	/// <summary>
+	/// A length in pixels written in the given units: whole pixels, or inches and centimeters to two decimals.
+	/// </summary>
+	public static string FormatLength (double pixels, int metric)
+		=> metric is 1 or 2
+			? (pixels / PixelsPerUnit (metric)).ToString ("F2", CultureInfo.CurrentCulture)
+			: Math.Floor (pixels).ToString ("F0", CultureInfo.CurrentCulture);
 
 	#region Initialization
 
@@ -305,7 +347,7 @@ public sealed class ViewActions
 	// Paint.NET's status bar zoom: the % box, Zoom to Window, then − slider +. The slider is logarithmic.
 	public void CreateStatusBar (Gtk.Box statusbar)
 	{
-		// "3600%", as narrow as Paint.NET's box.
+		// "6400%", as narrow as Paint.NET's box.
 		ZoomComboBox.ComboBox.GetEntry ().WidthChars = 6;
 		ZoomComboBox.ComboBox.GetEntry ().MaxWidthChars = 6;
 		// Paint.NET shows the zoom as plain, editable text; the presets live in the zoom buttons and View menu.
@@ -331,8 +373,8 @@ public sealed class ViewActions
 		return slider;
 	}
 
-	private const double MIN_ZOOM = 0.01;
-	private const double MAX_ZOOM = 36;
+	private const double MIN_ZOOM = MinZoomPercent / 100;
+	private const double MAX_ZOOM = MaxZoomPercent / 100;
 
 	private void UpdateZoomSlider ()
 	{
@@ -436,7 +478,7 @@ public sealed class ViewActions
 		if (!cancel && typed)
 			workspace.ActiveWorkspace.ZoomManually ();
 
-		// Show the zoom that was actually applied, e.g. "150%" for "150" or "3600%" for "9000".
+		// Show the zoom that was actually applied, e.g. "150%" for "150" or "6400%" for "9000".
 		if (!cancel && ZoomComboBox.ComboBox.GetActiveText () != Translations.GetString ("Window"))
 			SetZoomTextQuietly (ToPercent (workspace.Scale));
 
@@ -460,7 +502,7 @@ public sealed class ViewActions
 			return;
 		}
 
-		if (percent > 3600)
+		if (percent > MaxZoomPercent)
 			ZoomComboBox.ComboBox.Active = 0;
 	}
 	#endregion
@@ -500,7 +542,7 @@ public sealed class ViewActions
 	/// </summary>
 	public static string ToPercent (double n)
 	{
-		// No group separator: Paint.NET shows "3600%", not "3,600%".
+		// No group separator: Paint.NET shows "6400%", not "6,400%".
 		string percent = (n * 100).ToString ("F0", CultureInfo.CurrentCulture);
 		// Translators: This specifies the format of the zoom percentage choices
 		// in the toolbar.
@@ -524,7 +566,12 @@ public sealed class ViewActions
 		// stay in "Zoom to Window" mode if this function was called without the zoom level being changed by the user (e.g. if the
 		// image was rotated or cropped) and "Zoom to Window" mode is active
 		if (text == Translations.GetString ("Window") || (ZoomToWindowActivated && old_zoom_text == text)) {
-			ZoomToWindow.Activate ();
+			RefittingToWindow = true;
+			try {
+				ZoomToWindow.Activate ();
+			} finally {
+				RefittingToWindow = false;
+			}
 			ZoomToWindowActivated = true;
 			return;
 		} else {
@@ -535,7 +582,7 @@ public sealed class ViewActions
 		if (!TryParsePercent (text, out var percent))
 			return;
 
-		workspace.Scale = Math.Min (percent, 3600) / 100.0;
+		workspace.Scale = Math.Clamp (percent, MinZoomPercent, MaxZoomPercent) / 100.0;
 	}
 
 	#region Action Handlers
