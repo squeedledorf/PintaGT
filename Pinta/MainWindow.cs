@@ -261,7 +261,9 @@ internal sealed class MainWindow
 		}
 
 		// If the canvas/tool didn't consume it, see if its a toolbox shortcut
-		if (!args.State.HasModifierKey () && PintaCore.Tools.SetCurrentTool (args.GetKey ()))
+		// As in Paint.NET, Shift with a tool letter cycles backwards through the tools sharing it.
+		bool shiftOnly = args.State.IsShiftPressed () && !args.State.IsControlPressed () && !args.State.IsAltPressed ();
+		if ((!args.State.HasModifierKey () || shiftOnly) && PintaCore.Tools.SetCurrentTool (args.GetKey (), reverse: shiftOnly))
 			return true;
 
 		// Finally, see if the palette widget wants it.

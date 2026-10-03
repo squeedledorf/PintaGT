@@ -102,7 +102,7 @@ internal sealed class KeyboardShortcutsDialogAction : IActionHandler
 		AddSection (Translations.GetString ("View"), GetCommands (actions.View));
 		AddSection (Translations.GetString ("Image"), GetCommands (actions.Image));
 		AddSection (Translations.GetString ("Adjustments"), actions.Adjustments.Actions);
-		AddSection (Translations.GetString ("Effects"), actions.Effects.Actions);
+		AddSection (Translations.GetString ("Effects"), actions.Effects.Actions.Prepend (actions.Effects.RepeatEffect));
 		AddSection (Translations.GetString ("Window"), GetCommands (actions.Window));
 		AddSection (Translations.GetString ("Help"), GetCommands (actions.Help));
 
