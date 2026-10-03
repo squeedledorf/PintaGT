@@ -34,8 +34,6 @@ public sealed class LineCurveTool : ShapeTool
 	public LineCurveTool (IServiceProvider services) : base (services)
 	{
 		DefaultCursor = Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.Line.png"), 9, 18, null);
-
-		BaseEditEngine.CorrespondingTools[ShapeType] = this;
 		EditEngine = new LineCurveEditEngine (services, this);
 	}
 
@@ -46,6 +44,8 @@ public sealed class LineCurveTool : ShapeTool
 
 	public override BaseEditEngine EditEngine { get; }
 
-	public override BaseEditEngine.ShapeTypes ShapeType
-		=> BaseEditEngine.ShapeTypes.OpenLineCurveSeries;
+	public override string StatusBarText => Translations.GetString (
+		"Left click and drag to draw a line with the primary color, right click and drag to use the secondary color. " +
+		"Drag a nub to bend the line, drag the move icon to move it, right-drag to rotate it. " +
+		"Press Enter to finish.");
 }

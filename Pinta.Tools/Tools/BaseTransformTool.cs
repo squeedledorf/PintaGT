@@ -47,6 +47,9 @@ public abstract class BaseTransformTool : BaseTool
 	private static Gdk.Cursor? rotate_cursor;
 	private static Gdk.Cursor? nub_cursor;
 
+	/// <summary>A double-headed curved arrow, shared with the shape tools.</summary>
+	internal static Gdk.Cursor RotateCursor => rotate_cursor ??= CreateRotateCursor ();
+
 	private readonly IWorkspaceService workspace;
 	private readonly Matrix transform = CairoExtensions.CreateIdentityMatrix ();
 	private readonly TransformFrame frame = new ();
@@ -321,7 +324,7 @@ public abstract class BaseTransformTool : BaseTool
 	private void UpdateCursor (Document document, PointD windowPoint)
 	{
 		Gdk.Cursor? cursor = HitTest (document, windowPoint).Item1 switch {
-			DragMode.Rotate => rotate_cursor ??= CreateRotateCursor (),
+			DragMode.Rotate => RotateCursor,
 			DragMode.Scale or DragMode.Pivot => nub_cursor ??= GdkExtensions.CursorFromName (Pinta.Resources.StandardCursors.Grab),
 			_ => DefaultCursor,
 		};

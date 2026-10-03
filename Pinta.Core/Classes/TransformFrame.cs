@@ -195,7 +195,7 @@ public sealed class TransformFrame
 	private static double AtLeastOnePixel (double scale, double size)
 		=> (size > 0 && Math.Abs (scale * size) < 1) ? SignOf (scale) / size : scale;
 
-	private static bool IsInside (ReadOnlySpan<PointD> polygon, PointD p)
+	public static bool IsInside (ReadOnlySpan<PointD> polygon, PointD p)
 	{
 		// Convex polygon: inside when p is on the same side of every edge.
 		int sign = 0;
@@ -214,7 +214,7 @@ public sealed class TransformFrame
 		return true;
 	}
 
-	private static double DistanceToSegment (PointD p, PointD a, PointD b)
+	public static double DistanceToSegment (PointD p, PointD a, PointD b)
 	{
 		double dx = b.X - a.X, dy = b.Y - a.Y;
 		double len2 = dx * dx + dy * dy;

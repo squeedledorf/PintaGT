@@ -29,27 +29,9 @@ internal static class SettingNames
 	internal const string GRADIENT_TYPE = "gradient-type";
 	internal const string GRADIENT_COLOR_MODE = "gradient-color-mode";
 
-	internal const string FREEFORM_SHAPE_FILL_TYPE = "freeform-shape-fill-type";
-	internal const string FREEFORM_SHAPE_DASH_PATTERN = "freeform-shape-dash_pattern";
-
 	internal const string LASSO_MODE = "lasso-mode";
 
 	internal const string SELECTION_MODE = "selection-mode";
-
-	internal static string Arrow1 (string prefix)
-		=> $"{prefix}-arrow1";
-
-	internal static string Arrow2 (string prefix)
-		=> $"{prefix}-arrow2";
-
-	internal static string ArrowSize (string prefix)
-		=> $"{prefix}-arrow-size";
-
-	internal static string ArrowAngle (string prefix)
-		=> $"{prefix}-arrow-angle";
-
-	internal static string ArrowLength (string prefix)
-		=> $"{prefix}-arrow-length";
 
 	internal static string FloodToolFillMode (FloodTool tool)
 		=> $"{tool.GetType ().Name.ToLowerInvariant ()}-fill-mode";
@@ -71,9 +53,6 @@ internal static class SettingNames
 
 	internal static string FillStyle (string prefix)
 		=> $"{prefix}-fill-style";
-
-	internal static string ShapeType (string prefix)
-		=> $"{prefix}-shape-type";
 
 	internal static string DashPattern (string prefix)
 		=> $"{prefix}-dash-pattern";

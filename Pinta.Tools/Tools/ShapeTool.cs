@@ -30,58 +30,36 @@ using Pinta.Core;
 
 namespace Pinta.Tools;
 
+/// <summary>
+/// A tool that draws one editable shape at a time with a <see cref="BaseEditEngine"/>: Paint.NET's
+/// Shapes and Line/Curve tools.
+/// </summary>
 public abstract class ShapeTool : BaseTool
 {
 	public abstract BaseEditEngine EditEngine { get; }
 
-	private readonly SystemManager system_manager;
-	public ShapeTool (IServiceProvider services) : base (services)
-	{
-		system_manager = services.GetService<SystemManager> ();
-	}
-
-	/// <summary>Rectangle, Rounded Rectangle, Ellipse and Freeform Shape share Paint.NET's one Shapes button.</summary>
-	internal static ToolBoxGroup ShapesGroup { get; } = new (Translations.GetString ("Shapes"), Pinta.Resources.Icons.ToolShapes);
+	public ShapeTool (IServiceProvider services) : base (services) { }
 
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_O);
 	protected override bool ShowAntialiasingButton => true;
-	public virtual BaseEditEngine.ShapeTypes ShapeType => BaseEditEngine.ShapeTypes.ClosedLineCurveSeries;
-	public override bool IsEditableShapeTool => true;
 
-	public override string StatusBarText =>
-			// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS.
-			Translations.GetString ("Left click to draw a shape with the primary color." +
-			    "\nLeft click on a shape to add a control point." +
-			    "\nLeft click on a control point and drag to move it." +
-			    "\nRight click on a control point and drag to change its tension." +
-			    "\nHold Shift to snap to angles." +
-			    "\nUse arrow keys to move the selected control point." +
-			    "\nPress {0} + left/right arrows to select control points by order." +
-			    "\nPress Delete to delete the selected control point." +
-			    "\nHold {0} while left clicking on a control point to create a new shape at the exact same position." +
-			    "\nPress Enter or Esc to finalize the shape.", system_manager.CtrlLabel ());
+	private string SettingsPrefix => GetType ().Name.ToLowerInvariant ();
 
 	protected override void OnBuildToolBar (Gtk.Box tb)
 	{
 		base.OnBuildToolBar (tb);
 
-		EditEngine.HandleBuildToolBar (tb, Settings, GetType ().Name.ToLowerInvariant ());
+		EditEngine.BuildToolBar (tb, Settings, SettingsPrefix);
 	}
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
-	{
-		EditEngine.HandleMouseDown (document, e);
-	}
+		=> EditEngine.HandleMouseDown (document, e);
 
 	protected override void OnMouseUp (Document document, ToolMouseEventArgs e)
-	{
-		EditEngine.HandleMouseUp (document, e);
-	}
+		=> EditEngine.HandleMouseUp (document, e);
 
 	protected override void OnMouseMove (Document document, ToolMouseEventArgs e)
-	{
-		EditEngine.HandleMouseMove (document, e);
-	}
+		=> EditEngine.HandleMouseMove (document, e);
 
 	protected override void OnActivated (Document? document)
 	{
@@ -92,7 +70,7 @@ public abstract class ShapeTool : BaseTool
 
 	protected override void OnDeactivated (Document? document, BaseTool? newTool)
 	{
-		EditEngine.HandleDeactivated (newTool);
+		EditEngine.HandleDeactivated ();
 
 		base.OnDeactivated (document, newTool);
 	}
@@ -111,57 +89,24 @@ public abstract class ShapeTool : BaseTool
 		base.OnCommit (document);
 	}
 
+	protected override void OnAntialiasingChanged ()
+		=> EditEngine.Redraw ();
+
 	protected override bool OnKeyDown (Document document, ToolKeyEventArgs e)
-	{
-		if (EditEngine.HandleKeyDown (document, e))
-			return true;
+		=> EditEngine.HandleKeyDown (document, e) || base.OnKeyDown (document, e);
 
-		return base.OnKeyDown (document, e);
-	}
-
-	protected override bool OnKeyUp (Document document, ToolKeyEventArgs e)
-	{
-		if (EditEngine.HandleKeyUp (document, e))
-			return true;
-
-		return base.OnKeyUp (document, e);
-	}
-
+	// Don't undo in the middle of a drag.
 	protected override bool OnHandleUndo (Document document)
-	{
-		if (!EditEngine.HandleBeforeUndo ())
-			return base.OnHandleUndo (document);
-		else
-			return true;
-	}
+		=> EditEngine.HandleBeforeUndo () || base.OnHandleUndo (document);
 
 	protected override bool OnHandleRedo (Document document)
-	{
-		if (!EditEngine.HandleBeforeRedo ())
-			return base.OnHandleRedo (document);
-		else
-			return true;
-	}
-
-	protected override void OnAfterUndo (Document document)
-	{
-		EditEngine.HandleAfterUndo ();
-
-		base.OnAfterUndo (document);
-	}
-
-	protected override void OnAfterRedo (Document document)
-	{
-		EditEngine.HandleAfterRedo ();
-
-		base.OnAfterRedo (document);
-	}
+		=> EditEngine.HandleBeforeRedo () || base.OnHandleRedo (document);
 
 	protected override void OnSaveSettings (ISettingsService settings)
 	{
 		base.OnSaveSettings (settings);
 
-		EditEngine.OnSaveSettings (settings, GetType ().Name.ToLowerInvariant ());
+		EditEngine.OnSaveSettings (settings, SettingsPrefix);
 	}
 
 	public override IEnumerable<IToolHandle> Handles => EditEngine.Handles;
