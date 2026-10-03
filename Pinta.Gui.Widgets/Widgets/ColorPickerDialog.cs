@@ -298,7 +298,7 @@ public sealed partial class ColorPickerDialog
 	private SlidersBundle BuildColorSliders ()
 	{
 		Gtk.Entry hexEntry = Gtk.Entry.New ();
-		hexEntry.MaxWidthChars = 10;
+		hexEntry.MaxWidthChars = 8;
 		hexEntry.ActivatesDefault = true;
 		hexEntry.OnChanged += HexEntry_OnChanged;
 
@@ -477,19 +477,16 @@ public sealed partial class ColorPickerDialog
 		top_box = topBox;
 	}
 
-	private void CreateTitleBar ()
+	// Paint.NET's button row under a plain title bar: Reset and << Less at the left, OK and Cancel at the right.
+	private void CreateButtons ()
 	{
 		Gtk.Button resetButton = Gtk.Button.NewWithLabel (Translations.GetString ("Reset"));
 		resetButton.FocusOnClick = false;
 		resetButton.OnClicked += OnResetButtonClicked;
 
-		Gtk.Button shrinkButton = Gtk.Button.New ();
+		Gtk.Button shrinkButton = Gtk.Button.NewWithLabel (ShrinkLabel (DEFAULT_SMALL_MODE));
 		shrinkButton.FocusOnClick = false;
 		shrinkButton.OnClicked += OnShrinkButtonClicked;
-		shrinkButton.SetIconName (
-			DEFAULT_SMALL_MODE
-				? Resources.StandardIcons.WindowMaximize
-				: Resources.StandardIcons.WindowMinimize);
 
 		Gtk.Button okButton = Gtk.Button.NewWithLabel (Translations.GetString ("OK"));
 		okButton.ReceivesDefault = true;
@@ -499,18 +496,24 @@ public sealed partial class ColorPickerDialog
 		Gtk.Button cancelButton = Gtk.Button.NewWithLabel (Translations.GetString ("Cancel"));
 		cancelButton.OnClicked += OnCancelButtonClicked;
 
-		Gtk.HeaderBar titleBar = Gtk.HeaderBar.New ();
-		titleBar.PackStart (resetButton);
-		titleBar.PackStart (shrinkButton);
-		titleBar.PackEnd (okButton);
-		titleBar.PackEnd (cancelButton);
-		titleBar.SetShowTitleButtons (false);
+		Gtk.Box spacer = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+		spacer.Hexpand = true;
 
-		SetTitlebar (titleBar);
+		Gtk.Box buttonRow = Gtk.Box.New (Gtk.Orientation.Horizontal, BIG_SPACING);
+		buttonRow.MarginTop = BIG_SPACING;
+		buttonRow.Append (resetButton);
+		buttonRow.Append (shrinkButton);
+		buttonRow.Append (spacer);
+		buttonRow.Append (okButton);
+		buttonRow.Append (cancelButton);
+		this.GetContentAreaBox ().Append (buttonRow);
 
 		SetDefaultWidget (okButton);
 		okButton.GrabFocus ();
 	}
+
+	private static string ShrinkLabel (bool smallMode)
+		=> smallMode ? Translations.GetString ("More >>") : Translations.GetString ("<< Less");
 
 	private void Configure (
 		Gtk.Window? parentWindow,
@@ -560,7 +563,7 @@ public sealed partial class ColorPickerDialog
 		// Set initially selected row at the end since this triggers events.
 		color_display_list.SelectRow (color_display_list.GetRowAtIndex (primarySelected ? 0 : 1));
 
-		CreateTitleBar ();
+		CreateButtons ();
 	}
 
 	/// <param name="parentWindow">The dialog's parent window.</param>
@@ -767,7 +770,8 @@ public sealed partial class ColorPickerDialog
 	private void HexEntry_OnChanged (Gtk.Editable sender, EventArgs _)
 	{
 		if ((GetFocus ()?.Parent) != sender) return;
-		CurrentColor = Color.FromHex (sender.GetText ()) ?? CurrentColor;
+		// The box shows RRGGBB, as in Paint.NET; opacity has its own box, so keep it unless one was typed.
+		CurrentColor = Color.FromHex (sender.GetText (), CurrentColor.A) ?? CurrentColor;
 		UpdateView ();
 	}
 
@@ -780,10 +784,7 @@ public sealed partial class ColorPickerDialog
 	private void OnShrinkButtonClicked (Gtk.Button button, EventArgs args)
 	{
 		SetSmallMode (!small_mode);
-		button.SetIconName (
-			small_mode
-			? Resources.StandardIcons.WindowMaximize
-			: Resources.StandardIcons.WindowMinimize);
+		button.Label = ShrinkLabel (small_mode);
 	}
 
 	private void OnOkButtonClicked (Gtk.Button button, EventArgs args)
@@ -832,7 +833,7 @@ public sealed partial class ColorPickerDialog
 
 		// Update hex
 		if (GetFocus ()?.Parent != hex_entry)
-			hex_entry.SetText (current.ToHex ());
+			hex_entry.SetText (current.ToHex (addAlpha: false));
 
 		// Redraw palette displays
 		foreach (var display in color_displays)

@@ -42,6 +42,25 @@ internal sealed class ColorTests
 		Assert.That (hc, Is.EqualTo (expectedColor));
 	}
 
+	[TestCase ("#FF0000", 0.5)]
+	[TestCase ("FF0000", 0.5)]
+	[TestCase ("FF000080", 0.502)]
+	public void FromHexKeepsAlphaWhenOmitted (string hex, double expectedAlpha)
+	{
+		Color c = Color.FromHex (hex, 0.5)!.Value;
+		Assert.That (c.R, Is.EqualTo (1));
+		Assert.That (Math.Round (c.A, 4), Is.EqualTo (expectedAlpha));
+	}
+
+	// Partial input while typing six digits must not change the colour.
+	[TestCase ("F")]
+	[TestCase ("F00")]
+	[TestCase ("FF00")]
+	[TestCase ("FF000")]
+	[TestCase ("GG0000")]
+	public void FromHexWithAlphaRefusesPartialInput (string hex)
+		=> Assert.That (Color.FromHex (hex, 0.5), Is.Null);
+
 	[TestCase (0.6, 0, 0.3, 1.0, true, "99004CFF")]
 	[TestCase (0.6, 0, 0.3, 1.0, false, "99004C")]
 	public void ToHex (double r, double g, double b, double a, bool alpha, string expected)
