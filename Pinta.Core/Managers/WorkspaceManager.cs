@@ -251,6 +251,37 @@ public sealed class WorkspaceManager : IWorkspaceService
 		ViewSizeChanged?.Invoke (sender, ev);
 	}
 
+	/// <summary>
+	/// Moves a document to a new position, e.g. when its image tab is dragged,
+	/// so that the document order always matches the tab order.
+	/// </summary>
+	public void MoveDocument (int from, int to)
+	{
+		if (from == to)
+			return;
+
+		Document document = open_documents[from];
+		open_documents.RemoveAt (from);
+		open_documents.Insert (to, document);
+		active_document_index = MovedIndex (active_document_index, from, to);
+
+		DocumentsReordered?.Invoke (this, EventArgs.Empty);
+	}
+
+	/// <summary>
+	/// The new position of the item at 'index' after the item at 'from' moved to 'to'.
+	/// </summary>
+	internal static int MovedIndex (int index, int from, int to)
+	{
+		if (index == from)
+			return to;
+		if (from < index && index <= to)
+			return index - 1;
+		if (to <= index && index < from)
+			return index + 1;
+		return index;
+	}
+
 	public void CloseDocument (Document document)
 	{
 		int index = open_documents.IndexOf (document);
@@ -316,6 +347,13 @@ public sealed class WorkspaceManager : IWorkspaceService
 		Gtk.Window? parent = null)
 	{
 		parent ??= chrome_manager.MainWindow;
+
+		// A missing file gets a plain message, not the crash-style error dialog
+		// (GetDisplayName below would throw a GLib exception for it).
+		if (!file.QueryExists (null)) {
+			chrome_manager.ShowMessageDialog (parent, Translations.GetString ("File not found"), file.GetParseName ());
+			return false;
+		}
 
 		// Like Paint.NET, opening a file replaces an untouched startup image.
 		// It is closed only once the new image has opened successfully.
@@ -499,6 +537,11 @@ public sealed class WorkspaceManager : IWorkspaceService
 
 	public event EventHandler<DocumentEventArgs>? DocumentActivated;
 	public event EventHandler<DocumentEventArgs>? DocumentClosed;
+
+	/// <summary>
+	/// Emitted when a document changes position in OpenDocuments (see MoveDocument).
+	/// </summary>
+	public event EventHandler? DocumentsReordered;
 
 	/// <summary>
 	/// Emitted before the active document has changed.
