@@ -54,6 +54,10 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.RegisterAdjustment (new LevelsEffect (services));
 		PintaCore.Effects.RegisterAdjustment (new PosterizeEffect (services));
 		PintaCore.Effects.RegisterAdjustment (new SepiaEffect (services));
+		PintaCore.Effects.RegisterAdjustment (new ExposureEffect (services));
+		PintaCore.Effects.RegisterAdjustment (new HighlightsShadowsEffect (services));
+		PintaCore.Effects.RegisterAdjustment (new InvertAlphaEffect (services));
+		PintaCore.Effects.RegisterAdjustment (new TemperatureTintEffect (services));
 
 		// Add the effects
 		PintaCore.Effects.RegisterEffect (new AddNoiseEffect (services));
@@ -107,6 +111,10 @@ internal sealed class CoreEffectsExtension : IExtension
 		PintaCore.Effects.UnregisterInstanceOfAdjustment<LevelsEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfAdjustment<PosterizeEffect> ();
 		PintaCore.Effects.UnregisterInstanceOfAdjustment<SepiaEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfAdjustment<ExposureEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfAdjustment<HighlightsShadowsEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfAdjustment<InvertAlphaEffect> ();
+		PintaCore.Effects.UnregisterInstanceOfAdjustment<TemperatureTintEffect> ();
 
 		// Remove the effects
 		PintaCore.Effects.UnregisterInstanceOfEffect<AddNoiseEffect> ();

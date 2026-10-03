@@ -115,6 +115,10 @@ public static class Icons
 	public const string AdjustmentsLevels = "adjustments-levels";
 	public const string AdjustmentsPosterize = "adjustments-posterize";
 	public const string AdjustmentsSepia = "adjustments-sepia";
+	public const string AdjustmentsExposure = "adjustments-exposure";
+	public const string AdjustmentsHighlightsShadows = "adjustments-highlightsshadows";
+	public const string AdjustmentsInvertAlpha = "adjustments-invertalpha";
+	public const string AdjustmentsTemperatureTint = "adjustments-temperaturetint";
 
 	public const string AntiAliasingEnabled = "tool-antialiasing-enabled";
 	public const string AntiAliasingDisabled = "tool-antialiasing-disabled";
