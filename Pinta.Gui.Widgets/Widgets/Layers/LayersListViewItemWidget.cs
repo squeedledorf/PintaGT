@@ -141,8 +141,8 @@ public sealed partial class LayersListViewItemWidget
 	{
 		Gtk.DrawingArea itemThumbnail = Gtk.DrawingArea.New ();
 		itemThumbnail.SetDrawFunc ((area, context, width, height) => DrawThumbnail (context, width, height));
-		itemThumbnail.WidthRequest = 42; // Paint.NET's 42x32 layer thumbnails.
-		itemThumbnail.HeightRequest = 32;
+		itemThumbnail.WidthRequest = 50; // Paint.NET's 4:3 layer thumbnails.
+		itemThumbnail.HeightRequest = 38;
 
 		Gtk.Label itemLabel = Gtk.Label.New (string.Empty);
 		itemLabel.Halign = Gtk.Align.Start;
@@ -160,9 +160,9 @@ public sealed partial class LayersListViewItemWidget
 
 		// --- Initialization (Gtk.Widget)
 
-		// Paint.NET's roomy layer rows: about 50px for a 32px thumbnail.
+		// Paint.NET's roomy layer rows: about 60px for a 38px thumbnail.
 		this.SetAllMargins (2);
-		MarginTop = MarginBottom = 8;
+		MarginTop = MarginBottom = 9;
 		this.AddController (menuGesture);
 
 		// --- Initialization (Gtk.Box)

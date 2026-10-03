@@ -92,6 +92,10 @@ public sealed partial class ToolBarSlider
 		};
 
 		Scale.OnValueChanged += (_, _) => UpdateLabel ();
+		Scale.OnNotify += (_, e) => {
+			if (e.Pspec.GetName () == "width-request")
+				UpdateLabel ();
+		};
 
 		Append (CreateStepButton ("pinta-step-minus-symbolic", -1));
 		Append (bar);
@@ -125,13 +129,22 @@ public sealed partial class ToolBarSlider
 	{
 		string text = $"{GetValue ():F0}%";
 
-		// White text where the blue fill reaches past the text, the normal text color elsewhere.
-		// Before the first allocation the width is still 0, so fall back to the requested width.
-		double fill = Scale.GetValue () * Math.Max (Scale.GetWidth (), Scale.WidthRequest);
+		// Each character is white where the blue fill is under it, the normal text color elsewhere,
+		// so a value at the fill's edge stays readable. The text is ASCII, so byte index = char index.
+		// The bar keeps its requested width (it never expands), which unlike the allocation is known
+		// before the first layout.
+		double fill = Scale.GetValue () * Scale.WidthRequest;
 		value_label.SetText (text);
-		value_label.GetLayout ().GetPixelSize (out int text_width, out _);
-		if (fill >= value_label.MarginStart + text_width + 2)
-			value_label.SetMarkup ($"<span foreground=\"#ffffff\">{text}</span>");
+		Pango.Layout layout = value_label.GetLayout ();
+		int white = 0;
+		while (white < text.Length) {
+			layout.IndexToPos (white, out Pango.Rectangle pos);
+			if (value_label.MarginStart + (pos.X + pos.Width / 2.0) / Pango.Constants.SCALE > fill)
+				break;
+			white++;
+		}
+		if (white > 0)
+			value_label.SetMarkup ($"<span foreground=\"#ffffff\">{text[..white]}</span>{text[white..]}");
 	}
 }
 

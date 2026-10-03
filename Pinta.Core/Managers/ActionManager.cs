@@ -148,8 +148,8 @@ public sealed class ActionManager
 			return label;
 		}
 
-		Gtk.Label image_size = AppendReadout (statusbar, Resources.Icons.ImageResize, Translations.GetString ("Image Size"));
-		Gtk.Label cursor = AppendReadout (statusbar, Resources.Icons.CursorPosition, Translations.GetString ("Cursor Position"));
+		Gtk.Label image_size = AppendReadout (statusbar, "status-image-size", Translations.GetString ("Image Size"));
+		Gtk.Label cursor = AppendReadout (statusbar, "status-cursor-position", Translations.GetString ("Cursor Position"));
 		Gtk.Label selection_size = AppendReadout (statusbar, Resources.Icons.ToolSelectRectangle, Translations.GetString ("Selection Size"));
 
 		// The readouts use the View menu's units, as in Paint.NET.

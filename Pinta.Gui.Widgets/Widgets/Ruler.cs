@@ -335,9 +335,9 @@ public sealed partial class Ruler
 
 		using Context drawingContext = new (result);
 
-		// Grey ticks and edge, darker numbers, as in Paint.NET.
-		Color tickColor = settings.Color with { A = settings.Color.A * 0.5 };
-		Color labelColor = settings.Color with { A = settings.Color.A * 0.7 };
+		// Grey ticks and edge, full-strength numbers, as in Paint.NET.
+		Color tickColor = settings.Color with { A = settings.Color.A * 0.6 };
+		Color labelColor = settings.Color;
 
 		drawingContext.SetSourceColor (tickColor);
 		drawingContext.LineWidth = 1.0;

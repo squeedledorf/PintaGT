@@ -114,7 +114,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 
 	protected override void OnBuildBrushToolBar (Box tb)
 	{
-		// The brush type sits where Paint.NET has its Fill dropdown, after the PDN options.
+		// Paint.NET's Fill: "Solid color" is its own brush; the other entries are Pinta's brush types.
 		tb.Append (brush_separator ??= GtkExtensions.CreateToolBarSeparator ());
 		tb.Append (BrushLabel);
 		tb.Append (BrushComboBox);
@@ -308,16 +308,15 @@ public sealed class PaintBrushTool : BaseBrushTool
 		}
 	}
 
-	private Label BrushLabel => brush_label ??= Label.New (string.Format (" {0}:  ", Translations.GetString ("Type")));
+	private Label BrushLabel => brush_label ??= Label.New (string.Format (" {0}:  ", Translations.GetString ("Fill")));
 
 
 	private ToolBarComboBox BrushComboBox {
 		get {
 			if (brush_combo_box is null) {
-				brush_combo_box = ToolBarComboBox.New (100, 0, false);
+				brush_combo_box = ToolBarComboBox.New (120, 0, false);
 				brush_combo_box.ComboBox.OnChanged += (o, e) => {
-					var brush_name = brush_combo_box.ComboBox.GetActiveText ();
-					active_brush = brushes.SingleOrDefault (brush => brush.Name == brush_name) ?? default_brush;
+					active_brush = brushes.ElementAtOrDefault (brush_combo_box.ComboBox.Active) ?? default_brush;
 					if (active_brush is not null) {
 						active_brush.UpdateLineWidth (BrushWidthCeiling);
 					}
@@ -346,7 +345,7 @@ public sealed class PaintBrushTool : BaseBrushTool
 		BrushComboBox.ComboBox.RemoveAll ();
 
 		foreach (var brush in brushes)
-			BrushComboBox.ComboBox.AppendText (brush.Name);
+			BrushComboBox.ComboBox.AppendText (brush is Brushes.PlainBrush ? Translations.GetString ("Solid color") : brush.Name);
 
 		BrushComboBox.ComboBox.Active = 0;
 		BrushComboBox.ComboBox.OnChanged += (cbx, ev) => RebuildBrushSpecificOptions ();

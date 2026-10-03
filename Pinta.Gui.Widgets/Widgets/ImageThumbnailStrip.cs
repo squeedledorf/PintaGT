@@ -568,7 +568,8 @@ public sealed partial class ImageThumbnailStrip
 				int drawWidth = Math.Max (1, (int) Math.Round (image.Width * fit));
 				int drawHeight = Math.Max (1, (int) Math.Round (image.Height * fit));
 				double x = PADDING + (boxWidth - drawWidth) / 2;
-				double y = PADDING + (boxHeight - drawHeight) / 2;
+				// Paint.NET sits wide images on the bottom of the cell, leaving the top for the unsaved star.
+				double y = PADDING + boxHeight - drawHeight;
 
 				// A thin grey frame round the image, as in Paint.NET.
 				g.Rectangle (x - 0.5, y - 0.5, drawWidth + 1, drawHeight + 1);

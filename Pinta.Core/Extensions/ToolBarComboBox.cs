@@ -48,6 +48,8 @@ public sealed partial class ToolBarComboBox
 			: Gtk.ComboBoxText.New ();
 
 		comboBox.CanFocus = allowEntry;
+		if (!allowEntry)
+			comboBox.AddCssClass ("pdn-field"); // A white box with a chevron, like Paint.NET's Fill.
 
 		foreach (string entry in contents)
 			comboBox.AppendText (entry);

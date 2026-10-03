@@ -19,9 +19,9 @@ public sealed partial class ColorsPanel
 	private const string EXPANDED_SETTING = "colors-panel-expanded";
 
 	private const int PALETTE_COLUMNS = 16;
-	private const int CELL = 10;
+	private const int CELL = 12;
 	private const int COLLAPSED_ROWS = 2;
-	private const int WHEEL_SIZE = 112; // A 110px wheel, as in Paint.NET 5.
+	private const int WHEEL_SIZE = 144; // A 140px wheel, as in Paint.NET 5.1.
 	private const int WHEEL_RADIUS = WHEEL_SIZE / 2 - 2;
 	private const int WHEEL_TOP = 4;
 	private const int SLIDER_WIDTH = 110;
