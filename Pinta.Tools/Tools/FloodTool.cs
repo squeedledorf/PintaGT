@@ -36,6 +36,7 @@
 
 using System;
 using System.Collections.Generic;
+using Cairo;
 using Gtk;
 using Pinta.Core;
 
@@ -48,6 +49,10 @@ public abstract class FloodTool : BaseTool
 	protected Separator? mode_sep;
 	protected Label? tolerance_label;
 	protected ToolBarSlider? tolerance_slider;
+	private ToolBarDropDownButton? alpha_mode_button;
+	private Separator? sampling_sep;
+	private Label? sampling_label;
+	private ToolBarDropDownButton? sampling_button;
 
 	public FloodTool (IServiceProvider services) : base (services) { }
 
@@ -55,6 +60,11 @@ public abstract class FloodTool : BaseTool
 	protected float Tolerance => (float) (ToleranceSlider.GetValue () / 100);
 	protected virtual bool CalculatePolygonSet => true;
 	protected bool LimitToSelection { get; set; } = true;
+
+	// Paint.NET's Sampling (Image samples the flattened image) and Tolerance alpha mode, shared by the bucket and the wand.
+	private bool SampleImage => SamplingDropDown.SelectedItem.GetTagOrDefault (false);
+	private bool StraightAlpha => AlphaModeDropDown.SelectedItem.GetTagOrDefault (false);
+	private string SettingPrefix => GetType ().Name.ToLowerInvariant ();
 
 	protected override void OnBuildToolBar (Gtk.Box tb)
 	{
@@ -70,6 +80,10 @@ public abstract class FloodTool : BaseTool
 		tb.Append (Separator);
 		tb.Append (ToleranceLabel);
 		tb.Append (ToleranceSlider);
+		tb.Append (AlphaModeDropDown);
+		tb.Append (SamplingSeparator);
+		tb.Append (SamplingLabel);
+		tb.Append (SamplingDropDown);
 	}
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
@@ -89,7 +103,8 @@ public abstract class FloodTool : BaseTool
 		if (!currentRegion.ContainsPoint (pos.X, pos.Y) && LimitToSelection)
 			return;
 
-		var surface = document.Layers.CurrentUserLayer.Surface;
+		using ImageSurface? sample_copy = SampleImage || StraightAlpha ? CreateSampleSurface (document, SampleImage, StraightAlpha) : null;
+		ImageSurface surface = sample_copy ?? document.Layers.CurrentUserLayer.Surface;
 		var stencilBuffer = new BitMask (surface.Width, surface.Height);
 		var tol = (int) (Tolerance * Tolerance * 256);
 
@@ -111,10 +126,40 @@ public abstract class FloodTool : BaseTool
 		}
 	}
 
+	/// <summary>
+	/// A copy of the pixels the flood compares: the current layer or, for Image sampling, the flattened image.
+	/// In Straight alpha mode the colour channels are un-premultiplied first, so a translucent pixel
+	/// differs from an opaque one of the same colour only by its alpha.
+	/// </summary>
+	private static ImageSurface CreateSampleSurface (Document document, bool sampleImage, bool straightAlpha)
+	{
+		ImageSurface surface = sampleImage
+			? document.GetFlattenedImage ()
+			: document.Layers.CurrentUserLayer.Surface.Clone ();
+
+		if (straightAlpha) {
+			surface.Flush ();
+			ToStraightAlpha (surface.GetPixelData ());
+			surface.MarkDirty ();
+		}
+
+		return surface;
+	}
+
+	public static void ToStraightAlpha (Span<ColorBgra> pixels)
+	{
+		for (int i = 0; i < pixels.Length; i++)
+			pixels[i] = pixels[i].ToStraightAlpha ();
+	}
+
 	protected override void OnSaveSettings (ISettingsService settings)
 	{
 		base.OnSaveSettings (settings);
 
+		if (alpha_mode_button is not null)
+			settings.PutSetting (SettingPrefix + "-tolerance-alpha-mode", alpha_mode_button.SelectedIndex);
+		if (sampling_button is not null)
+			settings.PutSetting (SettingPrefix + "-sampling", sampling_button.SelectedIndex);
 		if (mode_button is not null)
 			settings.PutSetting (SettingNames.FloodToolFillMode (this), mode_button.SelectedIndex);
 		if (tolerance_slider is not null)
@@ -128,6 +173,35 @@ public abstract class FloodTool : BaseTool
 	protected Label ToleranceLabel => tolerance_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Tolerance")));
 	protected ToolBarSlider ToleranceSlider => tolerance_slider ??= GtkExtensions.CreateToolBarSlider (0, 100, 1, Settings.GetSetting (SettingNames.FloodToolFillTolerance (this), 50));
 	protected Separator Separator => mode_sep ??= GtkExtensions.CreateToolBarSeparator ();
+	private Separator SamplingSeparator => sampling_sep ??= GtkExtensions.CreateToolBarSeparator ();
+	private Label SamplingLabel => sampling_label ??= Label.New (string.Format (" {0}: ", Translations.GetString ("Sampling")));
+
+	private ToolBarDropDownButton AlphaModeDropDown {
+		get {
+			if (alpha_mode_button is null) {
+				alpha_mode_button = ToolBarDropDownButton.New ();
+				alpha_mode_button.AddItem (Translations.GetString ("Premultiplied"), Pinta.Resources.Icons.ToleranceAlphaPremultiplied, false);
+				alpha_mode_button.AddItem (Translations.GetString ("Straight"), Pinta.Resources.Icons.ToleranceAlphaStraight, true);
+				alpha_mode_button.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingPrefix + "-tolerance-alpha-mode", 0), 0, 1);
+			}
+
+			return alpha_mode_button;
+		}
+	}
+
+	private ToolBarDropDownButton SamplingDropDown {
+		get {
+			if (sampling_button is null) {
+				sampling_button = ToolBarDropDownButton.New (showLabel: true);
+				sampling_button.AddItem (Translations.GetString ("Image"), Pinta.Resources.Icons.ResizeCanvasBase, true);
+				sampling_button.AddItem (Translations.GetString ("Layer"), Pinta.Resources.Icons.LayerMergeDown, false);
+				// Layer by default, as in Paint.NET.
+				sampling_button.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingPrefix + "-sampling", 1), 0, 1);
+			}
+
+			return sampling_button;
+		}
+	}
 
 	protected ToolBarDropDownButton ModeDropDown {
 		get {
