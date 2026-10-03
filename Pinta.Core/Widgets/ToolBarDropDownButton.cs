@@ -47,6 +47,21 @@ public sealed partial class ToolBarDropDownButton
 		Gtk.SignalListItemFactory listFactory = Gtk.SignalListItemFactory.New ();
 		listFactory.OnBind += OnBindListItem;
 		SetListFactory (listFactory);
+
+		// GtkDropDown caps its list at about 400px, so long lists (the 15 blend modes) scroll; Paint.NET shows them all.
+		OnRealize += (_, _) => RaiseListHeight (this);
+	}
+
+	private static void RaiseListHeight (Gtk.Widget widget)
+	{
+		for (Gtk.Widget? child = widget.GetFirstChild (); child is not null; child = child.GetNextSibling ()) {
+			if (child is Gtk.ScrolledWindow scrolled) {
+				scrolled.MaxContentHeight = 900;
+				scrolled.PropagateNaturalHeight = true;
+				return;
+			}
+			RaiseListHeight (child);
+		}
 	}
 
 	public static ToolBarDropDownButton New (bool showLabel = false)

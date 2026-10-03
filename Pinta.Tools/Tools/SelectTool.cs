@@ -46,6 +46,7 @@ public abstract class SelectTool : BaseTool
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_S);
 	public override bool IsSelectionTool => true;
 	protected override bool ShowAntialiasingButton => false;
+	protected override bool ShowSelectionQualityButton => true;
 	private readonly RectangleHandle handle;
 	public override IEnumerable<IToolHandle> Handles => [handle];
 
