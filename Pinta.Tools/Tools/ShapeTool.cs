@@ -40,6 +40,9 @@ public abstract class ShapeTool : BaseTool
 		system_manager = services.GetService<SystemManager> ();
 	}
 
+	/// <summary>Rectangle, Rounded Rectangle, Ellipse and Freeform Shape share Paint.NET's one Shapes button.</summary>
+	internal static ToolBoxGroup ShapesGroup { get; } = new (Translations.GetString ("Shapes"), Pinta.Resources.Icons.ToolShapes);
+
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_O);
 	protected override bool ShowAntialiasingButton => true;
 	public virtual BaseEditEngine.ShapeTypes ShapeType => BaseEditEngine.ShapeTypes.ClosedLineCurveSeries;

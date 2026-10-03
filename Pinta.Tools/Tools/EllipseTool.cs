@@ -44,6 +44,7 @@ public sealed class EllipseTool : ShapeTool
 
 	public override string Icon
 		=> Pinta.Resources.Icons.ToolEllipse;
+	public override ToolBoxGroup ToolBoxGroup => ShapesGroup;
 
 	public override Gdk.Cursor DefaultCursor { get; }
 

@@ -267,6 +267,7 @@ public static class Icons
 	public const string ToolRecolor = "tool-recolor";
 	public const string ToolRectangle = "tool-rectangle";
 	public const string ToolRectangleRounded = "tool-rectangle-rounded";
+	public const string ToolShapes = "tool-shapes";
 	public const string ToolSelectEllipse = "tool-select-ellipse";
 	public const string ToolSelectLasso = "tool-select-lasso";
 	public const string ToolSelectMagicWand = "tool-select-magicwand";

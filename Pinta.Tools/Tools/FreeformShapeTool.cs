@@ -47,6 +47,7 @@ public sealed class FreeformShapeTool : BaseBrushTool
 
 	public override string Name => Translations.GetString ("Freeform Shape");
 	public override string Icon => Pinta.Resources.Icons.ToolFreeformShape;
+	public override ToolBoxGroup ToolBoxGroup => ShapeTool.ShapesGroup;
 	public override string StatusBarText => Translations.GetString ("Left click to draw with primary color, right click to draw with secondary color.");
 	public override Gdk.Cursor DefaultCursor => Gdk.Cursor.NewFromTexture (Resources.GetIcon ("Cursor.FreeformShape.png"), 9, 18, null);
 	public override Gdk.Key ShortcutKey => new (Gdk.Constants.KEY_O);

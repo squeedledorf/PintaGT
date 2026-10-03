@@ -25,28 +25,62 @@ the [Silk icon set](http://www.famfamfam.com/lab/icons/silk/) and the [Fugue ico
 (both Creative Commons Attribution 3.0).
 Icons whose names are freedesktop standard names carry a `pinta-` prefix so a system icon theme cannot override them.
 
-## Silk icons (hicolor/16x16/actions)
+## Paint.NET 5-style colour icons (hicolor/scalable/actions)
 
-The toolbar, settings, help and window-toggle icons below are from the
-[Silk icon set 1.3](http://www.famfamfam.com/lab/icons/silk/) by Mark James, licensed under the
-[Creative Commons Attribution 2.5 License](http://creativecommons.org/licenses/by/2.5/).
-They were taken unmodified (only renamed) from the npm package `famfamfam-silk` 1.0.0. See `silk-license.txt`.
+The toolbar, window toggles, settings, help, Layers window buttons and Tools window icons below are
+original flat drawings made for Pinta in the style of Paint.NET 5 (saturated blue/grey outlines,
+light-blue fills). They are not copied from Paint.NET. They replace the Pinta 1.x / Silk PNGs of the
+same names and can be used with the same license as the project itself.
 
-| Pinta file | Silk file |
-|---|---|
-| pinta-document-new.png | page_white_star.png |
-| pinta-document-open.png | folder_page.png |
-| pinta-document-save.png | disk.png |
-| pinta-document-save-as.png | page_save.png |
-| pinta-document-print.png | printer.png |
-| pinta-edit-cut.png | cut.png |
-| pinta-edit-copy.png | page_copy.png |
-| pinta-edit-paste.png | page_paste.png |
-| pinta-edit-undo.png | arrow_undo.png |
-| pinta-edit-redo.png | arrow_redo.png |
-| pinta-preferences.png | cog.png |
-| pinta-help.png | help.png |
-| pinta-window-tools.png | wrench.png |
-| pinta-window-history.png | clock.png |
-| pinta-window-layers.png | layers.png |
-| pinta-window-colors.png | color_wheel.png |
+- hicolor/scalable/actions/edit-selection-none.svg
+- hicolor/scalable/actions/image-crop.svg
+- hicolor/scalable/actions/layers-add-layer.svg
+- hicolor/scalable/actions/layers-duplicate-layer.svg
+- hicolor/scalable/actions/layers-merge-down.svg
+- hicolor/scalable/actions/layers-properties.svg
+- hicolor/scalable/actions/layers-remove-layer.svg
+- hicolor/scalable/actions/pinta-document-new.svg
+- hicolor/scalable/actions/pinta-document-open.svg
+- hicolor/scalable/actions/pinta-document-print.svg
+- hicolor/scalable/actions/pinta-document-save.svg
+- hicolor/scalable/actions/pinta-document-save-as.svg
+- hicolor/scalable/actions/pinta-edit-copy.svg
+- hicolor/scalable/actions/pinta-edit-cut.svg
+- hicolor/scalable/actions/pinta-edit-paste.svg
+- hicolor/scalable/actions/pinta-edit-redo.svg
+- hicolor/scalable/actions/pinta-edit-undo.svg
+- hicolor/scalable/actions/pinta-help.svg
+- hicolor/scalable/actions/pinta-layer-move-down.svg
+- hicolor/scalable/actions/pinta-layer-move-up.svg
+- hicolor/scalable/actions/pinta-preferences.svg
+- hicolor/scalable/actions/pinta-tool-text.svg
+- hicolor/scalable/actions/pinta-view-grid.svg
+- hicolor/scalable/actions/pinta-window-colors.svg
+- hicolor/scalable/actions/pinta-window-history.svg
+- hicolor/scalable/actions/pinta-window-layers.svg
+- hicolor/scalable/actions/pinta-window-tools.svg
+- hicolor/scalable/actions/tool-clonestamp.svg
+- hicolor/scalable/actions/tool-colorpicker.svg
+- hicolor/scalable/actions/tool-eraser.svg
+- hicolor/scalable/actions/tool-gradient.svg
+- hicolor/scalable/actions/tool-line.svg
+- hicolor/scalable/actions/tool-move.svg
+- hicolor/scalable/actions/tool-move-selection.svg
+- hicolor/scalable/actions/tool-paintbrush.svg
+- hicolor/scalable/actions/tool-paintbucket.svg
+- hicolor/scalable/actions/tool-pan.svg
+- hicolor/scalable/actions/tool-pencil.svg
+- hicolor/scalable/actions/tool-recolor.svg
+- hicolor/scalable/actions/tool-select-ellipse.svg
+- hicolor/scalable/actions/tool-select-lasso.svg
+- hicolor/scalable/actions/tool-select-magicwand.svg
+- hicolor/scalable/actions/tool-select-rectangle.svg
+- hicolor/scalable/actions/tool-shapes.svg
+- hicolor/scalable/actions/tool-zoom.svg
+- hicolor/scalable/actions/view-rulers.svg
+- hicolor/scalable/actions/pinta-pan-down-symbolic.svg
+- hicolor/scalable/actions/pinta-pan-up-symbolic.svg
+- hicolor/scalable/actions/pinta-panel-close-symbolic.svg
+- hicolor/scalable/actions/pinta-check-tick-symbolic.svg
+- hicolor/scalable/actions/pinta-slider-thumb.svg
+- hicolor/scalable/actions/pinta-image-list-more.svg
