@@ -32,13 +32,14 @@ internal static class SettingNames
 
 	internal const string RESIZE_CANVAS_ANCHOR = "resize-canvas-anchor";
 	internal const string RESIZE_CANVAS_MAINTAIN_ASPECT = "resize-canvas-maintain-aspect";
-	internal const string RESIZE_CANVAS_USE_PERCENTAGE = "resize-canvas-use-percentage";
+	// Keys renamed from "*-use-percentage" when the default became absolute size, so the old saved default is dropped.
+	internal const string RESIZE_CANVAS_USE_PERCENTAGE = "resize-canvas-by-percentage";
 	internal const string RESIZE_CANVAS_PERCENTAGE = "resize-canvas-percentage";
 	internal const string RESIZE_CANVAS_WIDTH = "resize-canvas-width";
 	internal const string RESIZE_CANVAS_HEIGHT = "resize-canvas-height";
 
 	internal const string RESIZE_IMAGE_MAINTAIN_ASPECT = "resize-image-maintain-aspect";
-	internal const string RESIZE_IMAGE_USE_PERCENTAGE = "resize-image-use-percentage";
+	internal const string RESIZE_IMAGE_USE_PERCENTAGE = "resize-image-by-percentage";
 	internal const string RESIZE_IMAGE_PERCENTAGE = "resize-image-percentage";
 	internal const string RESIZE_IMAGE_WIDTH = "resize-image-width";
 	internal const string RESIZE_IMAGE_HEIGHT = "resize-image-height";
