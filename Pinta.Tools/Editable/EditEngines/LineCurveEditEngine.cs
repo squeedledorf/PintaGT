@@ -55,8 +55,21 @@ public sealed class LineCurveEditEngine : BaseEditEngine
 		: base (services, owner, LineShape.NUB_COUNT)
 	{ }
 
-	// A little room around a thin line's box, so that it can still be grabbed.
-	protected override double OutlineMargin => 8;
+	// Window pixels around a thin line that still count as on it.
+	private const double LINE_GRAB_MARGIN = 6;
+
+	/// <summary>Only the line itself (not the empty space around it) can be dragged; elsewhere a drag starts a new line.</summary>
+	protected override bool IsOnShape (EditableShape shape, PointD[] outline, PointD windowPoint)
+	{
+		PointD[] path = CurveGeometry.Flatten (CurveGeometry.GetSegments (((LineShape) shape).Points, curve_type))
+			.Select (workspace.CanvasPointToView).ToArray ();
+		double reach = Math.Max (LINE_GRAB_MARGIN, BrushWidth * workspace.GetScale () / 2 + 2);
+
+		for (int i = 0; i + 1 < path.Length; i++)
+			if (TransformFrame.DistanceToSegment (windowPoint, path[i], path[i + 1]) <= reach)
+				return true;
+		return false;
+	}
 
 	private LineCapStyle StartCap => caps[start_cap_picker?.SelectedIndex ?? 0];
 	private LineCapStyle EndCap => caps[end_cap_picker?.SelectedIndex ?? 0];

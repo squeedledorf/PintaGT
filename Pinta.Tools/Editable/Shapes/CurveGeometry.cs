@@ -82,6 +82,23 @@ public static class CurveGeometry
 		return new (1, 0);
 	}
 
+	/// <summary>Points along the curve, <paramref name="steps"/> per segment, for hit testing.</summary>
+	public static IEnumerable<PointD> Flatten (IReadOnlyList<CubicSegment> segments, int steps = 16)
+	{
+		if (segments.Count > 0)
+			yield return segments[0].Start;
+
+		foreach (CubicSegment s in segments) {
+			for (int i = 1; i <= steps; i++) {
+				double t = (double) i / steps, u = 1 - t;
+				double a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+				yield return new (
+					a * s.Start.X + b * s.Control1.X + c * s.Control2.X + d * s.End.X,
+					a * s.Start.Y + b * s.Control1.Y + c * s.Control2.Y + d * s.End.Y);
+			}
+		}
+	}
+
 	/// <summary>The same segment traversed backwards.</summary>
 	public static CubicSegment Reverse (CubicSegment s)
 		=> new (s.End, s.Control2, s.Control1, s.Start);

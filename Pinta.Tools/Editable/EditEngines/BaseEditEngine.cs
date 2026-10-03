@@ -124,8 +124,9 @@ public abstract class BaseEditEngine
 	/// <summary>Whether the shape has a draggable centre of rotation.</summary>
 	protected virtual bool HasPivotHandle => false;
 
-	/// <summary>Window pixels around the outline that still count as on the shape.</summary>
-	protected virtual double OutlineMargin => 0;
+	/// <summary>Whether a window point is on the shape, where a drag moves it. <paramref name="outline"/> is <see cref="EditableShape.Outline"/> in window space.</summary>
+	protected virtual bool IsOnShape (EditableShape shape, PointD[] outline, PointD windowPoint)
+		=> TransformFrame.IsInside (outline, windowPoint);
 
 	protected virtual bool HandleToolKey (ToolKeyEventArgs e) => false;
 
@@ -623,9 +624,8 @@ public abstract class BaseEditEngine
 			return (DragMode.Move, 0);
 
 		PointD[] outline = shape.Outline.Select (workspace.CanvasPointToView).ToArray ();
-		bool inside = TransformFrame.IsInside (outline, windowPoint) || DistanceToOutline (outline, windowPoint) <= OutlineMargin;
 
-		if (inside)
+		if (IsOnShape (shape, outline, windowPoint))
 			return (right ? DragMode.Rotate : DragMode.Move, 0);
 
 		if (HasRotateCorridor && DistanceToOutline (outline, windowPoint) <= ROTATE_CORRIDOR)

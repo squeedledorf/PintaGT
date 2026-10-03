@@ -166,4 +166,17 @@ public sealed class ShapeToolsTests
 		Assert.That (w, Is.EqualTo (200).Within (1e-6));
 		Assert.That (h, Is.EqualTo (150).Within (1e-6));
 	}
+
+	[Test]
+	public void FlattenFollowsTheCurveFromStartToEnd ()
+	{
+		// A Bézier pulled up by its controls: the samples start and end on the nubs and bulge upwards in the middle.
+		PointD[] nubs = [new (0, 0), new (0, -100), new (100, -100), new (100, 0)];
+		PointD[] path = CurveGeometry.Flatten (CurveGeometry.GetSegments (nubs, CurveType.Bezier), steps: 8).ToArray ();
+
+		Assert.That (path, Has.Length.EqualTo (9));
+		AssertPoint (path[0], 0, 0);
+		AssertPoint (path[^1], 100, 0);
+		AssertPoint (path[4], 50, -75);
+	}
 }
