@@ -29,6 +29,7 @@ namespace Pinta.Core;
 public sealed class ReEditableLayer
 {
 	Layer? actual_layer;
+	Layer? paint_layer;
 
 	//Whether or not the actualLayer has already been setup.
 	private bool is_layer_setup = false;
@@ -94,6 +95,24 @@ public sealed class ReEditableLayer
 		}
 
 		in_the_loop = true;
+	}
+
+	/// <summary>
+	/// The layer to paint on the canvas: the drawing, composited with the parent layer's opacity and blend mode
+	/// (and the tool's own blend mode, if it has one), so live text and shapes look as they will once committed.
+	/// </summary>
+	// ponytail: exact only where the parent is transparent under the drawing; on a translucent or non-Normal
+	// layer, the parent's own pixels show through live strokes. Exact needs parent+drawing merged before blending.
+	internal Layer GetLayerToPaint ()
+	{
+		Layer layer = Layer;
+		paint_layer ??= new Layer (layer.Surface);
+		paint_layer.Surface = layer.Surface;
+		paint_layer.Transform = layer.Transform;
+		paint_layer.Hidden = parent.Hidden;
+		paint_layer.Opacity = parent.Opacity * layer.Opacity;
+		paint_layer.BlendMode = layer.BlendMode == BlendMode.Normal ? parent.BlendMode : layer.BlendMode;
+		return paint_layer;
 	}
 
 	/// <summary>

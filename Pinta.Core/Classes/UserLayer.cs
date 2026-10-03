@@ -115,7 +115,7 @@ public sealed class UserLayer : Layer
 
 		foreach (ReEditableLayer rel in ReEditableLayers) {
 			if (rel.IsLayerSetup)
-				yield return rel.Layer;
+				yield return rel.GetLayerToPaint ();
 		}
 	}
 }
