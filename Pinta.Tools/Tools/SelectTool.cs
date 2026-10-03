@@ -373,7 +373,7 @@ public abstract class SelectTool : BaseTool
 		ShowHandles (document.Selection.Visible && tools.CurrentTool == this && selection.HandleBounds is { Width: > 0, Height: > 0 });
 	}
 
-	// Paint.NET's draw modes: Any Size, or Fixed Ratio / Fixed Size with Width and Height fields.
+	// Paint.NET's draw modes: Normal, or Fixed Ratio / Fixed Size with Width and Height fields.
 	private ToolBarDropDownButton? draw_mode_button;
 	private Gtk.Separator? draw_mode_sep;
 	private Gtk.Label? size_width_label;
@@ -402,7 +402,7 @@ public abstract class SelectTool : BaseTool
 				fixed_size = (Settings.GetSetting (SettingPrefix + "-fixed-width", 300.0), Settings.GetSetting (SettingPrefix + "-fixed-height", 200.0));
 
 				draw_mode_button = ToolBarDropDownButton.New (showLabel: true);
-				draw_mode_button.AddItem (Translations.GetString ("Any Size"), Pinta.Resources.Icons.SelectionDrawAnySize, SelectionDrawMode.AnySize);
+				draw_mode_button.AddItem (Translations.GetString ("Normal"), Pinta.Resources.Icons.SelectionDrawAnySize, SelectionDrawMode.AnySize);
 				draw_mode_button.AddItem (Translations.GetString ("Fixed Ratio"), Pinta.Resources.Icons.SelectionDrawFixedRatio, SelectionDrawMode.FixedRatio);
 				draw_mode_button.AddItem (Translations.GetString ("Fixed Size"), Pinta.Resources.Icons.SelectionDrawFixedSize, SelectionDrawMode.FixedSize);
 				draw_mode_button.SelectedIndex = Math.Clamp (Settings.GetSetting (SettingPrefix + "-draw-mode", 0), 0, 2);

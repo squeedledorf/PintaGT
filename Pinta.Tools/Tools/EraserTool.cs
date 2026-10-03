@@ -54,7 +54,7 @@ public sealed class EraserTool : BaseBrushTool
 		=> Pinta.Resources.Icons.ToolEraser;
 
 	public override string StatusBarText
-		=> Translations.GetString ("Left click to erase using the primary color's transparency, right click to erase using the secondary color's transparency.");
+		=> Translations.GetString ("Click and drag to erase a portion of the image.");
 
 	public override Gdk.Key ShortcutKey
 		=> new (Gdk.Constants.KEY_E);

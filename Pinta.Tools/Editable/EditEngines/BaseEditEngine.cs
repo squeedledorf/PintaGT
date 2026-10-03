@@ -151,6 +151,7 @@ public abstract class BaseEditEngine
 	private ToolBarDropDownButton? fill_button;
 	private Gtk.Separator? fill_sep;
 	private Gtk.SpinButton? outline_width;
+	private Gtk.Box? outline_width_box;
 	private Gtk.Label? outline_width_label;
 	private Gtk.Separator? outline_width_sep;
 	private Gtk.Label? dash_label;
@@ -206,11 +207,15 @@ public abstract class BaseEditEngine
 				// Translators: {0} is 'Ctrl', or a platform-specific key such as 'Command' on macOS. {1} is a number.
 				+ "\n" + Translations.GetString ("Hold {0} to change it by {1}", PintaCore.System.CtrlLabel (), BaseBrushTool.BrushWidthLargeStep);
 			outline_width.OnValueChanged += (_, _) => Redraw ();
+			// Paint.NET shows a whole brush width as "2", not "2.00", between − and + buttons.
+			outline_width.OnOutput += (spin, _) => BaseBrushTool.ShowWholeAsInteger (spin);
+			BaseBrushTool.ShowWholeAsInteger (outline_width);
+			outline_width_box = outline_width.WithOuterStepButtons ();
 		}
 
 		outline_width_sep ??= GtkExtensions.CreateToolBarSeparator ();
 		tb.Append (outline_width_label);
-		tb.Append (outline_width);
+		tb.Append (outline_width_box!);
 		tb.Append (outline_width_sep);
 	}
 
