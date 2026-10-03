@@ -81,7 +81,9 @@ public sealed partial class SimpleEffectDialog
 		contentAreaBox.Spacing = 12;
 		contentAreaBox.SetAllMargins (6);
 
-		OnClose += (_, _) => HandleClose ();
+		// Flush on Response, not on the keybinding-only "close" signal: GTK emits that one (Escape)
+		// with an uninitialised return GValue, and GirCore's closure copies it back, which raises
+		// GLib-GObject-CRITICAL g_value_type_compatible / g_value_copy.
 		// Connected before RunAsync's handler, so a value typed just before Enter reaches the effect before OK is read.
 		OnResponse += (_, _) => HandleClose ();
 	}
@@ -167,11 +169,14 @@ public sealed partial class SimpleEffectDialog
 	private void HandleClose ()
 	{
 		// If there is a timeout that hasn't been invoked yet, run it before closing the dialog.
+		// Response can fire more than once (e.g. a double-clicked OK), so clear the id: removing a
+		// source twice raises GLib-CRITICAL.
 		if (event_delay_timeout_id == 0) return;
 		GLib.Source.Remove (event_delay_timeout_id);
 		event_delay_timeout_id = 0;
-		timeout_func?.Invoke ();
+		TimeoutHandler? pending = timeout_func;
 		timeout_func = null;
+		pending?.Invoke ();
 	}
 
 	private IEnumerable<Gtk.Widget> GenerateDialogWidgets (EffectData effectData, IAddinLocalizer localizer, IWorkspaceService workspace) =>
