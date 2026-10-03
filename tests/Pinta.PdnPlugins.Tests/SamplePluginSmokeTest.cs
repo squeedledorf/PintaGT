@@ -174,7 +174,7 @@ internal sealed class SamplePluginSmokeTest
 			return ("ok", name, $"{changed} of {W * H} pixels changed; setup {setupMs} ms, total {timer.ElapsedMilliseconds} ms");
 		} catch (Exception ex) {
 			Exception inner = ex is AggregateException ae ? ae.Flatten ().InnerException ?? ex : ex;
-			if (inner is TargetInvocationException { InnerException: not null } tie) inner = tie.InnerException;
+			if (inner is TargetInvocationException { InnerException: Exception innermost }) inner = innermost;
 			return ("fail", name, PluginRegistry.Describe (inner) + " @ " + (inner.StackTrace?.Split ('\n').FirstOrDefault ()?.Trim () ?? ""));
 		}
 	}

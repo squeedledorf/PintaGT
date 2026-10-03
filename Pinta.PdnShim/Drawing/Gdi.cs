@@ -353,16 +353,24 @@ namespace System.Drawing
 			return s;
 		}
 
-		public static void FromCairo (Cairo.ImageSurface s, Bitmap b, Rectangle r)
+		/// <summary>
+		/// Copies the drawn pixels back. Pixels the drawing did not change (same as <paramref name="before"/>) are skipped,
+		/// so render threads writing nearby pixels of the same surface are not overwritten with stale values.
+		/// </summary>
+		public static void FromCairo (Cairo.ImageSurface s, Bitmap b, Rectangle r, byte[] before)
 		{
 			s.Flush ();
 			Span<byte> data = s.GetData ();
 			int stride = s.Stride;
-			fixed (byte* d0 = data) {
+			fixed (byte* d0 = data)
+			fixed (byte* b0 = before) {
 				for (int y = 0; y < r.Height; y++) {
 					PaintDotNet.ColorBgra* src = (PaintDotNet.ColorBgra*) (d0 + y * stride);
+					PaintDotNet.ColorBgra* old = (PaintDotNet.ColorBgra*) (b0 + y * stride);
 					PaintDotNet.ColorBgra* dst = b.Row (r.Y + y) + r.X;
-					for (int x = 0; x < r.Width; x++) dst[x] = src[x].ConvertFromPremultipliedAlpha ();
+					for (int x = 0; x < r.Width; x++)
+						if (src[x].Bgra != old[x].Bgra)
+							dst[x] = src[x].ConvertFromPremultipliedAlpha ();
 				}
 			}
 		}
@@ -466,6 +474,7 @@ namespace System.Drawing
 			if (clip is not null) r = Rectangle.Intersect (r, Rectangle.Ceiling (clip.Bounds));
 			if (r.Width <= 0 || r.Height <= 0) return;
 			using Cairo.ImageSurface s = CairoInterop.ToCairo (target, r);
+			byte[] before = s.GetData ().ToArray ();
 			using (Cairo.Context cr = new (s)) {
 				cr.Translate (-r.X, -r.Y);
 				if (clip is not null) {
@@ -478,7 +487,7 @@ namespace System.Drawing
 				SetMatrix (cr, r.X, r.Y);
 				draw (cr);
 			}
-			CairoInterop.FromCairo (s, target, r);
+			CairoInterop.FromCairo (s, target, r, before);
 			target.EncodedData = null;
 		}
 
