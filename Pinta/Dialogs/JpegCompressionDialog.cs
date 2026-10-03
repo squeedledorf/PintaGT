@@ -32,7 +32,7 @@ namespace Pinta;
 [GObject.Subclass<Gtk.Dialog>]
 public sealed partial class JpegCompressionDialog
 {
-	private Gtk.Scale compression_level;
+	private Gtk.SpinButton compression_level;
 
 	[MemberNotNull (nameof (compression_level))]
 	partial void Initialize ()
@@ -41,7 +41,17 @@ public sealed partial class JpegCompressionDialog
 		qualityLabel.Xalign = 0;
 
 		Gtk.Scale levelScale = Gtk.Scale.NewWithRange (Gtk.Orientation.Horizontal, 1, 100, 1);
-		levelScale.DrawValue = true;
+		levelScale.DrawValue = false;
+		levelScale.Hexpand = true;
+		levelScale.WidthRequest = 250;
+
+		// A number box sharing the slider's adjustment, so the quality can be typed (as in Paint.NET).
+		Gtk.SpinButton levelSpin = Gtk.SpinButton.New (levelScale.GetAdjustment (), 1, 0);
+		levelSpin.SetActivatesDefaultImmediate (true);
+
+		Gtk.Box levelBox = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
+		levelBox.Append (levelScale);
+		levelBox.Append (levelSpin);
 
 		// --- Initialization (Gtk.Window)
 
@@ -58,11 +68,14 @@ public sealed partial class JpegCompressionDialog
 		contentBox.Spacing = 3;
 		contentBox.AppendMultiple ([
 			qualityLabel,
-			levelScale]);
+			levelBox]);
+
+		// Start in the number box so a quality can be typed straight away.
+		FocusWidget = levelSpin;
 
 		// --- References to keep
 
-		compression_level = levelScale;
+		compression_level = levelSpin;
 	}
 
 	public static JpegCompressionDialog New (int defaultQuality, Gtk.Window parent)
@@ -73,6 +86,10 @@ public sealed partial class JpegCompressionDialog
 		return dialog;
 	}
 
-	public int CompressionLevel
-		=> (int) compression_level.GetValue ();
+	public int CompressionLevel {
+		get {
+			compression_level.Update (); // Commit a typed value that Enter has not applied yet
+			return compression_level.GetValueAsInt ();
+		}
+	}
 }

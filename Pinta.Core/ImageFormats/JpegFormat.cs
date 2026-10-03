@@ -34,7 +34,7 @@ public sealed class JpegFormat : GdkPixbufFormat
 {
 	//The default JPG compression quality to use when no saved setting is loaded. This will usually
 	//occur when Pinta is first run on a machine, although there are other possible cases as well.
-	private const int DefaultQuality = 85;
+	private const int DefaultQuality = 95;
 
 	public JpegFormat ()
 		: base ("jpeg", supportsAlpha: false)

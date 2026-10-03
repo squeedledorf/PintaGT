@@ -35,7 +35,7 @@ public sealed class NetpbmPortablePixmap : IImageExporter, IImageImporter
 			file,
 			"ppm");
 
-		Layer layer = newDocument.Layers.AddNewLayer (file.GetDisplayName ());
+		Layer layer = newDocument.Layers.AddNewLayer (Translations.GetString ("Background"));
 		Span<ColorBgra> pixelData = layer.Surface.GetPixelData ();
 
 		layer.Surface.Flush ();

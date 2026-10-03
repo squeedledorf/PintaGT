@@ -36,6 +36,7 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 {
 	const string RESPONSE_CANCEL = "cancel";
 	const string RESPONSE_FLATTEN = "flatten";
+	const string RESPONSE_REPLACE = "replace";
 
 	private readonly FileActions file;
 	private readonly ImageActions image;
@@ -95,17 +96,6 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 			Translations.GetString ("Save"),
 			Translations.GetString ("Cancel"));
 
-		if (document.HasFile)
-			fcd.SetFile (document.File!);
-		else {
-			if (recent_files.GetDialogDirectory () is Gio.File dir && dir.QueryExists (null))
-				fcd.SetCurrentFolder (dir);
-
-			// Append the default extension, producing e.g. "Unsaved Image 1.png"
-			string default_ext = image_formats.GetDefaultSaveFormat ().Extensions.First ();
-			fcd.SetCurrentName ($"{document.DisplayName}.{default_ext}");
-		}
-
 		// Add all the formats we support to the save dialog
 		Dictionary<Gtk.FileFilter, FormatDescriptor> filetypes = [];
 		foreach (var format in image_formats.Formats) {
@@ -127,12 +117,27 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 
 		if (document.HasFile) {
 			format_desc = image_formats.GetFormatByFile (document.DisplayName);
+		} else if (document.Layers.Count () > 1) {
+			// Like Paint.NET, keep the layers of a new multi-layer image by default
+			format_desc = image_formats.GetFormatByExtension ("ora");
 		}
 
 		if (format_desc is null || !format_desc.IsExportAvailable ())
 			format_desc = image_formats.GetDefaultSaveFormat ();
 
 		fcd.Filter = format_desc.Filter;
+
+		if (document.HasFile)
+			fcd.SetFile (document.File!);
+		else {
+			if (recent_files.GetDialogDirectory () is Gio.File dir && dir.QueryExists (null))
+				fcd.SetCurrentFolder (dir);
+
+			// Append the format's extension, producing e.g. "Unsaved Image 1.png"
+			fcd.SetCurrentName ($"{document.DisplayName}.{format_desc.Extensions.First ()}");
+		}
+
+		bool saved_in_session = document.HasBeenSavedInSession;
 
 		while (await fcd.RunAsync () == Gtk.ResponseType.Accept) {
 
@@ -146,10 +151,22 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 			// to assume they just didn't update the dropdown and really want png
 			FormatDescriptor? format = image_formats.GetFormatByFile (displayName);
 			if (format is null) {
-				if (fcd.Filter is not null)
-					format = filetypes[fcd.Filter];
-				else // Somehow, no file filter was selected...
+				if (fcd.Filter is null || !filetypes.TryGetValue (fcd.Filter, out format)) // Somehow, no file filter was selected...
 					format = image_formats.GetDefaultSaveFormat ();
+
+				// No recognised extension was typed, so append the selected format's one
+				// (e.g. "photo" with the JPEG filter becomes "photo.jpg"). The chooser only
+				// confirmed overwriting the typed name, so check the new name ourselves.
+				if (file.GetParent () is Gio.File parent_dir) {
+					file = parent_dir.GetChild ($"{displayName}.{format.Extensions.First ()}");
+					displayName = file.GetSafeDisplayName ();
+
+					if (file.QueryExists (null) && !await ConfirmReplace (displayName)) {
+						fcd.SetCurrentName (displayName);
+						fcd.SetCurrentFolder (parent_dir);
+						continue;
+					}
+				}
 			}
 
 			if (!await ConfirmFlatten (document, format)) {
@@ -161,6 +178,11 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 			if (directory is not null)
 				recent_files.LastDialogDirectory = directory;
 
+			//The user is saving the Document to a new file, so technically it
+			//hasn't been saved to its associated file in this session. This must
+			//happen before saving so that e.g. the JPEG quality dialog is shown.
+			document.HasBeenSavedInSession = false;
+
 			// If saving the file failed or was cancelled, let the user select
 			// a different file type.
 			if (!await SaveFile (document, file, format, chrome.MainWindow)) {
@@ -170,10 +192,6 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 				continue;
 			}
 
-			//The user is saving the Document to a new file, so technically it
-			//hasn't been saved to its associated file in this session.
-			document.HasBeenSavedInSession = false;
-
 			recent_files.AddFile (file);
 			image_formats.SetDefaultFormat (format.Extensions.First ());
 
@@ -182,7 +200,25 @@ internal sealed class SaveDocumentImplmentationAction : IActionHandler
 			return true;
 		}
 
+		document.HasBeenSavedInSession = saved_in_session;
 		return false;
+	}
+
+	private async Task<bool> ConfirmReplace (string fileName)
+	{
+		// Translators: {0} is the name of a file that already exists.
+		string heading = Translations.GetString ("{0} already exists. Do you want to replace it?", fileName);
+		string body = Translations.GetString ("Replacing it will overwrite its contents.");
+
+		using Adw.MessageDialog dialog = Adw.MessageDialog.New (chrome.MainWindow, heading, body);
+		dialog.AddResponse (RESPONSE_CANCEL, Translations.GetString ("_Cancel"));
+		dialog.AddResponse (RESPONSE_REPLACE, Translations.GetString ("_Replace"));
+		dialog.SetResponseAppearance (RESPONSE_REPLACE, Adw.ResponseAppearance.Destructive);
+
+		dialog.CloseResponse = RESPONSE_CANCEL;
+		dialog.DefaultResponse = RESPONSE_CANCEL;
+
+		return await dialog.RunAsync () == RESPONSE_REPLACE;
 	}
 
 	private async Task<bool> SaveFile (Document document, Gio.File? file, FormatDescriptor? format, Gtk.Window parent)

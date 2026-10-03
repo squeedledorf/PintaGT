@@ -56,7 +56,7 @@ public class GdkPixbufFormat : IImageImporter, IImageExporter
 			file,
 			filetype);
 
-		Layer layer = newDocument.Layers.AddNewLayer (file.GetDisplayName ());
+		Layer layer = newDocument.Layers.AddNewLayer (Translations.GetString ("Background"));
 
 		using Context g = new (layer.Surface);
 

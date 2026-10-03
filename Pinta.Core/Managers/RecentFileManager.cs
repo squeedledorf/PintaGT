@@ -50,7 +50,11 @@ public sealed class RecentFileManager
 
 	public Gio.File? DefaultDialogDirectory {
 		get {
+			// Fall back to the home folder when there is no Pictures folder, so the
+			// file chooser doesn't open on "Recent" or the working directory.
 			string path = System.Environment.GetFolderPath (Environment.SpecialFolder.MyPictures);
+			if (!System.IO.Directory.Exists (path))
+				path = System.Environment.GetFolderPath (Environment.SpecialFolder.UserProfile);
 			return !string.IsNullOrEmpty (path) ? Gio.FileHelper.NewForPath (path) : null;
 		}
 	}

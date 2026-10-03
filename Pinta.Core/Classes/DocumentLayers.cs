@@ -144,7 +144,7 @@ public sealed class DocumentLayers
 	[MemberNotNull (nameof (selection_layer))]
 	public void CreateSelectionLayer ()
 	{
-		selection_layer = CreateLayer ();
+		selection_layer = CreateLayer ("Selection Layer");
 	}
 
 	/// <summary>
@@ -153,7 +153,7 @@ public sealed class DocumentLayers
 	[MemberNotNull (nameof (selection_layer))]
 	public void CreateSelectionLayer (int width, int height)
 	{
-		selection_layer = CreateLayer (null, width, height);
+		selection_layer = CreateLayer ("Selection Layer", width, height);
 	}
 
 	/// <summary>
