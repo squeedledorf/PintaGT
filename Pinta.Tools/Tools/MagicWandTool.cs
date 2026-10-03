@@ -77,11 +77,17 @@ public sealed class MagicWandTool : FloodTool
 
 	protected override void OnMouseDown (Document document, ToolMouseEventArgs e)
 	{
+		// As in Paint.NET, clicking off-canvas with a selection tool deselects.
+		if (!document.Workspace.PointInCanvas ((PointD) e.Point)) {
+			Command deselect = PintaCore.Actions.Edit.Deselect;
+			if (deselect.Sensitive)
+				deselect.Activate ();
+			return;
+		}
+
 		combine_mode = workspace.SelectionHandler.DetermineCombineMode (e);
 
 		base.OnMouseDown (document, e);
-
-		document.Selection.Visible = true;
 	}
 
 	protected override void OnFillRegionComputed (Document document, IReadOnlyList<IReadOnlyList<PointI>> polygonSet)
@@ -93,6 +99,8 @@ public sealed class MagicWandTool : FloodTool
 
 		document.Selection.SelectionPolygons.Clear ();
 		SelectionModeHandler.PerformSelectionMode (document, combine_mode, DocumentSelection.ConvertToPolygons (polygonSet));
+		// Only reveal the selection once a fill happened; an off-canvas click must not expose a hidden one.
+		document.Selection.Visible = true;
 
 		document.History.PushNewItem (undoAction);
 	}
