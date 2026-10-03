@@ -57,7 +57,7 @@ public sealed class AppActions
 			shortcuts: ["<Primary>question"]);
 		Exit = new Command (
 			"quit",
-			Translations.GetString ("Exit"),
+			Translations.GetString ("E_xit"),
 			null,
 			Resources.StandardIcons.ApplicationExit,
 			// Paint.NET's File > Exit has no shortcut; keep the platform-standard Cmd+Q on macOS.

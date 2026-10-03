@@ -520,6 +520,7 @@ internal sealed class MainWindow
 				Gtk.Box menuRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 				Gtk.PopoverMenuBar menus = Gtk.PopoverMenuBar.NewFromModel (menu_bar);
 				PdnMenus.Attach (menus);
+				ReleaseMenuBarFocus (menus);
 				menuRow.Append (menus);
 				Gtk.Box rule = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 				rule.AddCssClass ("pdn-top-rule");
@@ -592,9 +593,94 @@ internal sealed class MainWindow
 		PdnMenus.Attach (help);
 		window_buttons.Append (help);
 
+		// Alt+H opens the Help menu, as in Paint.NET.
+		Gio.SimpleAction help_menu_action = Gio.SimpleAction.New ("help-menu", null);
+		help_menu_action.OnActivate += (_, _) => {
+			help.Popup ();
+			GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT_IDLE, () => {
+				if (help.Popover is Gtk.Popover menu)
+					menu.MnemonicsVisible = true;
+				return false;
+			});
+		};
+		window_shell.Window.AddAction (help_menu_action);
+		app.SetAccelsForAction ("win.help-menu", ["<Alt>H"]);
+
 		top.Attach (window_buttons, 2, rows == 3 ? 1 : 0, 1, 1);
 
 		window_shell.Append (top);
+	}
+
+	/// <summary>
+	/// GTK leaves the focus on the menu bar after a menu closes, so its header stays lit and keys go to
+	/// the bar. As in Paint.NET, a menu that closes on a command or a click elsewhere hands the focus
+	/// back to the canvas; Esc keeps it on the header (lit), where Down opens the menu again.
+	/// </summary>
+	private void ReleaseMenuBarFocus (Gtk.PopoverMenuBar menus)
+	{
+		List<Gtk.Popover> popovers = [];
+		for (Gtk.Widget? item = menus.GetFirstChild (); item is not null; item = item.GetNextSibling ())
+			for (Gtk.Widget? child = item.GetFirstChild (); child is not null; child = child.GetNextSibling ())
+				if (child is Gtk.Popover popover)
+					popovers.Add (popover);
+
+		// Down on a lit header opens its menu again (GTK only opens it on Enter or Space).
+		Gtk.EventControllerKey barKeys = Gtk.EventControllerKey.New ();
+		barKeys.OnKeyPressed += (_, args) => {
+			if (args.Keyval is not (Gdk.Constants.KEY_Down or Gdk.Constants.KEY_KP_Down) || popovers.Any (p => p.Visible))
+				return false;
+			Gtk.Popover? menu = popovers.FirstOrDefault (p => p.Parent?.HasFocus == true);
+			if (menu is null)
+				return false;
+			menu.Popup ();
+			// Opened from the keyboard, so it shows its access letters (GTK clears them while showing it).
+			GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT_IDLE, () => {
+				menu.MnemonicsVisible = true;
+				return false;
+			});
+			return true;
+		};
+		menus.AddController (barKeys);
+
+		// Set only while an Esc press is being handled, which is when GTK closes the menu for it.
+		bool escaping = false;
+		foreach (Gtk.Popover popover in popovers) {
+			Gtk.EventControllerKey keys = Gtk.EventControllerKey.New ();
+			keys.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+			keys.OnKeyPressed += (_, args) => {
+				if (args.Keyval != Gdk.Constants.KEY_Escape)
+					return false;
+				escaping = true;
+				GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_HIGH, () => {
+					escaping = false;
+					return false;
+				});
+				return false;
+			};
+			popover.AddController (keys);
+
+			popover.OnClosed += (_, _) => {
+				if (escaping)
+					return;
+				GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT_IDLE, () => {
+					// Left / Right and hovering move between menus by closing one and opening the next.
+					if (popovers.Any (p => p.Visible))
+						return false;
+
+					// The bar marks its current header as hovered (lit) and keeps it so after the menu closes.
+					foreach (Gtk.Popover p in popovers)
+						p.Parent?.UnsetStateFlags (Gtk.StateFlags.Prelight);
+
+					if (window_shell.Window.GetFocus () is not Gtk.Widget focus || !focus.IsAncestor (menus))
+						return false;
+					if (PintaCore.Workspace.HasOpenDocuments)
+						PintaCore.Workspace.ActiveWorkspace.GrabFocusToCanvas ();
+					else
+						window_shell.Window.SetFocus (null);
+					return false;
+				});
+			};
+		}
 	}
 
 	// A flat icon button that is pressed while its window is shown.

@@ -25,6 +25,16 @@ public static class PdnMenus
 	{
 		foreach (Gtk.PopoverMenu popover in FindPopovers (root))
 			Hook (popover);
+
+		// GTK selects a menu's first item when it opens; the style lights it only while the focus is
+		// shown (keyboard use), so a menu opened with the mouse starts with nothing lit, as on Windows.
+		Gtk.GestureClick click = Gtk.GestureClick.New ();
+		click.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+		click.OnPressed += (_, _) => {
+			if (root.GetRoot () is Gtk.Window window)
+				window.FocusVisible = false;
+		};
+		root.AddController (click);
 	}
 
 	private static void Hook (Gtk.PopoverMenu popover)
@@ -34,10 +44,12 @@ public static class PdnMenus
 
 		popover.AddCssClass (MENU_CLASS);
 		// Items are rebuilt when the model changes (effects loading, "Repeat <Effect>"), so redo it on every open.
-		popover.OnMap += (_, _) => Decorate (popover);
+		// Every item label of the menu gets the width of the longest one, so the shortcuts start at one left edge.
+		Gtk.SizeGroup labelWidths = Gtk.SizeGroup.New (Gtk.SizeGroupMode.Horizontal);
+		popover.OnMap += (_, _) => Decorate (popover, labelWidths);
 	}
 
-	private static void Decorate (Gtk.PopoverMenu popover)
+	private static void Decorate (Gtk.PopoverMenu popover, Gtk.SizeGroup labelWidths)
 	{
 		// A submenu opened from the keyboard underlines its access letters too, as on Windows.
 		// GTK clears the flag while showing the popover, so set it once that is done.
@@ -66,12 +78,25 @@ public static class PdnMenus
 						image = child;
 						break;
 					case "label":
-						if (child is Gtk.Label label)
+						if (child is Gtk.Label label) {
 							labels.Add (label);
+							label.Hexpand = false;
+							label.Xalign = 0;
+							labelWidths.AddWidget (label);
+						}
+						break;
+					case "arrow":
+						child.Hexpand = true; // Submenu arrows stay at the right edge.
+						child.Halign = Gtk.Align.End;
 						break;
 					case "accelerator":
-						if (child is Gtk.Label accel)
+						if (child is Gtk.Label accel) {
 							accel.SetText (FormatAccelerator (accel.GetText ()));
+							// Left-aligned right after the label column, as in Paint.NET, not at the menu's right edge.
+							accel.Hexpand = true;
+							accel.Halign = Gtk.Align.Start;
+							accel.Xalign = 0;
+						}
 						break;
 				}
 			}

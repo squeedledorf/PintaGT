@@ -95,13 +95,9 @@ public sealed class HelpActions
 		menu.AppendSection (null, links_section);
 		menu.AppendSection (null, addins_section);
 
-		// Settings and About are part of the application menu on macOS.
+		// About is part of the application menu on macOS. Settings has its own button beside Help
+		// (Paint.NET's gear), so it is not repeated here.
 		if (!isMac) {
-			// Settings lives here until the menu bar gets its own Settings button.
-			Gio.Menu settings_section = Gio.Menu.New ();
-			settings_section.AppendItem (app.Preferences.CreateMenuItem ());
-			menu.AppendSection (null, settings_section);
-
 			Gio.Menu about_section = Gio.Menu.New ();
 			about_section.AppendItem (app.About.CreateMenuItem ());
 			menu.AppendSection (null, about_section);
