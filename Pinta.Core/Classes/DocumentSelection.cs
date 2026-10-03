@@ -234,7 +234,7 @@ public sealed class DocumentSelection
 			//other than the first/last Point (which is how it is supposed to work).
 
 			//The starting Point.
-			new IntPoint ((long) (cx + rx), (long) cy)
+			new IntPoint ((long) Math.Round (cx + rx), (long) Math.Round (cy))
 		};
 
 		//Curve 1.
@@ -271,7 +271,7 @@ public sealed class DocumentSelection
 	}
 
 	/// <summary>
-	/// Calculate each intermediate Point in the specified curve, returning Math.Round(1d / tInterval - 1d) number of Points.
+	/// Calculate each intermediate Point in the specified curve, ending exactly on the end point.
 	/// </summary>
 	/// <param name="tInterval">The increment value for t (should be between 0-1).</param>
 	/// <param name="x0">Starting point X (not included in the returned Point(s)).</param>
@@ -299,7 +299,10 @@ public sealed class DocumentSelection
 		//skipped. This is needed because multiple curves will be placed
 		//sequentially after each other and we don't want to have the same
 		//Point be added to the Polygon twice.
-		for (double t = tInterval; t < 1d; t += tInterval) {
+		//The loop stops half a step short of 1 so that the accumulated float error cannot add a
+		//point next to the end point. The end point itself is added exactly afterwards, since a
+		//truncated near-1 t lost the ellipse's bottom row.
+		for (double t = tInterval; t < 1d - tInterval / 2d; t += tInterval) {
 			//There are 3 "layers" in a cubic Bezier curve's calculation. These "layers"
 			//must be calculated for each intermediate Point (for each value of t from
 			//tInterval to 1d). The Points in each "layer" store [the distance between
@@ -322,10 +325,12 @@ public sealed class DocumentSelection
 			double oneMinusTTimesTSquaredTimesThree = oneMinusT * tSquared * 3d;
 
 			yield return new (
-				x: (long) (oneMinusTCubed * x0 + oneMinusTSquaredTimesTTimesThree * x1 + oneMinusTTimesTSquaredTimesThree * x2 + tCubed * x3),
-				y: (long) (oneMinusTCubed * y0 + oneMinusTSquaredTimesTTimesThree * y1 + oneMinusTTimesTSquaredTimesThree * y2 + tCubed * y3)
+				x: (long) Math.Round (oneMinusTCubed * x0 + oneMinusTSquaredTimesTTimesThree * x1 + oneMinusTTimesTSquaredTimesThree * x2 + tCubed * x3),
+				y: (long) Math.Round (oneMinusTCubed * y0 + oneMinusTSquaredTimesTTimesThree * y1 + oneMinusTTimesTSquaredTimesThree * y2 + tCubed * y3)
 			);
 		}
+
+		yield return new ((long) Math.Round (x3), (long) Math.Round (y3));
 	}
 
 	/// <summary>
