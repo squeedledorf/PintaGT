@@ -57,6 +57,10 @@ public static class StandardIcons
 	public const string EditSwap = "pinta-edit-swap";
 
 	public const string GoPrevious = "go-previous-symbolic";
+	public const string GoTop = "pinta-go-top";
+	public const string GoUp = "pinta-go-up";
+	public const string GoDown = "pinta-go-down";
+	public const string GoBottom = "pinta-go-bottom";
 
 	public const string HelpAbout = "help-about-symbolic";
 	public const string HelpBrowser = "pinta-help";
