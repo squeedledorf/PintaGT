@@ -313,6 +313,40 @@ public static class GdkExtensions
 		return result;
 	}
 
+	[DllImport (GdkLibraryName, EntryPoint = "gdk_event_get_history")]
+	private static extern IntPtr EventGetHistory (IntPtr evt, out uint nCoords);
+
+	// GdkTimeCoord: guint32 time, GdkAxisFlags flags, double axes[GDK_AXIS_LAST]; X and Y are axes 1 and 2.
+	private const int TIME_COORD_SIZE = 8 + 12 * sizeof (double);
+	private const int TIME_COORD_X_OFFSET = 8 + 1 * sizeof (double);
+	private const int TIME_COORD_Y_OFFSET = 8 + 2 * sizeof (double);
+
+	/// <summary>
+	/// The earlier positions that GDK folded into this motion event (it compresses motion to
+	/// one event per frame), oldest first, in the same coordinates as Gdk.Event.GetPosition().
+	/// TODO-GTK4 (bindings) - gdk_event_get_history() is not generated.
+	/// </summary>
+	public static PointD[] GetHistory (this Gdk.Event evt)
+	{
+		if (evt.GetEventType () != Gdk.EventType.MotionNotify) // anything else logs a CRITICAL
+			return [];
+
+		IntPtr coords = EventGetHistory (evt.Handle, out uint n);
+		if (coords == IntPtr.Zero)
+			return [];
+
+		var result = new PointD[n];
+		for (int i = 0; i < n; ++i) {
+			IntPtr coord = coords + i * TIME_COORD_SIZE;
+			result[i] = new PointD (
+				BitConverter.Int64BitsToDouble (Marshal.ReadInt64 (coord, TIME_COORD_X_OFFSET)),
+				BitConverter.Int64BitsToDouble (Marshal.ReadInt64 (coord, TIME_COORD_Y_OFFSET)));
+		}
+
+		GLib.Functions.Free (coords);
+		return result;
+	}
+
 	/// <summary>
 	/// Wrapper for Gdk.Cursor.NewFromName which handles errors instead of returning null.
 	/// </summary>

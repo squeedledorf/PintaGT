@@ -422,6 +422,19 @@ public sealed partial class CanvasWindow
 		gesture.GetStartPoint (out double startX, out double startY);
 		PointD rootPoint = new (startX + args.OffsetX, startY + args.OffsetY);
 
+		// GDK delivers at most one motion per frame, so a fast stroke's corners would be lost.
+		// Replay the positions it folded into this event first; they are in the event's own
+		// coordinates, so shift them by where this event lands in ours.
+		if (gesture.GetCurrentEvent () is Gdk.Event motion && motion.GetPosition (out double eventX, out double eventY)) {
+			foreach (PointD earlier in motion.GetHistory ())
+				DragMoveTo (gesture, new PointD (rootPoint.X + earlier.X - eventX, rootPoint.Y + earlier.Y - eventY));
+		}
+
+		DragMoveTo (gesture, rootPoint);
+	}
+
+	private void DragMoveTo (Gtk.GestureDrag gesture, PointD rootPoint)
+	{
 		// Translate coordinates to the canvas widget.
 		this.TranslateCoordinates (Canvas, rootPoint, out PointD viewPoint);
 
