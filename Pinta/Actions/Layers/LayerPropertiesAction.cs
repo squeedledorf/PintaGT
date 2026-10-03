@@ -110,7 +110,7 @@ internal sealed class LayerPropertiesAction : IActionHandler
 		}
 
 		if (updated.Hidden != initial.Hidden) {
-			message = Translations.GetString ("Layer Visibility");
+			message = initial.Hidden ? Translations.GetString ("Show Layer") : Translations.GetString ("Hide Layer");
 			icon = initial.Hidden ? Resources.StandardIcons.ViewReveal : Resources.StandardIcons.ViewConceal;
 			count++;
 		}

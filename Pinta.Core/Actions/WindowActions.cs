@@ -24,6 +24,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+using System.Linq;
+
 namespace Pinta.Core;
 
 public sealed class WindowActions
@@ -86,19 +88,31 @@ public sealed class WindowActions
 
 		workspace.DocumentActivated += (o, e) => {
 			e.Document.Renamed += (_, _) => RebuildDocumentMenu ();
-			e.Document.IsDirtyChanged += (_, _) => RebuildDocumentMenu ();
+			e.Document.IsDirtyChanged += (_, _) => {
+				RebuildDocumentMenu ();
+				UpdateSaveAll ();
+			};
 			AddDocumentMenuItem (workspace.OpenDocuments.IndexOf (e.Document));
+			UpdateSaveAll ();
 		};
 
 		workspace.ActiveDocumentChanged += OnActiveDocumentChanged;
-		workspace.DocumentClosed += (_, _) => RebuildDocumentMenu ();
+		workspace.DocumentClosed += (_, _) => {
+			RebuildDocumentMenu ();
+			UpdateSaveAll ();
+		};
 		workspace.DocumentsReordered += (_, _) => {
 			RebuildDocumentMenu ();
 			OnActiveDocumentChanged (null, System.EventArgs.Empty);
 		};
 
 		this.workspace = workspace;
+		UpdateSaveAll ();
 	}
+
+	// As in Paint.NET, Save All is only available while some image has unsaved changes.
+	private void UpdateSaveAll ()
+		=> SaveAll.Sensitive = workspace.OpenDocuments.Any (d => d.IsDirty);
 
 	public void RegisterActions (
 		Gtk.Application app,
