@@ -297,7 +297,7 @@ public sealed class LayerActions
 
 		SwapLayersHistoryItem hist = new (
 			Resources.StandardIcons.LayerMoveUp,
-			Translations.GetString ("Move Layer Up"),
+			Translations.GetString ("Move Layer"),
 			doc.Layers.CurrentUserLayerIndex,
 			doc.Layers.CurrentUserLayerIndex + 1);
 
@@ -313,7 +313,7 @@ public sealed class LayerActions
 
 		SwapLayersHistoryItem hist = new (
 			Resources.StandardIcons.LayerMoveDown,
-			Translations.GetString ("Move Layer Down"),
+			Translations.GetString ("Move Layer"),
 			doc.Layers.CurrentUserLayerIndex,
 			doc.Layers.CurrentUserLayerIndex - 1);
 

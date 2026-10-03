@@ -48,7 +48,6 @@ public sealed partial class HistoryListViewItem
 
 	public string Label => item.Text ?? string.Empty;
 	public string IconName => item.Icon ?? string.Empty;
-	public bool Active => item.State == HistoryItemState.Undo;
 }
 
 [GObject.Subclass<Gtk.Box>]
@@ -79,10 +78,5 @@ public sealed partial class HistoryItemWidget
 	{
 		image.IconName = item.IconName;
 		label.SetText (item.Label);
-
-		if (item.Active)
-			RemoveCssClass (AdwaitaStyles.DimLabel);
-		else
-			AddCssClass (AdwaitaStyles.DimLabel);
 	}
 }

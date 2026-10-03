@@ -56,7 +56,28 @@ public sealed partial class HistoryListView
 		Gtk.SignalListItemFactory signalFactory = Gtk.SignalListItemFactory.New ();
 		signalFactory.OnSetup += (factory, args) => {
 			var item = (Gtk.ListItem) args.Object;
-			item.SetChild (HistoryItemWidget.New ());
+			HistoryItemWidget widget = HistoryItemWidget.New ();
+
+			// Clicking the current row again undoes it, so repeated clicks flip between before and after (as in Paint.NET).
+			// The row's own click handler runs after this one and selects the clicked row, so remember the state
+			// at press time and undo once that handler is done.
+			bool wasCurrent = false;
+			Gtk.GestureClick click = Gtk.GestureClick.New ();
+			click.OnPressed += (_, _) => wasCurrent = IsCurrentHistoryRow (item.Position);
+			click.OnReleased += (_, _) => {
+				if (!wasCurrent)
+					return;
+				wasCurrent = false;
+				uint position = item.Position;
+				GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT, () => {
+					if (IsCurrentHistoryRow (position) && active_document!.History.CanUndo)
+						active_document.History.Undo ();
+					return false;
+				});
+			};
+			widget.AddController (click);
+
+			item.SetChild (widget);
 		};
 		signalFactory.OnBind += (factory, args) => {
 			var list_item = (Gtk.ListItem) args.Object;
@@ -67,6 +88,8 @@ public sealed partial class HistoryListView
 
 		Gtk.ListView listView = Gtk.ListView.New (selectionModel, signalFactory);
 		listView.CanFocus = false;
+		listView.AddCssClass (UNDONE_STYLE_CLASS);
+		EnsureUndoneRowStyle ();
 
 		// --- Initialization (Gtk.Widget)
 
@@ -89,6 +112,32 @@ public sealed partial class HistoryListView
 
 		PintaCore.Workspace.ActiveDocumentChanged += OnActiveDocumentChanged;
 	}
+
+	private const string UNDONE_STYLE_CLASS = "history-list";
+	private static bool undone_row_style_loaded;
+
+	/// <summary>
+	/// Undone history items are the rows after the selected one; give them a grey background.
+	/// </summary>
+	private static void EnsureUndoneRowStyle ()
+	{
+		if (undone_row_style_loaded)
+			return;
+
+		Gdk.Display? display = Gdk.Display.GetDefault ();
+		if (display is null)
+			return;
+
+		Gtk.CssProvider provider = Gtk.CssProvider.New ();
+		provider.LoadFromString ($"listview.{UNDONE_STYLE_CLASS} > row:selected ~ row {{ background-color: alpha(gray, 0.25); }}");
+		Gtk.StyleContext.AddProviderForDisplay (display, provider, Gtk.Constants.STYLE_PROVIDER_PRIORITY_APPLICATION);
+		undone_row_style_loaded = true;
+	}
+
+	private bool IsCurrentHistoryRow (uint position)
+		=> active_document is not null
+		&& position == selection_model.Selected
+		&& position == active_document.History.Pointer;
 
 	private void HandleSelectionChanged (Gtk.SelectionModel sender, EventArgs e)
 	{
