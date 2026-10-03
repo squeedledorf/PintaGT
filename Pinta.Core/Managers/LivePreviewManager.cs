@@ -41,6 +41,11 @@ public interface ILivePreview
 {
 	RectangleI RenderBounds { get; }
 	bool IsEnabled { get; }
+
+	/// <summary>
+	/// What the canvas shows for the current layer during a live preview: the layer,
+	/// with the effect's output so far inside the selection only.
+	/// </summary>
 	ImageSurface LivePreviewSurface { get; }
 }
 
@@ -66,6 +71,9 @@ public sealed class LivePreviewManager : ILivePreview
 	}
 
 	public ImageSurface LivePreviewSurface { get; private set; } = null!;
+
+	// The effect renders into this; it covers the selection's whole bounding box.
+	private ImageSurface effect_surface = null!;
 	public RectangleI RenderBounds { get; private set; }
 	public bool IsEnabled { get; private set; }
 
@@ -86,12 +94,12 @@ public sealed class LivePreviewManager : ILivePreview
 		IsEnabled = true;
 
 		//TODO Use the current tool layer instead.
-		LivePreviewSurface = CairoExtensions.CreateImageSurface (
+		effect_surface = CairoExtensions.CreateImageSurface (
 			Format.Argb32,
 			workspace.ImageSize.Width,
 			workspace.ImageSize.Height);
 
-		RenderBounds = selection.Visible ? selection.GetBounds ().ToInt () : LivePreviewSurface.GetBounds ();
+		RenderBounds = selection.Visible ? selection.GetBounds ().ToInt () : effect_surface.GetBounds ();
 		RenderBounds = workspace.ClampToImageSize (RenderBounds);
 
 		const uint UPDATE_MILLISECONDS = 100;
@@ -113,7 +121,7 @@ public sealed class LivePreviewManager : ILivePreview
 				settings,
 				effect,
 				layer.Surface,
-				LivePreviewSurface
+				effect_surface
 			)
 		);
 
@@ -132,8 +140,11 @@ public sealed class LivePreviewManager : ILivePreview
 
 		try {
 			// Paint the pre-effect layer surface into into the working surface.
-			using Context ctx = new (LivePreviewSurface);
+			using Context ctx = new (effect_surface);
 			layer.Draw (ctx, layer.Surface, 1);
+
+			// The canvas starts out showing the untouched layer.
+			LivePreviewSurface = layer.Surface.Clone ();
 
 			Debug.WriteLine (DateTime.Now.ToString ("HH:mm:ss:ffff") + "Start Live preview.");
 
@@ -219,7 +230,7 @@ public sealed class LivePreviewManager : ILivePreview
 			context.Save ();
 			workspace.ActiveDocument.Selection.Clip (context);
 
-			layer.DrawWithOperator (context, LivePreviewSurface, Operator.Source);
+			layer.DrawWithOperator (context, effect_surface, Operator.Source);
 			context.Restore ();
 
 			workspace.ActiveDocument.History.PushNewItem (historyItem);
@@ -230,6 +241,7 @@ public sealed class LivePreviewManager : ILivePreview
 
 			IsEnabled = false;
 			LivePreviewSurface = null!;
+			effect_surface = null!;
 			workspace.Invalidate ();
 
 			if (effect.EffectData != null)
@@ -268,6 +280,8 @@ public sealed class LivePreviewManager : ILivePreview
 			if (!renderTask.TryConsumeBounds (out RectangleI updatedBounds))
 				return;
 
+			ShowRenderedArea (LivePreviewSurface, effect_surface, doc.Selection, updatedBounds);
+
 			double scale = workspace.Scale;
 
 			// Transform bounds (Image -> Canvas -> Window)
@@ -304,6 +318,22 @@ public sealed class LivePreviewManager : ILivePreview
 			// Tell GTK to expose the drawing area.
 			workspace.ActiveWorkspace.InvalidateWindowRect (areaToInvalidate);
 		}
+	}
+
+	/// <summary>
+	/// Copies the newly rendered area of the effect's output into what the canvas shows,
+	/// clipped to the selection exactly as the final commit is, so a non-rectangular
+	/// selection does not preview over its whole bounding box.
+	/// </summary>
+	internal static void ShowRenderedArea (ImageSurface shown, ImageSurface effectOutput, DocumentSelection selection, RectangleI area)
+	{
+		using Context g = new (shown);
+		g.Rectangle (area.ToDouble ());
+		g.Clip ();
+		selection.Clip (g);
+		g.SetSourceSurface (effectOutput, 0, 0);
+		g.Operator = Operator.Source;
+		g.Paint ();
 	}
 
 	/// <summary>
