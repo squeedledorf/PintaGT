@@ -67,7 +67,6 @@ public sealed partial class LayersListView
 		// --- Initialization (Gtk.Widget)
 
 		CanFocus = false;
-		SetSizeRequest (200, 200);
 
 		// --- Initialization (Gtk.ScrolledWindow)
 

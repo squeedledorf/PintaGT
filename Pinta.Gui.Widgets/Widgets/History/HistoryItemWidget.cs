@@ -61,9 +61,7 @@ public sealed partial class HistoryItemWidget
 
 	partial void Initialize ()
 	{
-		Spacing = 6;
-
-		this.SetAllMargins (2);
+		Spacing = 3; // Paint.NET's compact rows: the row padding (style.css) gives 20px.
 
 		SetOrientation (Gtk.Orientation.Horizontal);
 

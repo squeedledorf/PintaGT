@@ -19,7 +19,7 @@ public sealed partial class ColorsPanel
 	private const int PALETTE_COLUMNS = 16;
 	private const int CELL = 12;
 	private const int COLLAPSED_ROWS = 2;
-	private const int WHEEL_SIZE = 136;
+	private const int WHEEL_SIZE = 144; // A 140px wheel, as in Paint.NET.
 	private const int WHEEL_RADIUS = WHEEL_SIZE / 2 - 2;
 	private const int WHEEL_TOP = 30;
 	private const int SLIDER_WIDTH = 110;
@@ -166,7 +166,9 @@ public sealed partial class ColorsPanel
 		paletteButton.MenuModel = paletteMenu;
 		paletteButton.TooltipText = Translations.GetString ("Palettes");
 
-		Gtk.Box paletteRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 2);
+		Gtk.Box paletteRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+		add_color.Valign = Gtk.Align.Center;
+		paletteButton.Valign = Gtk.Align.Center;
 		paletteRow.Append (add_color);
 		paletteRow.Append (paletteButton);
 
@@ -484,12 +486,6 @@ public sealed partial class ColorsPanel
 		g.SetSourceSurface (wheel_cache, 0, 0);
 		g.Paint ();
 
-		g.Antialias = Antialias.Default;
-		g.SetSourceColor (new Color (0.5, 0.5, 0.5));
-		g.LineWidth = 1;
-		g.Arc (WHEEL_SIZE / 2.0, WHEEL_SIZE / 2.0, WHEEL_RADIUS + 0.5, 0, 2 * Math.PI);
-		g.Stroke ();
-
 		// Cursor: a small ring at the active colour's hue/saturation.
 		PointD c = ColorWheel.HsvToOffset (ActiveColor.ToHsv (), WHEEL_RADIUS);
 		RectangleD ring = new (WHEEL_SIZE / 2.0 + c.X - 4, WHEEL_SIZE / 2.0 + c.Y - 4, 8, 8);
@@ -580,23 +576,36 @@ public sealed partial class ColorsPanel
 
 	// --- Icons for the palette buttons
 
+	// Paint.NET draws both as small framed tiles.
+	private static void DrawTile (Context g, Color fill)
+	{
+		g.FillRectangle (new RectangleD (0, 0, 16, 16), new Color (0.62, 0.62, 0.62));
+		g.FillRectangle (new RectangleD (1, 1, 14, 14), fill);
+	}
+
 	private static void DrawAddColorIcon (Context g)
 	{
-		// A black swatch with a green plus, like Paint.NET's Add Color button.
-		g.FillRectangle (new RectangleD (1, 1, 11, 11), new Color (0, 0, 0));
-		g.FillRectangle (new RectangleD (9, 6, 2, 10), new Color (0.2, 0.7, 0.2));
-		g.FillRectangle (new RectangleD (5, 10, 10, 2), new Color (0.2, 0.7, 0.2));
+		// A black tile with a white plus at its bottom right.
+		DrawTile (g, new Color (0, 0, 0));
+		Color edge = new (0.25, 0.55, 0.5);
+		g.FillRectangle (new RectangleD (9, 5, 4, 10), edge);
+		g.FillRectangle (new RectangleD (6, 8, 10, 4), edge);
+		g.FillRectangle (new RectangleD (10, 6, 2, 8), new Color (1, 1, 1));
+		g.FillRectangle (new RectangleD (7, 9, 8, 2), new Color (1, 1, 1));
 		g.Dispose ();
 	}
 
 	private static void DrawPaletteIcon (Context g)
 	{
-		// Four coloured quarters in a frame.
-		g.FillRectangle (new RectangleD (1, 1, 14, 14), new Color (0.35, 0.35, 0.35));
-		g.FillRectangle (new RectangleD (2, 2, 6, 6), new Color (0.9, 0.2, 0.2));
-		g.FillRectangle (new RectangleD (8, 2, 6, 6), new Color (0.95, 0.8, 0.1));
-		g.FillRectangle (new RectangleD (2, 8, 6, 6), new Color (0.2, 0.6, 0.95));
-		g.FillRectangle (new RectangleD (8, 8, 6, 6), new Color (0.3, 0.8, 0.3));
+		// A white tile holding a 3x3 grid of colours.
+		DrawTile (g, new Color (1, 1, 1));
+		Color[] cells = [
+			new (0.45, 0.25, 0.65), new (0.35, 0.3, 0.75), new (0.25, 0.45, 0.9),
+			new (0.9, 0.35, 0.15), new (1, 1, 1), new (0.3, 0.55, 0.95),
+			new (0.98, 0.75, 0.1), new (0.4, 0.7, 0.25), new (0.15, 0.6, 0.45),
+		];
+		for (int i = 0; i < cells.Length; i++)
+			g.FillRectangle (new RectangleD (2 + (i % 3) * 4, 2 + (i / 3) * 4, 4, 4), cells[i]);
 		g.Dispose ();
 	}
 }

@@ -291,6 +291,10 @@ public sealed class EditActions
 			if (workspace.HasOpenDocuments)
 				visible = workspace.ActiveDocument.Selection.Visible;
 
+			// As in Paint.NET, Cut and Copy need a selection.
+			Cut.Sensitive = visible;
+			Copy.Sensitive = visible;
+			CopyMerged.Sensitive = visible;
 			Deselect.Sensitive = visible;
 			EraseSelection.Sensitive = visible;
 			FillSelection.Sensitive = visible;

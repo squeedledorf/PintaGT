@@ -9,23 +9,22 @@ namespace Pinta.Gui.Widgets;
 /// <summary>
 /// Paint.NET's image list: a strip with a thumbnail for every open image.
 /// Click to switch images, middle-click or the red X to close, right-click for the image menu,
-/// drag to reorder. Thumbnails of unsaved images carry an asterisk.
+/// drag to reorder. Unsaved images show their asterisk in the window title, as in Paint.NET.
 /// </summary>
 [GObject.Subclass<Gtk.Box>]
 public sealed partial class ImageThumbnailStrip
 {
-	private const int PADDING = 4; // Between the highlight and the image.
+	private const int PADDING = 5; // Between the highlight and the image.
 	private const int CLOSE_RADIUS = 6;
 	private const uint REFRESH_DELAY_MS = 300; // Thumbnails are re-rendered at most this often while editing.
 	private const string DRAG_MARKER = "pinta-image-list";
 
 	// Paint.NET's selection: a light-blue tile with a blue border.
-	private static readonly Color selected_fill = new (0.0, 0.47, 0.84, 0.28);
+	private static readonly Color selected_fill = new (0.8, 0.89, 0.97);
 	private static readonly Color selected_border = new (0.0, 0.47, 0.84);
 	private static readonly Color hover_fill = new (0.0, 0.47, 0.84, 0.1);
 	private static readonly Color hover_border = new (0.0, 0.47, 0.84, 0.45);
-	private static readonly Color shadow_color = new (0, 0, 0, 0.12);
-	private static readonly Color unsaved_color = new (0.1, 0.1, 0.1);
+	private static readonly Color shadow_color = new (0, 0, 0, 0.06);
 	private static readonly Color close_color = new (0.79, 0.31, 0.31);
 	private static readonly Pattern transparent_pattern = CairoExtensions.CreateTransparentBackgroundPattern (4);
 
@@ -49,7 +48,7 @@ public sealed partial class ImageThumbnailStrip
 	[MemberNotNull (nameof (list_menu), nameof (context_menu), nameof (copy_path_action), nameof (open_folder_action))]
 	partial void Initialize ()
 	{
-		Gtk.Box itemsBox = Gtk.Box.New (Gtk.Orientation.Horizontal, 2);
+		Gtk.Box itemsBox = Gtk.Box.New (Gtk.Orientation.Horizontal, 6);
 		itemsBox.Valign = Gtk.Align.Center;
 
 		Gtk.DropTarget dropTarget = Gtk.DropTarget.New (GObject.Type.String, Gdk.DragAction.Move);
@@ -144,7 +143,7 @@ public sealed partial class ImageThumbnailStrip
 	}
 
 	/// <summary>
-	/// Height of the thumbnail images, in pixels. Their width follows each image's aspect ratio.
+	/// Size of the square box each image is fitted into, in pixels (the cell adds the padding).
 	/// </summary>
 	public int ThumbnailHeight {
 		get => thumbnail_height;
@@ -474,10 +473,10 @@ public sealed partial class ImageThumbnailStrip
 
 		private void UpdateSize ()
 		{
-			int height = strip.thumbnail_height;
-			int width = ImageListLayout.ThumbnailWidth (Document.ImageSize, height, minWidth: height / 2, maxWidth: height * 2);
-			Area.SetContentWidth (width + 2 * PADDING);
-			Area.SetContentHeight (height + 2 * PADDING);
+			// Square cells, as in Paint.NET; the image keeps its aspect inside.
+			int size = strip.thumbnail_height + 2 * PADDING;
+			Area.SetContentWidth (size);
+			Area.SetContentHeight (size);
 		}
 
 		private void UpdateTooltip ()
@@ -497,10 +496,7 @@ public sealed partial class ImageThumbnailStrip
 		}
 
 		private void HandleDirtyChanged (object? sender, EventArgs e)
-		{
-			Area.QueueDraw ();
-			strip.RebuildListMenu ();
-		}
+			=> strip.RebuildListMenu ();
 
 		private void HandleRenamed (object? sender, EventArgs e)
 		{
@@ -570,9 +566,9 @@ public sealed partial class ImageThumbnailStrip
 				double x = PADDING + (boxWidth - drawWidth) / 2;
 				double y = PADDING + (boxHeight - drawHeight) / 2;
 
-				// A soft drop shadow instead of a frame.
-				for (int i = 1; i <= 2; i++) {
-					g.Rectangle (x + i, y + i, drawWidth, drawHeight);
+				// A soft drop shadow on all sides (stronger below right) instead of a frame.
+				for (int i = 3; i >= 1; i--) {
+					g.Rectangle (x - i + 1, y - i + 1, drawWidth + 2 * i, drawHeight + 2 * i);
 					g.SetSourceColor (shadow_color);
 					g.Fill ();
 				}
@@ -587,9 +583,6 @@ public sealed partial class ImageThumbnailStrip
 				g.Paint ();
 				g.Restore ();
 			}
-
-			if (Document.IsDirty)
-				DrawAsterisk (g, new PointD (PADDING + 5, PADDING + 5));
 
 			if (ShowsCloseButton)
 				DrawCloseButton (g, CloseButtonCenter (width));
@@ -622,26 +615,6 @@ public sealed partial class ImageThumbnailStrip
 
 			stale = false;
 			return surface;
-		}
-
-		private static void DrawAsterisk (Context g, PointD center)
-		{
-			const double RADIUS = 4;
-			g.LineCap = LineCap.Round;
-
-			// A white outline keeps it visible on dark images.
-			foreach ((Color color, double lineWidth) in new[] { (new Color (1, 1, 1), 3), (unsaved_color, 1.25) }) {
-				for (int i = 0; i < 3; i++) {
-					double angle = Math.PI / 2 + i * Math.PI / 3;
-					double dx = Math.Cos (angle) * RADIUS;
-					double dy = Math.Sin (angle) * RADIUS;
-					g.MoveTo (center.X - dx, center.Y - dy);
-					g.LineTo (center.X + dx, center.Y + dy);
-				}
-				g.SetSourceColor (color);
-				g.LineWidth = lineWidth;
-				g.Stroke ();
-			}
 		}
 
 		private static void DrawCloseButton (Context g, PointD center)

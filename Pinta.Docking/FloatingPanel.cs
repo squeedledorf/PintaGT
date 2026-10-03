@@ -13,13 +13,11 @@ namespace Pinta.Docking;
 [GObject.Subclass<Gtk.Box>]
 public sealed partial class FloatingPanel
 {
-	private const double FADED_OPACITY = 0.75;
+	private const double FADED_OPACITY = 0.7;
 
 	private Gtk.Box title_bar;
 	private Gtk.Label title_label;
-	private Gtk.Widget? content;
 	private Gtk.Box? footer;
-	private Gtk.Box? footer_row;
 	private bool faded;
 
 	/// <summary>Key used for the panel's settings, e.g. "history".</summary>
@@ -32,30 +30,14 @@ public sealed partial class FloatingPanel
 	public Gtk.Widget? Grip { get; private set; }
 
 	/// <summary>
-	/// Whether <see cref="Faded"/> also fades the content. The Colors window turns this off so its
-	/// swatches keep their true colours while only its frame goes translucent.
-	/// </summary>
-	public bool FadeContent { get; set; } = true;
-
-	/// <summary>
-	/// Paint.NET's translucent windows: while the pointer is elsewhere the background turns
-	/// translucent and the footer and (see <see cref="FadeContent"/>) content fade.
+	/// Paint.NET's translucent windows: while the pointer is elsewhere the whole window fades,
+	/// contents included, so the canvas shows through.
 	/// </summary>
 	public bool Faded {
 		get => faded;
 		set {
 			faded = value;
-			if (value)
-				AddCssClass ("faded");
-			else
-				RemoveCssClass ("faded");
-
-			// The title and the red close button stay solid, as in Paint.NET.
-			double opacity = value ? FADED_OPACITY : 1;
-			if (footer_row is not null)
-				footer_row.Opacity = opacity;
-			if (content is not null)
-				content.Opacity = FadeContent ? opacity : 1;
+			Opacity = value ? FADED_OPACITY : 1;
 		}
 	}
 
@@ -71,8 +53,8 @@ public sealed partial class FloatingPanel
 		titleLabel.Hexpand = true;
 		titleLabel.Ellipsize = Pango.EllipsizeMode.End;
 		// Narrow panels (Tools) show "To..." like Paint.NET; wider ones expand the title to fit.
-		titleLabel.WidthChars = 1;
-		titleLabel.MaxWidthChars = 3;
+		titleLabel.WidthChars = 4;
+		titleLabel.MaxWidthChars = 4;
 
 		Gtk.Button closeButton = Gtk.Button.NewFromIconName ("pinta-panel-close-symbolic");
 		closeButton.AddCssClass (Styles.PdnPanelClose);
@@ -81,7 +63,7 @@ public sealed partial class FloatingPanel
 		closeButton.TooltipText = Translations.GetString ("Close");
 		closeButton.OnClicked += (_, _) => CloseClicked?.Invoke (this, EventArgs.Empty);
 
-		Gtk.Box titleBar = Gtk.Box.New (Gtk.Orientation.Horizontal, 4);
+		Gtk.Box titleBar = Gtk.Box.New (Gtk.Orientation.Horizontal, 2);
 		titleBar.AddCssClass (Styles.PdnPanelHeader);
 		titleBar.Append (titleLabel);
 		titleBar.Append (closeButton);
@@ -109,7 +91,6 @@ public sealed partial class FloatingPanel
 		content.Vexpand = resizable;
 		content.Valign = Gtk.Align.Fill;
 		panel.Append (content);
-		panel.content = content;
 
 		if (resizable)
 			panel.Grip = panel.CreateGrip ();
@@ -137,7 +118,6 @@ public sealed partial class FloatingPanel
 				row.Append (Grip);
 			}
 			Append (row);
-			footer_row = row;
 			return footer;
 		}
 	}

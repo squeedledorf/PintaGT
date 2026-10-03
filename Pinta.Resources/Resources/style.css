@@ -1,20 +1,22 @@
-/* Paint.NET 5 density: Segoe-UI-sized 9pt text everywhere, tight menus. */
+/* Paint.NET 5 density: 9pt Segoe UI everywhere, tight menus. Where Segoe UI is missing, Selawik
+   (its open metric twin) or Liberation Sans keep the narrower set width ("Adjustments" ~66px). */
 window, popover {
+    font-family: "Segoe UI", "Selawik", "Liberation Sans", sans-serif;
     font-size: 9pt;
 }
 
-popovermenubar {
+menubar {
     min-height: 0;
     padding: 0;
 }
 
-popovermenubar > item {
+menubar > item {
     min-height: 0;
-    padding: 3px 7px;
+    padding: 6px 6px 7px;
     border-radius: 0;
 }
 
-popovermenubar > item:hover, popovermenubar > item:selected {
+menubar > item:hover, menubar > item:selected {
     background-color: alpha(#0078d7, 0.18);
 }
 
@@ -72,7 +74,7 @@ popover.menu separator {
 
 /* Soft drop shadow around the image instead of a hard ring. */
 #canvas {
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 1px 2px 6px 1px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 8px 2px rgba(0, 0, 0, 0.22);
 }
 
 #new-image-preview {
@@ -98,14 +100,17 @@ popover.menu separator {
     font-size: 9pt;
 }
 
-/* The menu row sits in a faint box, as in Paint.NET 5. */
-.pdn-top popovermenubar {
-    margin: 2px 0 1px 4px;
-    box-shadow: inset 0 0 0 1px alpha(@window_fg_color, 0.15);
+/* The menus sit in a tab: a 1px frame on the left, top and right. The rule beside it
+   continues the tab's bottom edge to the window's right edge. */
+.pdn-top menubar {
+    margin: 2px 0 0 4px;
+    border: 1px solid alpha(@window_fg_color, 0.3);
+    border-bottom: none;
+    background: none;
 }
 
 .pdn-top-rule {
-    background-color: alpha(@window_fg_color, 0.15);
+    background-color: alpha(@window_fg_color, 0.3);
     min-height: 1px;
 }
 
@@ -223,9 +228,11 @@ button label, menubutton label, dropdown label {
     font-weight: normal;
 }
 
-.tool-bar-scale {
-    margin-top: -6px;
-    margin-bottom: -6px;
+/* No Adwaita padding around the option sliders, so they fit the fixed row. */
+#tool_toolbar scale {
+    min-height: 0;
+    padding: 0;
+    margin: 0;
 }
 
 /* Status bar: grey with a top rule, plain readouts, a resize grip in the corner. */
@@ -262,26 +269,31 @@ button label, menubutton label, dropdown label {
     padding: 0 6px;
 }
 
+/* The trough is as tall as the thumb, so the thumb keeps its full size; its line is a 1px background. */
 #statusbar scale trough {
-    min-height: 1px;
-    background-color: alpha(@window_fg_color, 0.55);
+    min-height: 20px;
+    background-color: transparent;
+    background-image: linear-gradient(to right, alpha(@window_fg_color, 0.55), alpha(@window_fg_color, 0.55));
+    background-size: 100% 1px;
+    background-position: center;
+    background-repeat: no-repeat;
     border-radius: 0;
 }
 
 #statusbar scale highlight {
     background: none;
-    min-height: 1px;
 }
 
 #statusbar scale slider {
-    min-width: 9px;
-    min-height: 16px;
-    margin: -8px -4px;
+    min-width: 11px;
+    min-height: 20px;
+    margin: 0;
     border-radius: 0;
     border: none;
     outline: none;
     box-shadow: none;
-    background: -gtk-icontheme("pinta-slider-thumb") no-repeat center / 9px 16px;
+    /* Icon images render square, so the 11x20 thumb is drawn centred in a 20px icon and clipped to the node. */
+    background: -gtk-icontheme("pinta-slider-thumb") no-repeat center / 20px 20px;
 }
 
 /* Paint.NET's toolbox: about 53px wide, two 24px columns of 20px icons. */
@@ -309,23 +321,14 @@ button label, menubutton label, dropdown label {
 
 /* Floating tool windows over the canvas (Paint.NET's Tools, History, Layers and Colors).
    Structure:  .pdn-panel > .pdn-panel-header > (.pdn-panel-title label, .pdn-panel-close button)
-               followed by the panel content. When the pointer is elsewhere the panel gets .faded:
-               its background turns translucent but colour swatches keep their true colours. */
+               followed by the panel content. When the pointer is elsewhere the whole panel fades
+               (FloatingPanel.Faded sets its opacity). */
 .pdn-panel {
     background-color: mix(@view_bg_color, @view_fg_color, 0.035);
     color: alpha(@view_fg_color, 1.25);
     border: 1px solid alpha(@view_fg_color, 0.4);
     border-radius: 0;
     box-shadow: 1px 1px 3px alpha(black, 0.15);
-}
-
-.pdn-panel.faded {
-    background-color: alpha(mix(@view_bg_color, @view_fg_color, 0.035), 0.75);
-    border-color: alpha(@view_fg_color, 0.25);
-}
-
-.pdn-panel.faded > .pdn-panel-header {
-    background-color: alpha(@view_bg_color, 0.75);
 }
 
 .pdn-panel listview, .pdn-panel list, .pdn-panel scrolledwindow, .pdn-panel viewport {
@@ -336,7 +339,7 @@ button label, menubutton label, dropdown label {
 .pdn-panel-header {
     background-color: @view_bg_color;
     min-height: 26px;
-    padding: 0 2px 0 5px;
+    padding: 0 1px 0 5px;
     border-spacing: 2px;
 }
 
@@ -346,12 +349,12 @@ button label, menubutton label, dropdown label {
 }
 
 .pdn-panel-header > button.pdn-panel-close {
-    -gtk-icon-size: 8px;
-    min-width: 20px;
-    min-height: 18px;
+    -gtk-icon-size: 6px;
+    min-width: 18px;
+    min-height: 16px;
     padding: 0;
     border-radius: 0;
-    background-color: #c94f4f;
+    background-color: #c75050;
     color: white;
     box-shadow: none;
 }
@@ -374,9 +377,21 @@ button label, menubutton label, dropdown label {
 }
 
 .pdn-panel-footer button {
-    min-width: 22px;
-    min-height: 22px;
-    padding: 0 1px;
+    -gtk-icon-size: 20px; /* The icons' 13x11 layer squares and 16px arrows, as in Paint.NET. */
+    min-width: 20px;
+    min-height: 20px;
+    padding: 1px;
+}
+
+/* Disabled toolbar and footer buttons turn grey, as in Paint.NET. */
+#main_toolbar button:disabled image, .pdn-panel-footer button:disabled image {
+    filter: grayscale(1) opacity(0.55);
+}
+
+/* Compact 20px History rows: a 16px icon and 9pt text. */
+.pdn-panel listview.history-list > row {
+    min-height: 0;
+    padding: 2px 3px;
 }
 
 /* Paint.NET's list selection: pale blue fill with a blue outline. */
@@ -388,15 +403,15 @@ button label, menubutton label, dropdown label {
 
 /* Small square check boxes with a plain tick (the layer visibility boxes). */
 .pdn-panel checkbutton > check {
-    min-width: 11px;
-    min-height: 11px;
-    margin: 0;
+    min-width: 13px;
+    min-height: 13px;
+    margin: 0 4px 0 0;
     padding: 0;
     border-radius: 0;
     background-color: @view_bg_color;
-    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.6);
+    box-shadow: inset 0 0 0 1px alpha(@view_fg_color, 0.8);
     color: alpha(@view_fg_color, 1.25);
-    -gtk-icon-size: 11px;
+    -gtk-icon-size: 13px;
 }
 
 .pdn-panel checkbutton > check:checked {
@@ -462,4 +477,26 @@ button label, menubutton label, dropdown label {
     background: none;
     box-shadow: none;
     outline: none;
+}
+
+/* Check boxes in the tool options (Arrow 1 / 2, Antialiasing...) fit the fixed row. */
+#tool_toolbar checkbutton {
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+#tool_toolbar checkbutton > check {
+    min-width: 13px;
+    min-height: 13px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/* The Colors window's Add Color and Palettes tiles sit side by side, level. */
+menubutton.pdn-flat-button > button {
+    min-width: 0;
+    min-height: 20px;
+    padding: 1px 2px;
+    border-radius: 0;
 }

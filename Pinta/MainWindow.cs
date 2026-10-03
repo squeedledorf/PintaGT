@@ -514,9 +514,18 @@ internal sealed class MainWindow
 				title.Append (titleLabel);
 				top.Attach (title, 0, 0, 1, 1);
 
+				// The menus sit in a tab-shaped box; a rule runs from its bottom-right corner to the
+				// window's right edge, behind the image list and the window toggles. The row spans every
+				// column and is attached first, so the thumbnails draw over the rule.
+				Gtk.Box menuRow = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
 				Gtk.PopoverMenuBar menus = Gtk.PopoverMenuBar.NewFromModel (menu_bar);
-				menus.Halign = Gtk.Align.Start;
-				top.Attach (menus, 0, 1, 1, 1);
+				menuRow.Append (menus);
+				Gtk.Box rule = Gtk.Box.New (Gtk.Orientation.Horizontal, 0);
+				rule.AddCssClass ("pdn-top-rule");
+				rule.Hexpand = true;
+				rule.Valign = Gtk.Align.End;
+				menuRow.Append (rule);
+				top.Attach (menuRow, 0, 1, 3, 1);
 			}
 
 			Gtk.Box main_toolbar = GtkExtensions.CreateToolBar ();
@@ -530,7 +539,8 @@ internal sealed class MainWindow
 		image_list = ImageThumbnailStrip.New ();
 		image_list.Hexpand = true;
 		image_list.MarginStart = 6;
-		image_list.ThumbnailHeight = rows == 3 ? 68 : 40; // Spans the rows beside it, as in Paint.NET.
+		image_list.Valign = Gtk.Align.End; // Level with the main toolbar's bottom, across the menu rule.
+		image_list.ThumbnailHeight = rows == 3 ? 66 : 40; // 76px cells spanning the rows beside it, as in Paint.NET.
 		PintaCore.Chrome.InitializeImageTabsNotebook (image_list);
 		top.Attach (image_list, 1, 0, 1, rows);
 
@@ -636,8 +646,36 @@ internal sealed class MainWindow
 
 		// Image size, cursor position, selection size, units and zoom at the right.
 		PintaCore.Actions.CreateStatusBar (statusbar, PintaCore.Workspace);
+		statusbar.Append (CreateSizeGrip ());
 
 		PintaCore.Chrome.InitializeStatusBar (statusbar);
+	}
+
+	// Paint.NET's dotted size grip in the status bar's corner; dragging it resizes the window.
+	private Gtk.DrawingArea CreateSizeGrip ()
+	{
+		Gtk.DrawingArea grip = Gtk.DrawingArea.New ();
+		grip.SetSizeRequest (14, 14);
+		grip.Valign = Gtk.Align.End;
+		grip.Cursor = Gdk.Cursor.NewFromName (StandardCursors.ResizeSE, null);
+		grip.SetDrawFunc ((_, g, width, height) => {
+			// Six dots in a triangle.
+			g.SetSourceRgba (0.55, 0.55, 0.55, 1);
+			for (int row = 0; row < 3; row++)
+				for (int col = 2 - row; col < 3; col++)
+					g.Rectangle (width - 4 - (2 - col) * 4, height - 4 - (2 - row) * 4, 2, 2);
+			g.Fill ();
+		});
+
+		Gtk.GestureClick press = Gtk.GestureClick.New ();
+		press.OnPressed += (gesture, args) => {
+			if (window_shell.Window.GetSurface () is not Gdk.Toplevel toplevel || gesture.GetDevice () is not Gdk.Device device)
+				return;
+			grip.TranslateCoordinates (window_shell.Window, args.X, args.Y, out double x, out double y);
+			toplevel.BeginResize (Gdk.SurfaceEdge.SouthEast, device, (int) gesture.GetCurrentButton (), x, y, gesture.GetCurrentEventTime ());
+		};
+		grip.AddController (press);
+		return grip;
 	}
 
 	/// <summary>
@@ -658,14 +696,13 @@ internal sealed class MainWindow
 		FloatingPanel history = HistoryPad.Create (PintaCore.Actions.Edit);
 		FloatingPanel layers = LayersPad.Create (PintaCore.Actions.Layers);
 		FloatingPanel colors = FloatingPanel.New ("colors", Translations.GetString ("Colors"), colors_panel, resizable: false);
-		colors.FadeContent = false; // Swatches keep their true colours while the window is faded.
 
 		// Paint.NET 5's default places: Tools top-left, Colors bottom-left, History top-right, Layers bottom-right.
 		const int GAP = 6;
 		panel_area.AddPanel (tools, new PanelAnchor (Right: false, Bottom: false, GAP, GAP), Size.Empty);
 		panel_area.AddPanel (colors, new PanelAnchor (Right: false, Bottom: true, GAP, GAP), Size.Empty);
-		panel_area.AddPanel (history, new PanelAnchor (Right: true, Bottom: false, GAP, GAP), new Size (180, 345));
-		panel_area.AddPanel (layers, new PanelAnchor (Right: true, Bottom: true, GAP, GAP), new Size (180, 300));
+		panel_area.AddPanel (history, new PanelAnchor (Right: true, Bottom: false, GAP, GAP), new Size (178, 345));
+		panel_area.AddPanel (layers, new PanelAnchor (Right: true, Bottom: true, GAP, GAP), new Size (178, 300));
 
 		ViewActions view = PintaCore.Actions.View;
 		BindPanel (view.ToolsWindow, tools);
