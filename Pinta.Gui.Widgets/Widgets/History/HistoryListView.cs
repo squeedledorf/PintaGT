@@ -26,6 +26,7 @@
 // THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Pinta.Core;
 
@@ -39,6 +40,9 @@ public sealed partial class HistoryListView
 	private Gtk.ListView list_view;
 
 	private Document? active_document;
+
+	// The rows currently on screen, so their undone state can be refreshed when the history pointer moves.
+	private readonly Dictionary<HistoryItemWidget, Gtk.ListItem> bound_rows = [];
 
 	public static new HistoryListView New ()
 		=> NewWithProperties ([]);
@@ -84,6 +88,13 @@ public sealed partial class HistoryListView
 			var model_item = (HistoryListViewItem) list_item.GetItem ()!;
 			var widget = (HistoryItemWidget) list_item.GetChild ()!;
 			widget.Update (model_item);
+			bound_rows[widget] = list_item;
+			UpdateUndoneRow (widget, list_item.Position);
+		};
+		signalFactory.OnUnbind += (factory, args) => {
+			var widget = (HistoryItemWidget) ((Gtk.ListItem) args.Object).GetChild ()!;
+			bound_rows.Remove (widget);
+			widget.GetParent ()?.RemoveCssClass (UNDONE_ROW_CLASS);
 		};
 
 		Gtk.ListView listView = Gtk.ListView.New (selectionModel, signalFactory);
@@ -120,10 +131,12 @@ public sealed partial class HistoryListView
 	}
 
 	private const string UNDONE_STYLE_CLASS = "history-list";
+	private const string UNDONE_ROW_CLASS = "undone";
 	private static bool undone_row_style_loaded;
 
 	/// <summary>
-	/// Undone history items are the rows after the selected one; give them a grey background.
+	/// Undone history items (the rows after the current one) get a grey background, as in Paint.NET.
+	/// The class goes on the row itself (the item widget's parent) so the grey fills the row padding.
 	/// </summary>
 	private static void EnsureUndoneRowStyle ()
 	{
@@ -135,9 +148,27 @@ public sealed partial class HistoryListView
 			return;
 
 		Gtk.CssProvider provider = Gtk.CssProvider.New ();
-		provider.LoadFromString ($"listview.{UNDONE_STYLE_CLASS} > row:selected ~ row {{ background-color: alpha(gray, 0.25); }}");
+		provider.LoadFromString ($"listview.{UNDONE_STYLE_CLASS} > row.{UNDONE_ROW_CLASS} {{ background-color: alpha(gray, 0.25); }}");
 		Gtk.StyleContext.AddProviderForDisplay (display, provider, Gtk.Constants.STYLE_PROVIDER_PRIORITY_APPLICATION);
 		undone_row_style_loaded = true;
+	}
+
+	private void UpdateUndoneRow (HistoryItemWidget widget, uint position)
+	{
+		Gtk.Widget? row = widget.GetParent ();
+		if (row is null)
+			return;
+
+		if (active_document is not null && position > active_document.History.Pointer)
+			row.AddCssClass (UNDONE_ROW_CLASS);
+		else
+			row.RemoveCssClass (UNDONE_ROW_CLASS);
+	}
+
+	private void UpdateUndoneRows ()
+	{
+		foreach (var (widget, list_item) in bound_rows)
+			UpdateUndoneRow (widget, list_item.Position);
 	}
 
 	private bool IsCurrentHistoryRow (uint position)
@@ -195,6 +226,7 @@ public sealed partial class HistoryListView
 		doc.History.HistoryItemAdded += OnHistoryItemAdded;
 		doc.History.ActionUndone += OnUndoOrRedo;
 		doc.History.ActionRedone += OnUndoOrRedo;
+		UpdateUndoneRows ();
 	}
 
 	private void OnHistoryItemAdded (object? sender, HistoryItemAddedEventArgs args)
@@ -209,6 +241,7 @@ public sealed partial class HistoryListView
 		model.Append (HistoryListViewItem.New (args.Item));
 		selection_model.SetSelected (idx);
 		list_view.ScrollToSelectedItem (selection_model);
+		UpdateUndoneRows ();
 	}
 
 	private void OnUndoOrRedo (object? sender, EventArgs args)
@@ -219,5 +252,6 @@ public sealed partial class HistoryListView
 		uint selectedIdx = (uint) active_document.History.Pointer;
 		selection_model.SetSelected (selectedIdx);
 		list_view.ScrollToSelectedItem (selection_model);
+		UpdateUndoneRows ();
 	}
 }
