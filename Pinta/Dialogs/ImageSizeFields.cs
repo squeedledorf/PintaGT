@@ -33,6 +33,7 @@ internal sealed class ImageSizeFields
 	private bool updating;
 	private double dpi;
 	private Size aspect_size; // The ratio "Maintain aspect ratio" holds.
+	private (double Width, double Height) print_inches; // The print size a resolution change keeps.
 
 	/// <summary>The block, ready to append to a dialog's content area.</summary>
 	public Gtk.Box Widget { get; }
@@ -252,12 +253,10 @@ internal sealed class ImageSizeFields
 	{
 		if (resolution <= 0)
 			return;
-		double printWidth = print_width_spinner.Value;
-		double printHeight = print_height_spinner.Value;
 		dpi = PrintSize.ResolutionToDpi (resolution, Unit);
 		SetPixels (
-			PrintSize.PrintToPixels (printWidth, dpi, Unit),
-			PrintSize.PrintToPixels (printHeight, dpi, Unit),
+			Math.Max (1, (int) Math.Round (print_inches.Width * dpi)),
+			Math.Max (1, (int) Math.Round (print_inches.Height * dpi)),
 			refreshResolution: false);
 	}
 
@@ -295,6 +294,10 @@ internal sealed class ImageSizeFields
 	{
 		int width = pixelWidth ?? width_spinner.GetValueAsInt ();
 		int height = pixelHeight ?? height_spinner.GetValueAsInt ();
+
+		// Typing a resolution digit by digit must not wear away the print size it scales.
+		if (refreshResolution)
+			print_inches = (width / dpi, height / dpi);
 
 		updating = true;
 		if (refreshResolution && !IsEditing (resolution_spinner))
