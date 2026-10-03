@@ -1,99 +1,94 @@
+# PintaGT
 
-# Pinta - [Simple Gtk# Paint Program](http://pinta-project.com/)
+PintaGT is a fork of [Pinta](https://github.com/PintaProject/Pinta) reworked to look and behave like Paint.NET 5, for people who learned image editing in Paint.NET and want the same muscle memory on Linux. It runs natively on Linux (GTK4, Wayland) and was built and tested on Hyprland.
 
-<a href='https://flathub.org/apps/com.github.PintaProject.Pinta'><img width='200' alt='Get it on Flathub' src='https://flathub.org/api/badge?locale=en'/></a>
-[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/pinta)
+![PintaGT main window](docs/screenshots/main-window.png)
 
-[![Translation status](https://hosted.weblate.org/widget/pinta/pinta/287x66-grey.png)](https://hosted.weblate.org/engage/pinta/)
-[![Build Status](https://github.com/PintaProject/Pinta/workflows/Build/badge.svg)](https://github.com/PintaProject/Pinta/actions)
+PintaGT is an independent project. It is not affiliated with, endorsed by, or connected to Paint.NET or its developer. "Paint.NET" is used here only to describe the style of interface the fork imitates.
 
-Copyright (C) 2010 Jonathan Pobst <monkey AT jpobst DOT com>
+## What's different from Pinta
 
-Pinta is a GTK clone of [Paint.Net 3.0](http://www.getpaint.net/), with support for Linux, Windows, and macOS.
+**Window layout**
+- Paint.NET 5's top rows:
+  - a title row
+  - menus with the open-image thumbnails beside them and the Tools/History/Layers/Colors toggles at the right
+  - the icon toolbar
+  - the tool options
+- Tools, History, Layers and Colors are floating windows over the canvas, the way Paint.NET shows them. You can drag them, they snap to the edges and to each other, History and Layers can be resized, and F5–F8 toggle them. Their positions are remembered.
+- Paint.NET-style status bar with the zoom slider, slim rulers, and a grey canvas surround with a drop shadow.
+- Colour icons throughout (Pinta 1.x artwork and FamFamFam Silk), and a light theme by default.
 
-Original Pinta code is licensed under the MIT License:
-See `license-mit.txt` for the MIT License
+**Menus and keyboard**
+- Paint.NET's menu structure and names, icons in menus, and shortcut text written the Paint.NET way ("Ctrl+Shift+X").
+- Paint.NET's shortcuts, for example:
+  - Ctrl+Y redoes and Ctrl+Shift+Z opens Rotate/Zoom.
+  - Ctrl+F repeats the last effect.
+  - Ctrl+, toggles the current layer, and Alt+PgUp/PgDn move between layers.
+  - Tool letters cycle through the tools that share them, and Shift+letter goes backwards.
+  - `[` and `]` change the brush size.
+  - Space+drag pans.
 
-Code from Paint.Net 3.36 is used under the MIT License and retains the
-original headers on source files.
+**Tools**
+- Selections:
+  - Paint.NET's modifiers: Ctrl adds, Alt subtracts, Ctrl+right-drag inverts, Alt+right-drag intersects.
+  - Fixed Ratio and Fixed Size, and the mode icons in the toolbar.
+- Move Selected Pixels and Move Selection have resize and rotate handles, and Ctrl+drag leaves a copy.
+- Brushes have Hardness, Spacing and Smoothing.
+- Paint.NET's single Shapes tool, with box editing.
+- Paint Bucket and Magic Wand fills can still be adjusted after you click, until you press Finish.
+- Gradients with Spiral types and Repeat modes.
+- Paint.NET's text toolbar.
+- Paint.NET's 14 blend modes.
 
-See `license-pdn.txt` for Paint.Net's original license.
+**Dialogs and effects**
+- Windows-style dialogs: stacked spin buttons, OK before Cancel, and Enter pressing OK.
+- Paint.NET-style prompts for unsaved changes, pasting a large image, and flattening.
+- Levels and Curves laid out like Paint.NET's.
+- PNG bit depth and JPEG quality with a preview on save; Resize and Canvas Size with print size and resolution.
+- Added adjustments and effects: Exposure, Highlights/Shadows, Invert Alpha, Temperature/Tint, Bokeh/Sketch/Square/Surface Blur, Crystalize, Morphology, Drop Shadow, Straighten and Turbulence.
 
+![Levels dialog](docs/screenshots/levels.png)
 
-## Icons are from:
+## Paint.NET plugins
 
-- [Paint.Net 3.0](http://www.getpaint.net/)
-Used under [MIT License](http://www.opensource.org/licenses/mit-license.php)
+PintaGT can load many Paint.NET effect plugins (DLLs) and show them in its Effects and Adjustments menus, with their settings dialogs and live preview.
 
-- [Silk icon set](https://github.com/markjames/famfamfam-silk-icons)
-Used under [Creative Commons Attribution 3.0 License](http://creativecommons.org/licenses/by/3.0/)
+- **What works:** classic CPU effects. That includes `PropertyBasedEffect` plugins from the Paint.NET 3, 4 and 5 eras, CodeLab-made plugins, and Paint.NET 5 `BitmapEffect`s.
+- **What doesn't:**
+  - GPU (Direct2D) effects
+  - plugins with their own Windows Forms settings dialog
+  - plugins that call Windows-only native libraries
 
-- [Fugue icon set](https://p.yusukekamiyamane.com)
-Used under [Creative Commons Attribution 3.0 License](http://creativecommons.org/licenses/by/3.0/)
+  Help > Paint.NET Plugins... lists every plugin it found, with the reason for any that can't run.
+- **Track record:** in testing, 78 of 150 sampled plugin effects ran.
+- **Installing:** put plugin DLLs in `~/.config/PintaGT/PdnPlugins/Effects/`. A subfolder per plugin is fine if it ships extra DLLs.
 
-- Pinta contributors, under the same license as the project itself
-(see `Pinta.Resources/icons/pinta-icons.md` for the list of such icons)
+The compatibility layer (`Pinta.PdnShim`, `Pinta.PdnPlugins`) was written from Paint.NET's public plugin API documentation and from the metadata of third-party plugins. No Paint.NET binaries are included or were decompiled. No plugins are bundled.
 
-## Building on Windows
+![Plugins in the Effects menu](docs/screenshots/effects-render-plugins.png)
 
-First, install the required GTK-related dependencies:
-- Install [MSYS2](https://www.msys2.org)
-- From the CLANG64 terminal, run `pacman -S mingw-w64-clang-x86_64-libadwaita mingw-w64-clang-x86_64-webp-pixbuf-loader`.
-  - For ARM64 Windows, use the `CLANGARM64` terminal and replace `clang-x86_64` with `clang-aarch64`.
+![Plugin list](docs/screenshots/plugin-list.png)
 
-Pinta can then be built by opening `Pinta.sln` in [Visual Studio](https://visualstudio.microsoft.com/).
-Ensure that .NET 10 is installed via the Visual Studio installer.
+## Building and running
 
-For building on the command line:
-- [Install the .NET 10 SDK](https://dotnet.microsoft.com/).
-- Build:
-  - `dotnet build`
-- Run:
-  - `dotnet run --project Pinta`
+Requires the .NET 10 SDK, GTK 4 and libadwaita.
 
-## Building on macOS
+```sh
+dotnet build Pinta/Pinta.csproj -c Release
+./build/bin/Pinta
+```
 
-- Install .NET 10 and GTK4
-  - `brew install dotnet-sdk libadwaita adwaita-icon-theme gettext webp-pixbuf-loader`
-  - For Apple Silicon, set `DYLD_LIBRARY_PATH=/opt/homebrew/lib` in the environment so that Pinta can load the GTK libraries
-  - For Intel, set `DYLD_LIBRARY_PATH=/usr/local/lib` in the environment so that Pinta can load the GTK libraries
-- Build:
-  - `dotnet build`
-- Run:
-  - `dotnet run --project Pinta`
+Settings live in `~/.config/PintaGT`, separate from a regular Pinta install, so both can be installed side by side.
 
-## Building on Linux
+## Known limits
 
-- Install [.NET 10](https://dotnet.microsoft.com/) following the instructions for your Linux distribution.
-- Install other dependencies (instructions are for Ubuntu 22.10, but should be similar for other distros):
-  - `sudo apt install autotools-dev autoconf-archive gettext intltool libadwaita-1-dev`
-  - Minimum library versions: `gtk` >= 4.18 and `libadwaita` >= 1.8
-  - Optional dependencies: `webp-pixbuf-loader`
-- Build (option 1, for development and testing):
-  - `dotnet build`
-  - `dotnet run --project Pinta`
-- Build (option 2, for installation):
-  - `./autogen.sh`
-    - If building from a tarball, run `./configure` instead.
-    - Add the `--prefix=<install directory>` argument to install to a directory other than `/usr/local`.
-  - `make install`
+- Open and Save use the system file chooser, not Windows-style dialogs.
+- The Settings dialog is still Pinta's.
+- Wayland apps can't place their own windows, so the floating panels live inside the main window rather than being separate windows.
 
-## Building and Debugging in Docker
+## Licence and credits
 
-Follow the instructions of the corresponding [pinta-virtual-dev-environment](https://github.com/janrothkegel/pinta-virtual-dev-environment) project
-
-## Getting help / contributing:
-
-- You can get [technical help](https://github.com/PintaProject/Pinta/discussions).
-- You can report [bugs/issues](https://github.com/PintaProject/Pinta/issues).
-- You can make [suggestions](https://github.com/PintaProject/Pinta/discussions/categories/ideas).
-- You can help [translate Pinta to your native language](https://hosted.weblate.org/engage/pinta/).
-- You can fork the project on [Github](https://github.com/PintaProject/Pinta).
-- You can get help in #pinta on irc.gnome.org.
-- For details on notable changes of each release, take a look at the [CHANGELOG](https://github.com/PintaProject/Pinta/blob/master/CHANGELOG.md).
-- For details on patching, take a look at `patch-guidelines.md` in the repo.
-
-## Code signing policy
-- Free code signing on Windows provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
-- Committers and approvers: [Pinta Maintainers](https://github.com/orgs/PintaProject/people)
-- Privacy policy: this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+- Based on [Pinta](https://github.com/PintaProject/Pinta) by the Pinta contributors, MIT licence (`license-mit.txt`). Pinta's original README is in [docs/PINTA-README.md](docs/PINTA-README.md).
+- Pinta contains code from Paint.NET 3.36, used under the MIT licence (`license-pdn.txt`). Paint.NET's logo and icon artwork are not used.
+- Toolbar icons from [FamFamFam Silk](http://www.famfamfam.com/lab/icons/silk/) by Mark James, CC BY 2.5. See `Pinta.Resources/icons/silk-license.txt` and `pinta-icons.md`.
+- PintaGT's changes are released under the same MIT licence.
