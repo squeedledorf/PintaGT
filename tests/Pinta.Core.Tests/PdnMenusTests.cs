@@ -23,6 +23,24 @@ public sealed class PdnMenusTests
 	public void FormatAccelerator (string gtk, string expected)
 		=> Assert.That (PdnMenus.FormatAccelerator (gtk), Is.EqualTo (expected));
 
+	// Menus are restyled on every open, so formatting an already formatted label must not change it.
+	[TestCase ("Shift+Ctrl+Alt+Page Up")]
+	[TestCase ("Shift+Ctrl+Delete")]
+	[TestCase ("Ctrl++")]
+	public void FormatAcceleratorIsIdempotent (string gtk)
+	{
+		string once = PdnMenus.FormatAccelerator (gtk);
+		Assert.That (PdnMenus.FormatAccelerator (once), Is.EqualTo (once));
+	}
+
+	// The same goes for access letters: a second pass keeps every letter the first pass chose.
+	[Test]
+	public void AssignMnemonicsIsIdempotent ()
+	{
+		string[] once = PdnMenus.AssignMnemonics (["Zoom In", "Zoom Out", "Zoom to Window", "Pixel Grid", "Pixels"]);
+		Assert.That (PdnMenus.AssignMnemonics (once), Is.EqualTo (once));
+	}
+
 	[Test]
 	public void MnemonicsAreUniqueAndPreferFirstLetters ()
 	{
