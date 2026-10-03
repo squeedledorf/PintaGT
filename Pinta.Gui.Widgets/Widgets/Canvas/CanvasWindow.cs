@@ -437,8 +437,11 @@ public sealed partial class CanvasWindow
 		// Replay the positions it folded into this event first; they are in the event's own
 		// coordinates, so shift them by where this event lands in ours.
 		if (gesture.GetCurrentEvent () is Gdk.Event motion && motion.GetPosition (out double eventX, out double eventY)) {
-			foreach (PointD earlier in motion.GetHistory ())
+			foreach (PointD earlier in motion.GetHistory ()) {
+				if (earlier.X == eventX && earlier.Y == eventY)
+					continue; // Some backends include the event itself.
 				DragMoveTo (gesture, new PointD (rootPoint.X + earlier.X - eventX, rootPoint.Y + earlier.Y - eventY));
+			}
 		}
 
 		DragMoveTo (gesture, rootPoint);

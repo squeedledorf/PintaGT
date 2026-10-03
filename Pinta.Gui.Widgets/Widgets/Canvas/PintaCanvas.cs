@@ -140,13 +140,7 @@ internal sealed partial class PintaCanvas
 	}
 
 	/// <summary>
-	/// Queue an update to the widget's contents on the next UI update, e.g. after changes
-	/// to the canvas contents or the selection.
-	/// This is useful to avoid redundant work if there are multiple events that trigger
-	/// changes to the document.
-	/// </summary>
-	/// <summary>
-	/// Queue an update after the area around the canvas changed size.
+	/// Queue an update after the area around the canvas scrolled or changed size.
 	/// </summary>
 	public void QueueDecorationsUpdate ()
 	{
@@ -154,6 +148,12 @@ internal sealed partial class PintaCanvas
 			QueueUpdate ();
 	}
 
+	/// <summary>
+	/// Queue an update to the widget's contents on the next UI update, e.g. after changes
+	/// to the canvas contents or the selection.
+	/// This is useful to avoid redundant work if there are multiple events that trigger
+	/// changes to the document.
+	/// </summary>
 	private void QueueUpdate ()
 	{
 		if (queued_update_id > 0)

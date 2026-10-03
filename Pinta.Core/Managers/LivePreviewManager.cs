@@ -280,7 +280,7 @@ public sealed class LivePreviewManager : ILivePreview
 			if (!renderTask.TryConsumeBounds (out RectangleI updatedBounds))
 				return;
 
-			ShowRenderedArea (LivePreviewSurface, effect_surface, doc.Selection, updatedBounds);
+			ShowRenderedArea (LivePreviewSurface, layer.Surface, effect_surface, doc.Selection, updatedBounds);
 
 			double scale = workspace.Scale;
 
@@ -324,12 +324,17 @@ public sealed class LivePreviewManager : ILivePreview
 	/// Copies the newly rendered area of the effect's output into what the canvas shows,
 	/// clipped to the selection exactly as the final commit is, so a non-rectangular
 	/// selection does not preview over its whole bounding box.
+	/// The area is first reset to the original layer, so a re-rendered tile does not blend
+	/// the antialiased selection edge over its previous preview.
 	/// </summary>
-	internal static void ShowRenderedArea (ImageSurface shown, ImageSurface effectOutput, DocumentSelection selection, RectangleI area)
+	internal static void ShowRenderedArea (ImageSurface shown, ImageSurface original, ImageSurface effectOutput, DocumentSelection selection, RectangleI area)
 	{
 		using Context g = new (shown);
 		g.Rectangle (area.ToDouble ());
 		g.Clip ();
+		g.SetSourceSurface (original, 0, 0);
+		g.Operator = Operator.Source;
+		g.Paint ();
 		selection.Clip (g);
 		g.SetSourceSurface (effectOutput, 0, 0);
 		g.Operator = Operator.Source;
