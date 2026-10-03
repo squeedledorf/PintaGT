@@ -188,10 +188,10 @@ public sealed partial class LevelsDialog
 		colorPanelOutHigh.ClickGesture.OnPressed += HandleColorPanelButtonPressEvent;
 
 		HistogramWidget histogramInput = HistogramWidget.New ();
-		histogramInput.WidthRequest = 130;
+		histogramInput.WidthRequest = 200;
 		histogramInput.FlipHorizontal = true;
 		HistogramWidget histogramOutput = HistogramWidget.New ();
-		histogramOutput.WidthRequest = 130;
+		histogramOutput.WidthRequest = 200;
 
 		Gtk.Box vboxInput = GtkExtensions.Box (
 			verticalSpaced,
@@ -264,15 +264,17 @@ public sealed partial class LevelsDialog
 
 		// --- Initialization (LevelsDialog)
 
-		// --- TODO: Refactor
-
-		button_auto = (Gtk.Button) AddButton (Translations.GetString ("Auto"), (int) Gtk.ResponseType.None);
+		// Plain buttons rather than dialog responses, which would close the dialog.
+		button_auto = Gtk.Button.NewWithLabel (Translations.GetString ("Auto"));
+		button_auto.Hexpand = true;
+		button_auto.Halign = Gtk.Align.End;
 		button_auto.OnClicked += HandleButtonAutoClicked;
 
-		button_reset = (Gtk.Button) AddButton (Translations.GetString ("Reset"), (int) Gtk.ResponseType.None);
+		button_reset = Gtk.Button.NewWithLabel (Translations.GetString ("Reset"));
 		button_reset.OnClicked += HandleButtonResetClicked;
 
-		AddActionWidget (hboxChecks, (int) Gtk.ResponseType.None);
+		hboxChecks.Append (button_auto);
+		hboxChecks.Append (button_reset);
 
 		this.AddCancelOkButtons ();
 		this.SetDefaultResponse (Gtk.ResponseType.Ok);
@@ -288,8 +290,15 @@ public sealed partial class LevelsDialog
 		);
 		hboxLayout.SetAllMargins (SPACING);
 
+		hboxChecks.SetAllMargins (SPACING);
+
 		Gtk.Box contentArea = this.GetContentAreaBox ();
 		contentArea.Append (hboxLayout);
+		contentArea.Append (hboxChecks);
+
+		// A border keeps light swatches (such as the white input level) visible against the dialog.
+		foreach (ColorPanelWidget panel in new[] { colorPanelInHigh, colorPanelInLow, colorPanelOutHigh, colorPanelOutMid, colorPanelOutLow })
+			panel.AddCssClass ("frame");
 
 		Gtk.Box CreateLabelledWidget (Gtk.Widget widget, string label)
 		{
@@ -325,7 +334,7 @@ public sealed partial class LevelsDialog
 		dialog.EffectData = effectData;
 
 		dialog.UpdateInputHistogram ();
-		dialog.Reset ();
+		dialog.UpdateFromLevelsOp (); // Reopen with the last-used levels, like Paint.NET (identity the first time).
 		dialog.UpdateLevels ();
 		dialog.MaskChanged ();
 
@@ -544,6 +553,11 @@ public sealed partial class LevelsDialog
 			colorpanel_out_high.CairoColor = Levels.ColorOutHigh.ToCairoColor ();
 
 			UpdateOutputHistogram ();
+
+			// The gradients don't redraw when their values are set from code (Reset, Auto, typed values).
+			gradient_input.QueueDraw ();
+			gradient_output.QueueDraw ();
+
 			skip_counter = 0;
 		} else
 			skip_counter++;

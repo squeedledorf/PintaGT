@@ -51,7 +51,7 @@ public sealed partial class CurvesDialog
 
 	//last added control point x;
 	private int? last_cpx;
-	private PointI last_mouse_pos = new (0, 0);
+	private PointI last_mouse_pos = new (-1, -1); // Outside the graph until the pointer enters it
 	// Keys of existing control points which cannot be overwritten by a new control point.
 	private readonly HashSet<int> orig_cps = [];
 
@@ -163,7 +163,7 @@ public sealed partial class CurvesDialog
 		CurvesDialog dialog = NewWithProperties ([]);
 		dialog.TransientFor = chrome.MainWindow;
 		dialog.EffectData = effectData;
-		dialog.ResetControlPoints ();
+		dialog.RestoreOrResetControlPoints ();
 		return dialog;
 	}
 
@@ -194,7 +194,9 @@ public sealed partial class CurvesDialog
 
 	private static Gtk.Label CreateLabelPoint ()
 	{
-		Gtk.Label result = Gtk.Label.New ("(256, 256)");
+		Gtk.Label result = Gtk.Label.New (string.Empty);
+		result.WidthChars = 10; // Fixed width, so the dialog doesn't resize as the numbers change.
+		result.Xalign = 1;
 		result.Hexpand = true;
 		result.Halign = Gtk.Align.End;
 		return result;
@@ -393,6 +395,25 @@ public sealed partial class CurvesDialog
 		UpdateLivePreview (nameof (ControlPoints));
 	}
 
+	/// <summary>
+	/// Reopen with the last-used curve and transfer map, like Paint.NET, or start from a straight line.
+	/// </summary>
+	private void RestoreOrResetControlPoints ()
+	{
+		if (EffectData.ControlPoints is null) {
+			ResetControlPoints ();
+			return;
+		}
+
+		// Assign the points before switching the combo, so its handler doesn't reset them.
+		if (EffectData.Mode == ColorTransferMode.Luminosity)
+			luminosity_cps = EffectData.ControlPoints;
+		else
+			rgb_cps = EffectData.ControlPoints;
+
+		combo_map.Active = (EffectData.Mode == ColorTransferMode.Rgb) ? 0 : 1;
+	}
+
 	private static SortedList<int, int>[] ComputeControlPoints (ColorTransferMode mode)
 	{
 		int channels =
@@ -416,6 +437,16 @@ public sealed partial class CurvesDialog
 	{
 		//to invalidate whole drawing area
 		curves_drawing.QueueDraw ();
+		UpdatePointLabel ();
+	}
+
+	// Set outside the draw function, which would only show the new text on the next frame.
+	private void UpdatePointLabel ()
+	{
+		PointI p = last_mouse_pos;
+		bool inside = p.X >= 0 && p.X < SIZE && p.Y >= 0 && p.Y < SIZE;
+		// Output values grow upwards, like the curve itself.
+		label_point.SetText (inside ? $"({p.X}, {SIZE - 1 - p.Y})" : string.Empty);
 	}
 
 	private IEnumerable<SortedList<int, int>> GetActiveControlPoints ()
@@ -501,10 +532,8 @@ public sealed partial class CurvesDialog
 		{
 			PointI p = last_mouse_pos;
 
-			if (p.X < 0 || p.X >= SIZE || p.Y < 0 || p.Y >= SIZE) {
-				label_point.SetText (string.Empty);
+			if (p.X < 0 || p.X >= SIZE || p.Y < 0 || p.Y >= SIZE)
 				return;
-			}
 
 			g.LineWidth = 0.5;
 
@@ -515,8 +544,6 @@ public sealed partial class CurvesDialog
 			g.LineTo (SIZE, p.Y);
 
 			g.Stroke ();
-
-			label_point.SetText ($"({p})");
 		}
 
 		void DrawSpline (Context g)
