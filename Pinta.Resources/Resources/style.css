@@ -42,7 +42,13 @@ popover.menu modelbutton {
     border-radius: 0;
 }
 
-popover.menu modelbutton:hover, popover.menu modelbutton:selected {
+/* Lit under the pointer, or when reached from the keyboard; a menu opened by a click starts with
+   nothing lit, although GTK selects its first item (PdnMenus). */
+popover.menu modelbutton:selected {
+    background-color: transparent;
+}
+
+popover.menu modelbutton:hover, popover.menu modelbutton:selected:focus-visible {
     background-color: alpha(#0078d7, 0.18);
 }
 
@@ -125,12 +131,34 @@ popover.menu separator {
     margin: 2px 0;
 }
 
-/* Paint.NET menus (PdnMenus): a light 26px icon gutter down the left, icons or check marks in it,
-   separators starting after it. */
-popover.pdn-menu > contents {
-    background-image: linear-gradient(to right, @view_bg_color 26px, mix(@view_bg_color, @window_fg_color, 0.06) 26px);
+/* Drop-down lists (Blend mode, Bit depth, Resampling...): compact Win32 rows lit in blue under the
+   pointer. GTK marks the current item with a check mark rather than a selected row, so that stays. */
+dropdown > popover > contents {
+    padding: 1px;
 }
 
+dropdown > popover listview, dropdown > popover scrolledwindow {
+    padding: 0;
+    margin: 0;
+}
+
+dropdown > popover listview > row {
+    min-height: 0;
+    margin: 0;
+    padding: 2px 6px;
+    border-radius: 0;
+}
+
+dropdown > popover listview > row:hover {
+    background-color: alpha(#0078d7, 0.18);
+}
+
+dropdown > popover listview > row image {
+    -gtk-icon-size: 12px;
+}
+
+/* Paint.NET 5 menus (PdnMenus): plain white, icons or check marks in a 26px column at the left,
+   separators starting after it. */
 popover.pdn-menu modelbutton {
     padding-left: 3px;
 }
@@ -840,7 +868,7 @@ window.dialog check:hover, window.dialog radio:not(:checked):hover {
     box-shadow: inset 0 0 0 1px #0078d7;
 }
 
-/* Track bars: a thin groove with an upright blue thumb, no filled part. */
+/* Track bars: a thin groove with Paint.NET's blue pentagon thumb pointing down, no filled part. */
 window.dialog scale {
     padding: 8px 6px;
 }
@@ -857,21 +885,23 @@ window.dialog scale > trough > highlight {
 }
 
 window.dialog scale > trough > slider {
-    min-width: 8px;
+    min-width: 11px;
     min-height: 20px;
-    margin: -9px -4px;
+    margin: -9px -5px;
+    border: none;
     border-radius: 0;
-    background-color: #0078d7;
     box-shadow: none;
     outline: none;
+    /* As the status bar's zoom thumb: drawn centred in a 20px icon and clipped to the node. */
+    background: -gtk-icontheme("pinta-slider-thumb-accent") no-repeat center / 20px 20px;
 }
 
 window.dialog scale > trough > slider:hover, window.dialog scale:active > trough > slider {
-    background-color: #005499;
+    filter: brightness(0.75);
 }
 
 window.dialog scale:disabled > trough > slider {
-    background-color: alpha(@view_fg_color, 0.35);
+    filter: grayscale(1) opacity(0.45);
 }
 
 /* Hue / Saturation tracks are painted with what the slider does: a hue rainbow centred on red,
@@ -885,16 +915,17 @@ window.dialog scale.pdn-track-lightness > trough {
 window.dialog scale.pdn-track-hue > trough > slider,
 window.dialog scale.pdn-track-saturation > trough > slider,
 window.dialog scale.pdn-track-lightness > trough > slider {
-    margin: -8px -4px;
+    margin: -8px -5px;
 }
 
 window.dialog scale.pdn-track-hue > trough {
     background-image: linear-gradient(to right, #00ffff, #0000ff, #ff00ff, #ff0000, #ffff00, #00ff00, #00ffff);
 }
 
+/* The hue rainbow, washed out to grey at the left and vivid at the right. */
 window.dialog scale.pdn-track-saturation > trough {
-    background-image: linear-gradient(to right, #808080, alpha(#808080, 0)),
-                      linear-gradient(to right, #ff00ff, #ff0000, #ffff00, #00ff00);
+    background-image: linear-gradient(to right, alpha(#c0c0c0, 0.92), alpha(#c0c0c0, 0)),
+                      linear-gradient(to right, #00ffff, #0000ff, #ff00ff, #ff0000, #ffff00, #00ff00, #00ffff);
 }
 
 window.dialog scale.pdn-track-lightness > trough {

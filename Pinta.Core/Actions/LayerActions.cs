@@ -153,28 +153,28 @@ public sealed class LayerActions
 			"gototoplayer",
 			Translations.GetString ("Go to Top Layer"),
 			null,
-			null,
+			Resources.StandardIcons.GoTop,
 			shortcuts: ["<Primary><Alt>Page_Up"]);
 
 		GoToLayerAbove = new Command (
 			"gotolayerabove",
 			Translations.GetString ("Go to Layer Above"),
 			null,
-			null,
+			Resources.StandardIcons.GoUp,
 			shortcuts: ["<Alt>Page_Up"]);
 
 		GoToLayerBelow = new Command (
 			"gotolayerbelow",
 			Translations.GetString ("Go to Layer Below"),
 			null,
-			null,
+			Resources.StandardIcons.GoDown,
 			shortcuts: ["<Alt>Page_Down"]);
 
 		GoToBottomLayer = new Command (
 			"gotobottomlayer",
 			Translations.GetString ("Go to Bottom Layer"),
 			null,
-			null,
+			Resources.StandardIcons.GoBottom,
 			shortcuts: ["<Primary><Alt>Page_Down"]);
 
 		MoveLayerToTop = new Command (
@@ -555,7 +555,7 @@ public sealed class LayerActions
 
 		SwapLayersHistoryItem hist = new (
 			Resources.StandardIcons.LayerMoveUp,
-			Translations.GetString ("Move Layer"),
+			Translations.GetString ("Move Layer Up"),
 			doc.Layers.CurrentUserLayerIndex,
 			doc.Layers.CurrentUserLayerIndex + 1);
 
@@ -571,7 +571,7 @@ public sealed class LayerActions
 
 		SwapLayersHistoryItem hist = new (
 			Resources.StandardIcons.LayerMoveDown,
-			Translations.GetString ("Move Layer"),
+			Translations.GetString ("Move Layer Down"),
 			doc.Layers.CurrentUserLayerIndex,
 			doc.Layers.CurrentUserLayerIndex - 1);
 

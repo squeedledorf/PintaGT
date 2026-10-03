@@ -180,7 +180,7 @@ public sealed class ActionHandlers
 		PintaCore.Actions.Adjustments.ToggleActionsSensitive (enable);
 		PintaCore.Actions.Effects.ToggleActionsSensitive (enable);
 
-		PintaCore.Actions.Window.SaveAll.Sensitive = enable;
+		// Save All follows the documents' dirty state (WindowActions).
 		PintaCore.Actions.Window.CloseAll.Sensitive = enable;
 	}
 }
