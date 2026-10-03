@@ -169,11 +169,12 @@ public sealed class BrushDabStroke
 
 		// A one pixel ramp at the rim antialiases a hard tip...
 		double edge = Math.Clamp (r - distance + 0.5, 0, 1);
-		// ...and below full hardness the tip also fades out from Hardness × radius.
+		// ...and below full hardness the tip also fades out from Hardness × radius to the rim's outer
+		// edge, so a soft small brush still reaches its full size (a 2px dab is not a single pixel).
 		double inner = r * Hardness;
 		if (distance <= inner || inner >= r)
 			return edge;
-		double x = Math.Clamp ((distance - inner) / (r - inner), 0, 1);
+		double x = Math.Clamp ((distance - inner) / (r + 0.5 - inner), 0, 1);
 		double fade = 1 - x * x * (3 - 2 * x); // smoothstep
 		return Math.Min (edge, fade);
 	}
@@ -189,7 +190,8 @@ public sealed class BrushDabStroke
 			return p;
 		if (((int) Math.Round (Size)) % 2 == 1)
 			return new PointD (Math.Floor (p.X) + 0.5, Math.Floor (p.Y) + 0.5);
-		return p.Rounded ();
+		// Round halves up: the tools pass screen pixel centres, which sit on .5 at 100% zoom.
+		return new PointD (Math.Floor (p.X + 0.5), Math.Floor (p.Y + 0.5));
 	}
 
 	/// <summary>

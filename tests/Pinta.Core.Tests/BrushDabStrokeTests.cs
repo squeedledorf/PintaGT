@@ -78,7 +78,16 @@ public sealed class BrushDabStrokeTests
 		Assert.That (hard.Coverage (11), Is.EqualTo (0));
 		Assert.That (soft.Coverage (5), Is.GreaterThan (0).And.LessThan (1));
 		Assert.That (soft.Coverage (8), Is.LessThan (soft.Coverage (5)));
-		Assert.That (soft.Coverage (10), Is.EqualTo (0));
+		Assert.That (soft.Coverage (10.5), Is.EqualTo (0));
+	}
+
+	[Test]
+	public void SmallSoftDabKeepsItsSize ()
+	{
+		// A 2px dab at the default hardness, centred on a pixel, still reaches its neighbours.
+		BrushDabStroke stroke = new (2, 0.75, 0.15, false, antialias: true);
+		Assert.That (stroke.Coverage (0), Is.EqualTo (1));
+		Assert.That (stroke.Coverage (1), Is.GreaterThan (0.25));
 	}
 
 	[Test]

@@ -82,6 +82,15 @@ public sealed partial class ToolBarSlider
 		};
 		Scale.AddController (drag);
 
+		// Keys and the scroll wheel move the value one step at a time. Left to the scale they would
+		// move the fill fraction, which its default rounding snaps to tenths of the bar.
+		Scale.OnChangeValue += (_, args) => {
+			double current = Scale.GetValue ();
+			if (args.Value != current)
+				SetValue (Math.Clamp (GetValue () + Math.Sign (args.Value - current) * step, min, max));
+			return true;
+		};
+
 		Scale.OnValueChanged += (_, _) => UpdateLabel ();
 
 		Append (CreateStepButton ("list-remove-symbolic", -1));

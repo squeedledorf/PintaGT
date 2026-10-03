@@ -154,11 +154,15 @@ public abstract class BaseBrushTool : BaseTool
 
 	private ImageSurface? stroke_mask;
 	private BrushDabStroke? dab_stroke;
+	// Pointer positions are screen pixel corners; dabs go at the screen pixel's centre,
+	// so at 100% a click paints the pixel under the cursor instead of the four around its corner.
+	private double half_screen_pixel;
 
 	protected void BeginDabStroke (Document document)
 	{
 		stroke_mask?.Dispose ();
 		stroke_mask = CairoExtensions.CreateImageSurface (Format.Argb32, document.ImageSize.Width, document.ImageSize.Height);
+		half_screen_pixel = 0.5 / document.Workspace.Scale;
 		dab_stroke = new BrushDabStroke (
 			BrushWidth,
 			HardnessSlider.GetValue () / 100,
@@ -173,7 +177,7 @@ public abstract class BaseBrushTool : BaseTool
 	/// Returns the area that changed (empty when no dab landed on the image).
 	/// </summary>
 	protected RectangleI StampDabs (PointD position)
-		=> dab_stroke is null ? RectangleI.Zero : Stamp (dab_stroke.AddPoint (position));
+		=> dab_stroke is null ? RectangleI.Zero : Stamp (dab_stroke.AddPoint (new PointD (position.X + half_screen_pixel, position.Y + half_screen_pixel)));
 
 	/// <summary>
 	/// Stamps the end of the path that smoothing held back. Call before committing the stroke.
