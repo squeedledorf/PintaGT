@@ -53,11 +53,54 @@ internal sealed class OpenDocumentAction : IActionHandler
 	void IActionHandler.Initialize ()
 	{
 		file.Open.Activated += Activated;
+		file.OpenRecent.OnActivate += HandleOpenRecent;
+		file.ClearRecent.Activated += HandleClearRecent;
+		recent_files.RecentFilesChanged += HandleRecentFilesChanged;
+		RebuildRecentMenu ();
 	}
 
 	void IActionHandler.Uninitialize ()
 	{
 		file.Open.Activated -= Activated;
+		file.OpenRecent.OnActivate -= HandleOpenRecent;
+		file.ClearRecent.Activated -= HandleClearRecent;
+		recent_files.RecentFilesChanged -= HandleRecentFilesChanged;
+	}
+
+	private void HandleRecentFilesChanged (object? sender, EventArgs e) => RebuildRecentMenu ();
+
+	private void HandleClearRecent (object sender, EventArgs e) => recent_files.ClearRecentFiles ();
+
+	private void HandleOpenRecent (Gio.SimpleAction sender, Gio.SimpleAction.ActivateSignalArgs args)
+	{
+		int index = args.Parameter!.GetInt32 ();
+		if (index < 0 || index >= recent_files.RecentFiles.Count)
+			return;
+
+		string uri = recent_files.RecentFiles[index];
+		Gio.File recent = Gio.FileHelper.NewForUri (uri);
+
+		if (workspace.OpenFile (recent))
+			recent_files.AddFile (recent);
+		else if (!recent.QueryExists (null))
+			recent_files.Forget (uri); // OpenFile has already said "File not found".
+	}
+
+	// Paint.NET lists "1 name.png" ... "10 name.png" with a thumbnail and the full path as a tooltip.
+	// GTK menu items built from a GMenu show neither, so this is the names only.
+	private void RebuildRecentMenu ()
+	{
+		file.RecentMenu.RemoveAll ();
+
+		for (int i = 0; i < recent_files.RecentFiles.Count; i++) {
+			Gio.File recent = Gio.FileHelper.NewForUri (recent_files.RecentFiles[i]);
+			string name = recent.GetBasename () ?? recent.GetParseName ();
+			// Menu labels use mnemonic syntax, so a literal underscore is doubled.
+			Gio.MenuItem item = Gio.MenuItem.New ($"{i + 1} {name.Replace ("_", "__")}", $"app.{file.OpenRecent.Name}({i})");
+			file.RecentMenu.AppendItem (item);
+		}
+
+		file.ClearRecent.Sensitive = recent_files.RecentFiles.Count > 0;
 	}
 
 	private async void Activated (object sender, EventArgs e)

@@ -148,7 +148,9 @@ internal sealed class MainClass
 
 		if (files.Any ()) {
 			foreach (var file in files) {
-				PintaCore.Workspace.OpenFile (Gio.FileHelper.NewForCommandlineArg (file));
+				Gio.File gfile = Gio.FileHelper.NewForCommandlineArg (file);
+				if (PintaCore.Workspace.OpenFile (gfile))
+					PintaCore.RecentFiles.AddFile (gfile);
 			}
 		} else {
 			// Create a blank document
