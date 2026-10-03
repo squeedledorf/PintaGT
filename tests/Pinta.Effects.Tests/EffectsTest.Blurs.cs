@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using NUnit.Framework;
+using Pinta.Core;
 using Pinta.Effects.Tests;
 
 namespace Pinta.Effects;
@@ -67,23 +68,33 @@ partial class EffectsTest
 	}
 
 	[Test]
-	public void GaussianQualityKeepsEveryTapAtTop ()
+	public void GaussianQualityStride ()
 	{
-		var row = GaussianBlurEffect.CreateGaussianBlurRow (40);
-		Assert.That (GaussianBlurEffect.ApplyQuality (row, 40, GaussianBlurEffect.MaxQuality), Is.EqualTo (row));
-		// Small radii keep every tap even at the lowest quality.
-		var small = GaussianBlurEffect.CreateGaussianBlurRow (3);
-		Assert.That (GaussianBlurEffect.ApplyQuality (small, 3, 1), Is.EqualTo (small));
+		Assert.That (GaussianBlurEffect.QualityStride (40, GaussianBlurEffect.MaxQuality), Is.EqualTo (1));
+		Assert.That (GaussianBlurEffect.QualityStride (40, 1), Is.EqualTo (4));
+		// Small radii sample every pixel even at the lowest quality.
+		Assert.That (GaussianBlurEffect.QualityStride (3, 1), Is.EqualTo (1));
+		Assert.That (GaussianBlurEffect.QualityStride (8, 1), Is.EqualTo (2));
 	}
 
 	[Test]
-	public void GaussianQualityThinsTaps ()
+	public void GaussianLowQualityHasNoPattern ()
 	{
-		var thinned = GaussianBlurEffect.ApplyQuality (GaussianBlurEffect.CreateGaussianBlurRow (40), 40, 1);
-		Assert.That (thinned[40], Is.Not.Zero); // centre tap survives
-		Assert.That (thinned[44], Is.Not.Zero);
-		Assert.That (thinned[41], Is.Zero);
-		Assert.That (thinned.Count (w => w != 0), Is.EqualTo (21));
+		// Thinning the kernel taps used to turn fine texture into a repeating grid.
+		// A blur of a fine checkerboard must come out flat at any quality.
+		GaussianBlurEffect effect = new (Utilities.CreateMockServices ());
+		effect.Data.Radius = 20;
+		effect.Data.Quality = 1;
+		using var src = CairoExtensions.CreateImageSurface (Cairo.Format.Argb32, 64, 64);
+		var data = src.GetPixelData ();
+		for (int i = 0; i < data.Length; ++i)
+			data[i] = ((i % 64) + (i / 64)) % 2 == 0 ? ColorBgra.Black : ColorBgra.White;
+		src.MarkDirty ();
+		using var dst = CairoExtensions.CreateImageSurface (Cairo.Format.Argb32, 64, 64);
+		effect.Render (src, dst, [new RectangleI (0, 0, 64, 64)]);
+		var px = dst.GetReadOnlyPixelData ().ToArray ();
+		var centre = Enumerable.Range (24, 16).SelectMany (y => Enumerable.Range (24, 16).Select (x => (int) px[y * 64 + x].R)).ToArray ();
+		Assert.That (centre.Max () - centre.Min (), Is.LessThanOrEqualTo (2));
 	}
 
 	[Test]

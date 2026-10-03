@@ -59,22 +59,13 @@ public sealed class GaussianBlurEffect : BaseEffect
 	}
 
 	/// <summary>
-	/// Below the top quality, only every n-th tap of the kernel is kept (the rest get zero
-	/// weight and are skipped): faster, but large radii show ghosted steps.
-	/// At least four taps per side are kept, so small radii stay smooth.
+	/// Below the top quality, only source pixels on a coarser grid (every n-th row and column)
+	/// are sampled: faster, and the result is a smooth but less detailed blur, like blurring a
+	/// downscaled copy. The grid is fixed to the image rather than to the kernel, so it cannot
+	/// show up as a repeating pattern. At least four grid steps fit in the radius.
 	/// </summary>
-	public static ImmutableArray<int> ApplyQuality (ImmutableArray<int> weights, int radius, int quality)
-	{
-		int stride = Math.Max (1, Math.Min (MaxQuality + 1 - quality, radius / 4));
-		if (stride == 1)
-			return weights;
-
-		var builder = weights.ToBuilder ();
-		for (int i = 0; i < builder.Count; ++i)
-			if ((i - radius) % stride != 0)
-				builder[i] = 0;
-		return builder.ToImmutable ();
-	}
+	public static int QualityStride (int radius, int quality)
+		=> Math.Max (1, Math.Min (MaxQuality + 1 - quality, radius / 4));
 
 	public const int MaxQuality = 4;
 
@@ -84,7 +75,8 @@ public sealed class GaussianBlurEffect : BaseEffect
 			return; // Copy src to dest
 
 		int r = Data.Radius;
-		ImmutableArray<int> w = ApplyQuality (CreateGaussianBlurRow (r), r, Data.Quality);
+		ImmutableArray<int> w = CreateGaussianBlurRow (r);
+		int stride = QualityStride (r, Data.Quality);
 		int wlen = w.Length;
 		GammaBoost gamma = new (Data.GammaBoost);
 
@@ -130,21 +122,19 @@ public sealed class GaussianBlurEffect : BaseEffect
 					gSums[wx] = 0;
 					rSums[wx] = 0;
 
-					if (srcX < 0 || srcX >= src_width)
+					if (srcX < 0 || srcX >= src_width || srcX % stride != 0)
 						continue;
 
 					for (int wy = 0; wy < wlen; ++wy) {
 						int srcY = y + wy - r;
 
-						if (srcY < 0 || srcY >= src_height)
+						if (srcY < 0 || srcY >= src_height || srcY % stride != 0)
 							continue;
 
 						PointI pixelPosition = new (srcX, srcY);
 
 						ColorBgra c = src.GetColorBgra (src_data, src_width, pixelPosition).ToStraightAlpha ();
 						int wp = w[wy];
-						if (wp == 0)
-							continue;
 
 						waSums[wx] += wp;
 						wp *= c.A + (c.A >> 7);
@@ -220,17 +210,15 @@ public sealed class GaussianBlurEffect : BaseEffect
 
 					int srcX = x + wx - r;
 
-					if (srcX >= 0 && srcX < src_width) {
+					if (srcX >= 0 && srcX < src_width && srcX % stride == 0) {
 						for (int wy = 0; wy < wlen; ++wy) {
 							int srcY = y + wy - r;
 
-							if (srcY < 0 || srcY >= src_height)
+							if (srcY < 0 || srcY >= src_height || srcY % stride != 0)
 								continue;
 
 							ColorBgra c = src.GetColorBgra (src_data, src_width, new (srcX, srcY)).ToStraightAlpha ();
 							int wp = w[wy];
-							if (wp == 0)
-								continue;
 
 							waSums[wx] += wp;
 							wp *= c.A + (c.A >> 7);
