@@ -40,6 +40,8 @@ namespace Pinta.Core;
 // Only call methods on this class from a single thread (The UI thread).
 internal static class AsyncEffectRenderer
 {
+	private const int ABANDON_GRACE_MILLISECONDS = 2000;
+
 	internal sealed class Settings
 	{
 		internal int ThreadCount { get; }
@@ -93,9 +95,19 @@ internal static class AsyncEffectRenderer
 			Enumerable.Range (0, settings.ThreadCount)
 			.Select (_ => Task.Run (RenderNextTile));
 
+		cts.Token.Register (effectClone.CancelRender);
+
+		Task allTiles = Task.WhenAll (tasks);
+		if (effectClone.CanAbandonCancelledRender) {
+			// A render that ignores cancellation (a plugin stuck in a loop) must not keep Pinta waiting forever.
+			Task abandoned = Task.Delay (Timeout.Infinite, cts.Token)
+				.ContinueWith (_ => Task.Delay (ABANDON_GRACE_MILLISECONDS), TaskScheduler.Default)
+				.Unwrap ();
+			allTiles = Task.WhenAny (allTiles, abandoned);
+		}
+
 		var aggregateTask =
-			Task
-			.WhenAll (tasks)
+			allTiles
 			.ContinueWith (
 				_ => new CompletionInfo (
 					WasCanceled: cts.Token.IsCancellationRequested,

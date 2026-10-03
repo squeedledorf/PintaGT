@@ -98,13 +98,14 @@ internal sealed class PdnEffectAdapter : BaseEffect
 		Data.Token ??= DefaultToken (env);
 		PdnEffectAdapter clone = (PdnEffectAdapter) base.Clone ();
 		clone.session = new RenderSession (clone.Info, clone.Data.Token, env);
-		// A new render replaces the previous one (live preview restarts): let plugins that poll IsCancelRequested stop.
-		latest_session?.Cancel ();
-		latest_session = clone.session;
 		return clone;
 	}
 
-	private RenderSession? latest_session;
+	/// <summary>Pinta cancelled this render (live preview restart, Cancel): let plugins that poll IsCancelRequested stop.</summary>
+	public override void CancelRender () => session?.Cancel ();
+
+	/// <summary>A cancelled session never writes to Pinta's surface again, so a plugin that does not return can be left behind.</summary>
+	public override bool CanAbandonCancelledRender => true;
 
 	private EffectConfigToken? DefaultToken (RenderEnvironment env)
 	{
@@ -231,9 +232,13 @@ internal sealed class RenderSession
 
 	private static void Signal (object? instance)
 	{
-		switch (instance) {
-			case Effect classic: classic.SignalCancelRequest (); break;
-			case BitmapEffect bitmap: bitmap.SignalCancel (); break;
+		try {
+			switch (instance) {
+				case Effect classic: classic.SignalCancelRequest (); break;
+				case BitmapEffect bitmap: bitmap.SignalCancel (); break;
+			}
+		} catch (Exception) {
+			// Runs inside Pinta's cancel; a plugin's cancel handler must not break it.
 		}
 	}
 
@@ -272,6 +277,8 @@ internal sealed class RenderSession
 				RenderCore (rois);
 			}
 		} catch (Exception ex) {
+			if (cancelled)
+				return; // plugins may throw when asked to stop; Pinta discards this render anyway
 			PluginRegistry.AddRuntimeError (info.File, info.EffectType.FullName!, info.Name, ex);
 			throw;
 		}
@@ -290,7 +297,7 @@ internal sealed class RenderSession
 				}
 			}
 			if (init_error is not null)
-				throw new InvalidOperationException ($"{info.Name} could not start", init_error);
+				throw new InvalidOperationException ($"{info.Name} could not start: {PluginRegistry.Describe (init_error)}", init_error);
 		}
 	}
 
@@ -334,6 +341,8 @@ internal sealed class RenderSession
 	/// <summary>Writes the rendered regions back to Cairo's premultiplied surface.</summary>
 	private void CopyOut (Cairo.ImageSurface dst, Rectangle[] rois)
 	{
+		if (cancelled)
+			return; // the render may have been abandoned; Pinta's surface belongs to a newer one
 		Span<byte> data = dst.GetData ();
 		int stride = dst.Stride;
 		foreach (Rectangle r in rois) {

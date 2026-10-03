@@ -150,6 +150,19 @@ public abstract class BaseEffect
 
 	#endregion
 
+	/// <summary>
+	/// Called on the clone being rendered when its render is cancelled (on the thread that cancels it, so
+	/// it must not wait). Effects that run code which cannot see Pinta's cancellation can stop it here.
+	/// </summary>
+	public virtual void CancelRender () { }
+
+	/// <summary>
+	/// True if a cancelled render may be abandoned when it has not stopped after a short grace period,
+	/// because the effect never writes to the destination after <see cref="CancelRender"/>.
+	/// For effects that run third-party code which may never return.
+	/// </summary>
+	public virtual bool CanAbandonCancelledRender => false;
+
 	// Effects that have any configuration state which is changed
 	// during live preview, and this this state is stored in
 	// non-value-type fields should override this method.

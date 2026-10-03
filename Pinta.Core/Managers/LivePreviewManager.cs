@@ -199,6 +199,19 @@ public sealed class LivePreviewManager : ILivePreview
 				return false;
 			}
 
+			// Some tiles failed: applying would leave a half-rendered layer, so say what went wrong instead.
+			if (result.Errors.Count > 0) {
+				Exception error = result.Errors[0];
+				dialogShown = true; // keep the progress dialog from reappearing over the error
+				dialog.Hide ();
+				await chrome.ShowErrorDialog (
+					chrome.MainWindow,
+					Translations.GetString ("The effect could not be applied"),
+					$"{effectName}: {error.Message}",
+					error.ToString ());
+				return false;
+			}
+
 			Debug.WriteLine ("Render completed without the user canceling");
 
 			using Context context = new (layer.Surface);
