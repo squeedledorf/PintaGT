@@ -47,6 +47,25 @@ public static class PdnMenus
 		// Every item label of the menu gets the width of the longest one, so the shortcuts start at one left edge.
 		Gtk.SizeGroup labelWidths = Gtk.SizeGroup.New (Gtk.SizeGroupMode.Horizontal);
 		popover.OnMap += (_, _) => Decorate (popover, labelWidths);
+
+		// A menu opened with the mouse has its first item selected but not lit, so GTK's first Down would
+		// skip to the second item. As on Windows it should light the first: start from the last item and let
+		// GTK wrap round. Not while an item is pointed at; Up already wraps to the last item by itself.
+		bool unlitSelection = false;
+		popover.OnMap += (_, _) => unlitSelection = popover.GetRoot () is Gtk.Window { FocusVisible: false };
+		Gtk.EventControllerKey keys = Gtk.EventControllerKey.New ();
+		keys.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+		keys.OnKeyPressed += (_, args) => {
+			if (unlitSelection && args.Keyval is Gdk.Constants.KEY_Down or Gdk.Constants.KEY_KP_Down) {
+				List<Gtk.Widget> buttons = [];
+				CollectModelButtons (popover, buttons);
+				if (!buttons.Any (b => b.GetStateFlags ().HasFlag (Gtk.StateFlags.Prelight)))
+					buttons.LastOrDefault (b => b.IsSensitive () && b.IsVisible ())?.GrabFocus ();
+			}
+			unlitSelection = false;
+			return false;
+		};
+		popover.AddController (keys);
 	}
 
 	private static void Decorate (Gtk.PopoverMenu popover, Gtk.SizeGroup labelWidths)
