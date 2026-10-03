@@ -48,20 +48,30 @@ public sealed partial class DockNotebook
 	private Adw.TabBar tab_bar;
 	private readonly HashSet<IDockNotebookItem> items = [];
 
+	// Tab context menu (Paint.NET's image list menu).
+	private Gio.Menu tab_menu;
+	private Gio.SimpleAction copy_path_action;
+	private Gio.SimpleAction open_folder_action;
+	private Gtk.PopoverMenu? keyboard_menu;
+
 	[MemberNotNull (nameof (tab_view))]
 	[MemberNotNull (nameof (tab_bar))]
+	[MemberNotNull (nameof (tab_menu), nameof (copy_path_action), nameof (open_folder_action))]
 	partial void Initialize ()
 	{
 		Adw.TabView tabView = Adw.TabView.New ();
 		tabView.Vexpand = true;
 		tabView.Valign = Gtk.Align.Fill;
 		tabView.OnClosePage += TabView_OnClosePage;
+		tabView.OnSetupMenu += TabView_OnSetupMenu;
 
+		// Like Paint.NET's image list, the strip stays visible with a single image.
+		// (Interim until a thumbnail image list replaces the text tabs.)
 		Adw.TabBar tabBar = Adw.TabBar.New ();
 		tabBar.SetView (tabView);
-		tabBar.Autohide = true;
+		tabBar.Autohide = false;
 		tabBar.AddCssClass (AdwaitaStyles.Inline);
-		tabBar.ExpandTabs = true;
+		tabBar.ExpandTabs = false;
 
 		// --- Initialization (Gtk.Box)
 
@@ -79,6 +89,132 @@ public sealed partial class DockNotebook
 
 		// Emit an event when the current tab is changed.
 		Adw.TabView.SelectedPagePropertyDefinition.Notify (tabView, TabView_TabChanged);
+
+		// The tab context menu. The page is made active before the menu shows (see TabView_OnSetupMenu),
+		// so the app-level Save / Save As / Close actions act on the right-clicked image.
+		Gio.SimpleAction copyPathAction = Gio.SimpleAction.New ("copy-path", null);
+		copyPathAction.OnActivate += (_, _) => CopyActivePath ();
+
+		Gio.SimpleAction openFolderAction = Gio.SimpleAction.New ("open-folder", null);
+		openFolderAction.OnActivate += (_, _) => OpenActiveContainingFolder ();
+
+		Gio.SimpleAction menuAction = Gio.SimpleAction.New ("menu", null);
+		menuAction.OnActivate += (_, _) => PopupMenuForActiveTab ();
+
+		Gio.SimpleActionGroup tabActions = Gio.SimpleActionGroup.New ();
+		tabActions.AddAction (copyPathAction);
+		tabActions.AddAction (openFolderAction);
+		tabActions.AddAction (menuAction);
+		InsertActionGroup ("tab", tabActions);
+
+		Gio.Menu tabMenu = Gio.Menu.New ();
+		tabView.SetMenuModel (tabMenu);
+
+		// Alt+minus opens the menu for the current image, as in Paint.NET.
+		Gtk.ShortcutController shortcuts = Gtk.ShortcutController.New ();
+		shortcuts.SetScope (Gtk.ShortcutScope.Global);
+		shortcuts.AddShortcut (Gtk.Shortcut.New (
+			Gtk.ShortcutTrigger.ParseString ("<Alt>minus"),
+			Gtk.NamedAction.New ("tab.menu")));
+		AddController (shortcuts);
+
+		copy_path_action = copyPathAction;
+		open_folder_action = openFolderAction;
+		tab_menu = tabMenu;
+
+		// The grey surround of the canvas has a separate dark-theme colour in style.css.
+		Adw.StyleManager styleManager = Adw.StyleManager.GetDefault ();
+		Adw.StyleManager.DarkPropertyDefinition.Notify (styleManager, (_, _) => UpdateDarkStyle (styleManager));
+		UpdateDarkStyle (styleManager);
+	}
+
+	private void UpdateDarkStyle (Adw.StyleManager styleManager)
+	{
+		if (styleManager.Dark)
+			AddCssClass ("pinta-dark");
+		else
+			RemoveCssClass ("pinta-dark");
+	}
+
+	private void TabView_OnSetupMenu (Adw.TabView _, Adw.TabView.SetupMenuSignalArgs args)
+	{
+		// The page is null when the menu closes.
+		if (args.Page is not Adw.TabPage page)
+			return;
+
+		tab_view.SelectedPage = page;
+		RebuildTabMenu ();
+	}
+
+	/// <summary>
+	/// Rebuild the menu for the active image: its name as the header, then Copy Path and
+	/// Open Containing Folder (disabled until the image is saved), Save, Save As, Close and Close All.
+	/// </summary>
+	private void RebuildTabMenu ()
+	{
+		Document? document = PintaCore.Workspace.ActiveDocumentOrDefault;
+		bool hasFile = document?.HasFile ?? false;
+		copy_path_action.SetEnabled (hasFile);
+		open_folder_action.SetEnabled (hasFile);
+
+		Gio.Menu fileSection = Gio.Menu.New ();
+		fileSection.Append (Translations.GetString ("Copy Path"), "tab.copy-path");
+		fileSection.Append (Translations.GetString ("Open Containing Folder"), "tab.open-folder");
+
+		FileActions file = PintaCore.Actions.File;
+		Gio.Menu saveSection = Gio.Menu.New ();
+		saveSection.AppendItem (file.Save.CreateMenuItem ());
+		saveSection.AppendItem (file.SaveAs.CreateMenuItem ());
+
+		Gio.Menu closeSection = Gio.Menu.New ();
+		closeSection.AppendItem (file.Close.CreateMenuItem ());
+		closeSection.AppendItem (PintaCore.Actions.Window.CloseAll.CreateMenuItem ());
+
+		tab_menu.RemoveAll ();
+		tab_menu.AppendSection (document?.DisplayName, fileSection);
+		tab_menu.AppendSection (null, saveSection);
+		tab_menu.AppendSection (null, closeSection);
+	}
+
+	private void PopupMenuForActiveTab ()
+	{
+		if (tab_view.SelectedPage is null)
+			return;
+
+		RebuildTabMenu ();
+
+		if (keyboard_menu is null) {
+			keyboard_menu = Gtk.PopoverMenu.NewFromModel (tab_menu);
+			keyboard_menu.SetParent (this);
+			keyboard_menu.Position = Gtk.PositionType.Bottom;
+			keyboard_menu.Halign = Gtk.Align.Start;
+		}
+
+		// Point just below the left end of the tab strip.
+		int y = tab_bar.IsVisible () ? tab_bar.GetHeight () : 0;
+		keyboard_menu.SetPointingTo (new Gdk.Rectangle { X = 16, Y = y, Width = 1, Height = 1 });
+		keyboard_menu.Popup ();
+	}
+
+	private static void CopyActivePath ()
+	{
+		if (PintaCore.Workspace.ActiveDocumentOrDefault?.File is not Gio.File file)
+			return;
+
+		string path = file.GetPath () ?? file.GetUri ();
+		GdkExtensions.GetDefaultClipboard ().SetText (path);
+	}
+
+	private static async void OpenActiveContainingFolder ()
+	{
+		if (PintaCore.Workspace.ActiveDocumentOrDefault?.File is not Gio.File file)
+			return;
+
+		try {
+			await Gtk.FileLauncher.New (file).OpenContainingFolderAsync (PintaCore.Chrome.MainWindow);
+		} catch (Exception e) {
+			Console.Error.WriteLine ($"Failed to open containing folder: {e.Message}");
+		}
 	}
 
 	public static DockNotebook New () => NewWithProperties ([]);

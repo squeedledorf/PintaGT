@@ -80,6 +80,7 @@ public sealed partial class CanvasWindow
 		canvas.Name = "canvas";
 
 		Gtk.Viewport viewPort = Gtk.Viewport.New (null, null);
+		viewPort.AddCssClass ("canvas-border");
 		viewPort.AddController (scrollController);
 		viewPort.Child = canvas;
 
@@ -95,6 +96,7 @@ public sealed partial class CanvasWindow
 		Gtk.ScrolledWindow scrolledWindow = Gtk.ScrolledWindow.New ();
 		scrolledWindow.Hexpand = true;
 		scrolledWindow.Vexpand = true;
+		scrolledWindow.OverlayScrolling = false; // Classic, always-visible scrollbars
 		scrolledWindow.Child = viewPort;
 
 		Ruler horizontalRuler = Ruler.New (Gtk.Orientation.Horizontal);

@@ -223,7 +223,7 @@ internal sealed partial class PintaCanvas
 		// Scale to fit the view size (when zooming in or out).
 		Gsk.ScalingFilter scalingFilter = (document.Workspace.Scale >= 1.0) ?
 			Gsk.ScalingFilter.Nearest :
-			Gsk.ScalingFilter.Linear;
+			Gsk.ScalingFilter.Trilinear; // Mipmapped, for a smooth downsample without shimmer while panning.
 		snapshot.AppendScaledTexture (canvas_texture, scalingFilter, canvasViewBounds);
 	}
 
@@ -250,7 +250,7 @@ internal sealed partial class PintaCanvas
 		snapshot.Scale (scale, scale);
 
 		if (fillSelection) {
-			Gdk.RGBA fillColor = new () { Red = 0.7f, Green = 0.8f, Blue = 0.9f, Alpha = 0.2f };
+			Gdk.RGBA fillColor = new () { Red = 0.25f, Green = 0.5f, Blue = 1.0f, Alpha = 0.25f };
 			snapshot.AppendFill (selection_path, Gsk.FillRule.EvenOdd, fillColor);
 		}
 
@@ -261,7 +261,7 @@ internal sealed partial class PintaCanvas
 
 		// Draw a black dashed line over the white line
 		float dashOffset = selection_animation_dash_offset / scale;
-		stroke.SetDash ([2.0f / scale, 4.0f / scale]);
+		stroke.SetDash ([4.0f / scale, 4.0f / scale]);
 		stroke.SetDashOffset (dashOffset);
 		Gdk.RGBA black = new () { Red = 0, Green = 0, Blue = 0, Alpha = 1 };
 		snapshot.AppendStroke (selection_path, stroke, black);
@@ -454,7 +454,7 @@ internal sealed partial class PintaCanvas
 
 		selection_animation_dash_offset -= 1f;
 		if (selection_animation_dash_offset < 0f)
-			selection_animation_dash_offset += 6f;
+			selection_animation_dash_offset += 8f;
 
 		QueueSelectionUpdate (onlyDisplaySettings: true);
 		return true;

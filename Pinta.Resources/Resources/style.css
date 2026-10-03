@@ -1,5 +1,31 @@
+/* Compact Paint.NET-style toolbox: 16px icons in a two-column grid. */
 .tool-box-button {
-    -gtk-icon-size: 2rem;
+    -gtk-icon-size: 16px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 2px;
+    margin: 1px;
+}
+
+.tool-box-button:checked {
+    background-color: alpha(@accent_bg_color, 0.25);
+    box-shadow: inset 0 0 0 1px @accent_color;
+}
+
+/* Compact toolbar rows. */
+#main_toolbar, #tool_toolbar {
+    padding: 2px;
+}
+
+#main_toolbar button, #tool_toolbar button {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 2px 4px;
+}
+
+#main_toolbar separator, #tool_toolbar separator {
+    min-width: 1px;
+    margin: 4px;
 }
 
 .tool-bar-scale {
@@ -7,8 +33,19 @@
     margin-bottom: -5px;
 }
 
+/* Grey surround of the image (Paint.NET's canvas border). The dark variant is
+   toggled from code, since prefers-color-scheme media queries need GTK 4.20. */
+.canvas-border {
+    background-color: #cfcfcf;
+}
+
+.pinta-dark .canvas-border {
+    background-color: #3a3a3a;
+}
+
+/* Soft drop shadow around the image instead of a hard ring. */
 #canvas {
-    box-shadow: 0px 0px 2px 2px #7F7F7F;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 1px 2px 6px 1px rgba(0, 0, 0, 0.35);
 }
 
 #new-image-preview {

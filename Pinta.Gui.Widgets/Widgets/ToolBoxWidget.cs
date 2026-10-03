@@ -5,18 +5,24 @@ using Pinta.Core;
 
 namespace Pinta.Gui.Widgets;
 
-[GObject.Subclass<Adw.WrapBox>]
+/// <summary>
+/// A compact two-column grid of tool buttons, laid out row-major in tool order like Paint.NET's Tools window.
+/// </summary>
+[GObject.Subclass<Gtk.Grid>]
 public sealed partial class ToolBoxWidget
 {
+	private const int COLUMNS = 2;
+
 	private ToolManager tools = null!; // NRT - set in factory method
-					   // Stores the button corresponding to each tool.
+	// Stores the button corresponding to each tool.
 	private readonly Dictionary<BaseTool, Gtk.ToggleButton> tool_buttons = new ();
 	// Dummy ToggleButton to use for grouping together the tools' buttons.
 	private readonly Gtk.ToggleButton toggle_group = Gtk.ToggleButton.New ();
 
 	partial void Initialize ()
 	{
-		SetOrientation (Gtk.Orientation.Vertical);
+		Valign = Gtk.Align.Start;
+		Halign = Gtk.Align.Center;
 	}
 
 	public static ToolBoxWidget New (ToolManager tools)
@@ -62,14 +68,22 @@ public sealed partial class ToolBoxWidget
 		toolButton.OnClicked += (_, _) => HandleToolButtonClicked (tool);
 		tool_buttons[tool] = toolButton;
 
-		List<BaseTool> toolList = tools.ToList ();
-		int prevIndex = toolList.IndexOf (tool) - 1;
-		if (prevIndex >= 0) {
-			BaseTool prevTool = toolList[prevIndex];
-			Widget? prevSibling = tool_buttons[prevTool];
-			InsertChildAfter (toolButton, prevSibling);
-		} else {
-			Prepend (toolButton);
+		Relayout ();
+	}
+
+	/// <summary>
+	/// Re-attach every button at its row-major cell, since adding or removing a tool shifts the ones after it.
+	/// </summary>
+	private void Relayout ()
+	{
+		foreach (Gtk.ToggleButton button in tool_buttons.Values)
+			if (button.Parent == this)
+				Remove (button);
+
+		int index = 0;
+		foreach (BaseTool tool in tools.Where (tool_buttons.ContainsKey)) {
+			Attach (tool_buttons[tool], index % COLUMNS, index / COLUMNS, 1, 1);
+			index++;
 		}
 	}
 
@@ -93,5 +107,7 @@ public sealed partial class ToolBoxWidget
 	{
 		Gtk.ToggleButton toolButton = tool_buttons[tool];
 		Remove (toolButton);
+		tool_buttons.Remove (tool);
+		Relayout ();
 	}
 }
