@@ -13,7 +13,10 @@ namespace Pinta.Docking;
 [GObject.Subclass<Gtk.Box>]
 public sealed partial class FloatingPanel
 {
-	private const double FADED_OPACITY = 0.7;
+	// Paint.NET 5 only names the behaviour (Settings > User Interface > "Translucent windows", on by default).
+	// 0.7 washed the colours out over the light canvas surround (black read as #3E3E3E); 0.9 keeps them true
+	// while the canvas still shows through.
+	private const double FADED_OPACITY = 0.9;
 
 	private Gtk.Box title_bar;
 	private Gtk.Label title_label;
