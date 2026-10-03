@@ -210,7 +210,7 @@ public sealed partial class ResizeCanvasDialog
 
 		// --- Initialization (Gtk.Window)
 
-		Title = Translations.GetString ("Resize Canvas");
+		Title = Translations.GetString ("Canvas Size");
 		Modal = true;
 		IconName = Resources.Icons.ImageResizeCanvas;
 		DefaultWidth = 300;
@@ -254,10 +254,11 @@ public sealed partial class ResizeCanvasDialog
 		this.workspace = workspace;
 		this.settings = settings;
 
-		percentage_spinner.Value = settings.GetSetting (SettingNames.RESIZE_CANVAS_PERCENTAGE, 100);
-		width_spinner.Value = settings.GetSetting (SettingNames.RESIZE_CANVAS_WIDTH, workspace.ImageSize.Width);
-		height_spinner.Value = settings.GetSetting (SettingNames.RESIZE_CANVAS_HEIGHT, workspace.ImageSize.Height);
-		aspect_checkbox.Active = settings.GetSetting (SettingNames.RESIZE_CANVAS_MAINTAIN_ASPECT, true);
+		// Always start from the current image's size, as in Paint.NET.
+		percentage_spinner.Value = 100;
+		width_spinner.Value = workspace.ImageSize.Width;
+		height_spinner.Value = workspace.ImageSize.Height;
+		aspect_checkbox.Active = settings.GetSetting (SettingNames.RESIZE_CANVAS_MAINTAIN_ASPECT, false);
 
 		// Final initialization
 
@@ -288,9 +289,6 @@ public sealed partial class ResizeCanvasDialog
 		settings.PutSetting (SettingNames.RESIZE_CANVAS_ANCHOR, (int) anchor);
 		settings.PutSetting (SettingNames.RESIZE_CANVAS_MAINTAIN_ASPECT, aspect_checkbox.Active);
 		settings.PutSetting (SettingNames.RESIZE_CANVAS_USE_PERCENTAGE, percentage_radio.Active);
-		settings.PutSetting (SettingNames.RESIZE_CANVAS_PERCENTAGE, percentage_spinner.GetValueAsInt ());
-		settings.PutSetting (SettingNames.RESIZE_CANVAS_WIDTH, width_spinner.GetValueAsInt ());
-		settings.PutSetting (SettingNames.RESIZE_CANVAS_HEIGHT, height_spinner.GetValueAsInt ());
 	}
 
 	private static Gtk.Button CreateAnchorButton ()

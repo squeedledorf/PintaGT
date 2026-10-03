@@ -151,7 +151,7 @@ public sealed partial class ResizeImageDialog
 
 		// --- Initialization (Gtk.Window)
 
-		Title = Translations.GetString ("Resize Image");
+		Title = Translations.GetString ("Resize");
 		Modal = true;
 
 		IconName = Resources.Icons.ImageResize;
@@ -188,9 +188,10 @@ public sealed partial class ResizeImageDialog
 		this.workspace = workspace;
 		this.settings = settings;
 
-		width_spinner.Value = settings.GetSetting (SettingNames.RESIZE_IMAGE_WIDTH, workspace.ImageSize.Width);
-		height_spinner.Value = settings.GetSetting (SettingNames.RESIZE_IMAGE_HEIGHT, workspace.ImageSize.Height);
-		percentage_spinner.Value = settings.GetSetting (SettingNames.RESIZE_IMAGE_PERCENTAGE, 100);
+		// Always start from the current image's size, as in Paint.NET.
+		width_spinner.Value = workspace.ImageSize.Width;
+		height_spinner.Value = workspace.ImageSize.Height;
+		percentage_spinner.Value = 100;
 		aspect_checkbox.Active = settings.GetSetting (SettingNames.RESIZE_IMAGE_MAINTAIN_ASPECT, true);
 		resampling_combobox.Active = settings.GetSetting (SettingNames.RESIZE_IMAGE_RESAMPLING, 0);
 
@@ -218,9 +219,6 @@ public sealed partial class ResizeImageDialog
 		// Save settings for next time
 		settings.PutSetting (SettingNames.RESIZE_IMAGE_MAINTAIN_ASPECT, aspect_checkbox.Active);
 		settings.PutSetting (SettingNames.RESIZE_IMAGE_USE_PERCENTAGE, percentage_radio.Active);
-		settings.PutSetting (SettingNames.RESIZE_IMAGE_PERCENTAGE, percentage_spinner.GetValueAsInt ());
-		settings.PutSetting (SettingNames.RESIZE_IMAGE_WIDTH, width_spinner.GetValueAsInt ());
-		settings.PutSetting (SettingNames.RESIZE_IMAGE_HEIGHT, height_spinner.GetValueAsInt ());
 		settings.PutSetting (SettingNames.RESIZE_IMAGE_RESAMPLING, resampling_combobox.Active);
 	}
 

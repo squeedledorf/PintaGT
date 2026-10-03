@@ -69,10 +69,10 @@ internal sealed class CloseDocumentAction : IActionHandler
 		}
 
 		string heading = Translations.GetString (
-			"Save changes to image \"{0}\" before closing?",
+			"\"{0}\" has unsaved changes.",
 			workspace.ActiveDocument.DisplayName);
 
-		string body = Translations.GetString ("If you don't save, all changes will be permanently lost.");
+		string body = Translations.GetString ("What would you like to do?");
 
 		Adw.MessageDialog dialog = Adw.MessageDialog.New (chrome.MainWindow, heading, body);
 
@@ -80,9 +80,10 @@ internal sealed class CloseDocumentAction : IActionHandler
 		const string discard_response = "discard";
 		const string save_response = "save";
 
-		dialog.AddResponse (cancel_response, Translations.GetString ("_Cancel"));
-		dialog.AddResponse (discard_response, Translations.GetString ("_Discard"));
+		// Same order as Paint.NET's Unsaved Changes dialog.
 		dialog.AddResponse (save_response, Translations.GetString ("_Save"));
+		dialog.AddResponse (discard_response, Translations.GetString ("Do_n't Save"));
+		dialog.AddResponse (cancel_response, Translations.GetString ("_Cancel"));
 
 		// Configure the styling for the save / discard buttons.
 		dialog.SetResponseAppearance (discard_response, Adw.ResponseAppearance.Destructive);

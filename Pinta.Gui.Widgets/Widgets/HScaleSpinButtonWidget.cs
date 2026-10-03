@@ -50,7 +50,6 @@ public sealed partial class HScaleSpinButtonWidget
 		const int SPACING = 6;
 
 		Gtk.Label titleLabel = Gtk.Label.New (null);
-		titleLabel.AddCssClass (AdwaitaStyles.Title4);
 
 		Gtk.Box labelAndLine = Gtk.Box.New (Gtk.Orientation.Horizontal, SPACING);
 		labelAndLine.Append (titleLabel);
@@ -76,7 +75,8 @@ public sealed partial class HScaleSpinButtonWidget
 		spinButton.SetActivatesDefault (true);
 		spinButton.AddController (spinButtonKeyController);
 
-		Gtk.Button resetButton = Gtk.Button.NewFromIconName (Resources.StandardIcons.GoPrevious);
+		Gtk.Button resetButton = Gtk.Button.NewFromIconName (Resources.StandardIcons.EditUndo);
+		resetButton.TooltipText = Translations.GetString ("Reset");
 		resetButton.WidthRequest = 28;
 		resetButton.HeightRequest = 24;
 		resetButton.CanFocus = true;
