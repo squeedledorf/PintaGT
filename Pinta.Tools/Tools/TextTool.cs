@@ -123,6 +123,7 @@ public sealed class TextTool : BaseTool
 	#region ToolBar
 	// NRT - Created by OnBuildToolBar
 	private Gtk.Label font_label = null!;
+	private const int DEFAULT_FONT_SIZE = 12;
 	private Gtk.FontDialogButton font_button = null!;
 	private ToolBarDropDownButton variant_btn = null!;
 	private Gtk.SpinButton font_size = null!;
@@ -174,9 +175,15 @@ public sealed class TextTool : BaseTool
 					EllipsizeLabels (c);
 			}
 			EllipsizeLabels (font_button);
-			font_button.FontDesc = Pango.FontDescription.FromString (
-				Settings.GetSetting (SettingNames.TEXT_FONT,
-					Gtk.Settings.GetDefault ()!.GtkFontName!));
+			string savedFont = Settings.GetSetting (SettingNames.TEXT_FONT, string.Empty);
+			if (savedFont.Length > 0) {
+				font_button.FontDesc = Pango.FontDescription.FromString (savedFont);
+			} else {
+				// First use: the system font family at Paint.NET's default size of 12.
+				Pango.FontDescription defaultFont = Pango.FontDescription.FromString (Gtk.Settings.GetDefault ()!.GtkFontName!);
+				defaultFont.SetSize (PangoExtensions.UnitsFromPixels (DEFAULT_FONT_SIZE));
+				font_button.FontDesc = defaultFont;
+			}
 
 			Gtk.FontDialogButton.FontDescPropertyDefinition.Notify (font_button, (_, _) => {
 				HandleFontChanged ();

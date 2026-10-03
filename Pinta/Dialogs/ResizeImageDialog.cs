@@ -62,14 +62,27 @@ public sealed partial class ResizeImageDialog
 
 		Gtk.SpinButton percentageSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
 		percentageSpinner.OnValueChanged += percentageSpinner_ValueChanged;
+		// Follow the percentage while it is typed, not only once it is committed.
+		percentageSpinner.OnChanged += (_, _) => {
+			if (TryGetTypedValue (percentageSpinner, out int percent))
+				ApplyPercentage (percent);
+		};
 		percentageSpinner.SetActivatesDefaultImmediate (true);
 
 		Gtk.SpinButton widthSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
-		widthSpinner.OnValueChanged += widthSpinner_ValueChanged;
+		widthSpinner.OnValueChanged += (_, _) => UpdateHeightFromWidth (widthSpinner.GetValueAsInt ());
+		widthSpinner.OnChanged += (_, _) => {
+			if (TryGetTypedValue (widthSpinner, out int width))
+				UpdateHeightFromWidth (width);
+		};
 		widthSpinner.SetActivatesDefaultImmediate (true);
 
 		Gtk.SpinButton heightSpinner = Gtk.SpinButton.NewWithRange (1, int.MaxValue, 1);
-		heightSpinner.OnValueChanged += heightSpinner_ValueChanged;
+		heightSpinner.OnValueChanged += (_, _) => UpdateWidthFromHeight (heightSpinner.GetValueAsInt ());
+		heightSpinner.OnChanged += (_, _) => {
+			if (TryGetTypedValue (heightSpinner, out int height))
+				UpdateWidthFromHeight (height);
+		};
 		heightSpinner.SetActivatesDefaultImmediate (true);
 
 		Gtk.CheckButton aspectCheckbox = Gtk.CheckButton.NewWithLabel (Translations.GetString ("Maintain aspect ratio"));
@@ -196,12 +209,14 @@ public sealed partial class ResizeImageDialog
 		resampling_combobox.Active = settings.GetSetting (SettingNames.RESIZE_IMAGE_RESAMPLING, 0);
 
 		// Final initialization
-		if (settings.GetSetting (SettingNames.RESIZE_IMAGE_USE_PERCENTAGE, true))
+		// Paint.NET opens in "By absolute size" with Width selected, so typing a number sets the width.
+		if (settings.GetSetting (SettingNames.RESIZE_IMAGE_USE_PERCENTAGE, false)) {
 			percentage_radio.Active = true;
-		else
+			percentage_spinner.GrabFocus ();
+		} else {
 			absolute_radio.Active = true;
-
-		percentage_spinner.GrabFocus ();
+			width_spinner.GrabFocus ();
+		}
 	}
 
 	internal static ResizeImageDialog New (IChromeService chrome, IWorkspaceService workspace, ISettingsService settings)
@@ -245,7 +260,13 @@ public sealed partial class ResizeImageDialog
 		return new (newSize, resamplingMode);
 	}
 
-	private void heightSpinner_ValueChanged (object? sender, EventArgs e)
+	/// <summary>
+	/// The number currently typed into a spin button, before GTK commits it as the value.
+	/// </summary>
+	private static bool TryGetTypedValue (Gtk.SpinButton spinner, out int value)
+		=> int.TryParse (spinner.GetText (), out value) && value > 0;
+
+	private void UpdateWidthFromHeight (int height)
 	{
 		if (value_changing)
 			return;
@@ -254,11 +275,11 @@ public sealed partial class ResizeImageDialog
 			return;
 
 		value_changing = true;
-		width_spinner.Value = (int) (height_spinner.Value * workspace.ImageSize.Width / workspace.ImageSize.Height);
+		width_spinner.Value = (int) ((double) height * workspace.ImageSize.Width / workspace.ImageSize.Height);
 		value_changing = false;
 	}
 
-	private void widthSpinner_ValueChanged (object? sender, EventArgs e)
+	private void UpdateHeightFromWidth (int width)
 	{
 		if (value_changing)
 			return;
@@ -267,13 +288,16 @@ public sealed partial class ResizeImageDialog
 			return;
 
 		value_changing = true;
-		height_spinner.Value = (int) (width_spinner.Value * workspace.ImageSize.Height / workspace.ImageSize.Width);
+		height_spinner.Value = (int) ((double) width * workspace.ImageSize.Height / workspace.ImageSize.Width);
 		value_changing = false;
 	}
 
 	private void percentageSpinner_ValueChanged (object? sender, EventArgs e)
+		=> ApplyPercentage (percentage_spinner.GetValueAsInt ());
+
+	private void ApplyPercentage (int percent)
 	{
-		float proportion = percentage_spinner.GetValueAsInt () / 100f;
+		float proportion = percent / 100f;
 		width_spinner.Value = (int) (workspace.ImageSize.Width * proportion);
 		height_spinner.Value = (int) (workspace.ImageSize.Height * proportion);
 	}
