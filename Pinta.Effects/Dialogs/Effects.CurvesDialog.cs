@@ -210,6 +210,13 @@ public sealed partial class CurvesDialog
 			check_red.Visible = check_green.Visible = check_blue.Visible = visible;
 			check_luminosity.Visible = !visible;
 
+			// Paint.NET's combo hands Enter back to OK; a focused GTK combo would reopen its popup instead.
+			// Deferred, because the closing popup returns focus to the combo after this handler.
+			GLib.Functions.IdleAdd (0, () => {
+				curves_drawing.GrabFocus ();
+				return false;
+			});
+
 			InvalidateDrawing ();
 		}
 	}
@@ -226,7 +233,7 @@ public sealed partial class CurvesDialog
 
 	private Gtk.Button CreateResetButton ()
 	{
-		Gtk.Button result = Gtk.Button.NewWithLabel (Translations.GetString ("Reset"));
+		Gtk.Button result = Gtk.Button.NewWithMnemonic (Translations.GetString ("_Reset"));
 		result.WidthRequest = 81;
 		result.HeightRequest = 30;
 		result.Halign = Gtk.Align.Start;
