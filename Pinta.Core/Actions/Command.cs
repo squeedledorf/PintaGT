@@ -82,7 +82,13 @@ public class Command
 	}
 
 	public Gio.MenuItem CreateMenuItem ()
-		=> Gio.MenuItem.New (Label, FullName);
+	{
+		Gio.MenuItem item = Gio.MenuItem.New (Label, FullName);
+		// GTK only shows it where a menu asks for icons (see PdnMenus).
+		if (IconName is not null)
+			item.SetIcon (Gio.ThemedIcon.New (IconName));
+		return item;
+	}
 }
 
 public sealed class ToggleCommand : Command
