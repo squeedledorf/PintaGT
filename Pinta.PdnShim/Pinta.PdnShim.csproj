@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Clean-room implementation of the Paint.NET effect plugin API, written from the public
+    documentation (github.com/paintdotnet/apidocs) and from the member references that
+    third-party plugin DLLs make. Nothing here comes from Paint.NET's own binaries.
+
+    Plugins reference assemblies such as PaintDotNet.Core, PaintDotNet.Effects,
+    PaintDotNet.Base, PaintDotNet.PropertySystem and System.Drawing(.Common). Pinta's
+    plugin loader answers each of those names with a small facade generated at load time
+    that forwards every type to this one assembly, so types that moved between Paint.NET
+    3, 4 and 5 resolve to the same implementation.
+  -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <RootNamespace>PaintDotNet</RootNamespace>
+    <NoWarn>$(NoWarn);CS0108;CS0114;CS0660;CS0661;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="../properties/ReferenceGirCorePangoCairo10.props" />
+</Project>

@@ -78,9 +78,19 @@ public sealed class EffectsActions
 		return categories_section;
 	}
 
+	/// <summary>
+	/// Adds an effect to the submenu for <paramref name="category"/>, or directly to the Effects menu when the category is empty
+	/// (as Paint.NET does for plugins without a submenu).
+	/// </summary>
 	public void AddEffect (string category, Command action)
 	{
 		var effects_menu = GetCategoriesSection ();
+
+		if (string.IsNullOrEmpty (category)) {
+			Actions.Add (action);
+			effects_menu.AppendMenuItemSorted (action.CreateMenuItem ());
+			return;
+		}
 
 		if (!Menus.ContainsKey (category)) {
 			var category_menu = Gio.Menu.New ();
@@ -97,6 +107,11 @@ public sealed class EffectsActions
 	// TODO: Remove menu category if empty
 	internal void RemoveEffect (string category, Command action)
 	{
+		if (string.IsNullOrEmpty (category)) {
+			categories_section?.Remove (action);
+			return;
+		}
+
 		if (!Menus.ContainsKey (category))
 			return;
 

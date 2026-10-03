@@ -26,6 +26,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Pinta.Core;
 
@@ -34,10 +35,13 @@ namespace Pinta.Core;
 /// </summary>
 public sealed class EffectsManager
 {
-	private readonly Dictionary<Type, Command> adjustments;
+	// Keyed by runtime type and name, so one wrapper type (such as the Paint.NET plugin adapter) can register many effects.
+	private readonly record struct EffectKey (Type Type, string Name);
 
-	private readonly Dictionary<Type, Command> effects;
-	private readonly Dictionary<Type, string> effects_categories;
+	private readonly Dictionary<EffectKey, Command> adjustments;
+
+	private readonly Dictionary<EffectKey, Command> effects;
+	private readonly Dictionary<EffectKey, string> effects_categories;
 
 	private readonly ActionManager action_manager;
 	private readonly ChromeManager chrome_manager;
@@ -92,14 +96,14 @@ public sealed class EffectsManager
 		if (!GtkExtensions.GetDefaultIconTheme ().HasIcon (adjustment.Icon))
 			Console.Error.WriteLine ($"Icon {adjustment.Icon} for adjustment {adjustment.Name} not found");
 #endif
-		Type adjustmentType = typeof (T);
+		EffectKey key = new (adjustment.GetType (), adjustment.Name);
 
-		if (adjustments.ContainsKey (adjustmentType))
-			throw new Exception ($"An adjustment of type {adjustmentType} is already registered");
+		if (adjustments.ContainsKey (key))
+			throw new Exception ($"An adjustment of type {key.Type} named {key.Name} is already registered");
 
 		// Create a gtk action for each adjustment
 		Command action = new (
-			adjustmentType.Name,
+			ActionName (adjustments, key),
 			adjustment.Name + (adjustment.IsConfigurable ? Translations.GetString ("...") : ""),
 			string.Empty,
 			adjustment.Icon,
@@ -116,7 +120,21 @@ public sealed class EffectsManager
 
 		chrome_manager.AdjustmentsMenu.AppendMenuItemSorted (action.CreateMenuItem ());
 
-		adjustments.Add (adjustmentType, action);
+		adjustments.Add (key, action);
+	}
+
+	/// <summary>
+	/// The action name: the type name for the first effect of a type, plus a hash of the effect name for any others.
+	/// </summary>
+	private static string ActionName (Dictionary<EffectKey, Command> registered, EffectKey key)
+	{
+		if (!registered.Keys.Any (k => k.Type == key.Type))
+			return key.Type.Name;
+
+		uint hash = 2166136261;
+		foreach (char c in key.Name)
+			hash = (hash ^ c) * 16777619;
+		return $"{key.Type.Name}-{hash:x8}";
 	}
 
 	/// <summary>
@@ -130,14 +148,14 @@ public sealed class EffectsManager
 		if (!GtkExtensions.GetDefaultIconTheme ().HasIcon (effect.Icon))
 			Console.Error.WriteLine ($"Icon {effect.Icon} for effect {effect.Name} not found");
 #endif
-		Type effectType = typeof (T);
+		EffectKey key = new (effect.GetType (), effect.Name);
 
-		if (effects.ContainsKey (effectType))
-			throw new Exception ($"An effect of type {effectType} is already registered");
+		if (effects.ContainsKey (key))
+			throw new Exception ($"An effect of type {key.Type} named {key.Name} is already registered");
 
 		// Create a gtk action and menu item for each effect
 		Command action = new (
-			effectType.Name,
+			ActionName (effects, key),
 			effect.Name + (effect.IsConfigurable ? Translations.GetString ("...") : ""),
 			string.Empty,
 			effect.Icon);
@@ -147,8 +165,8 @@ public sealed class EffectsManager
 
 		action_manager.Effects.AddEffect (effect.EffectMenuCategory, action);
 
-		effects.Add (effectType, action);
-		effects_categories.Add (effectType, effect.EffectMenuCategory);
+		effects.Add (key, action);
+		effects_categories.Add (key, effect.EffectMenuCategory);
 	}
 
 	/// <summary>
@@ -157,21 +175,19 @@ public sealed class EffectsManager
 	/// <param name="effect_type">The type of the effect to unregister</param>
 	public void UnregisterInstanceOfEffect<T> () where T : BaseEffect
 	{
-		Type effectType = typeof (T);
+		foreach (EffectKey key in effects.Keys.Where (k => k.Type == typeof (T)).ToArray ()) {
+			Command action = effects[key];
+			string category = effects_categories[key];
 
-		if (!effects.TryGetValue (effectType, out var action))
-			return;
+			if (last_effect?.GetType () == key.Type && last_effect.Name == key.Name) {
+				last_effect = null;
+				action_manager.Effects.ClearRepeatableEffect ();
+			}
 
-		string category = effects_categories[effectType];
-
-		if (last_effect?.GetType () == effectType) {
-			last_effect = null;
-			action_manager.Effects.ClearRepeatableEffect ();
+			effects.Remove (key);
+			action_manager.Effects.RemoveEffect (category, action);
+			effects_categories.Remove (key);
 		}
-
-		effects.Remove (effectType);
-		action_manager.Effects.RemoveEffect (category, action);
-		effects_categories.Remove (effectType);
 	}
 
 	/// <summary>
@@ -180,13 +196,11 @@ public sealed class EffectsManager
 	/// <param name="adjustment_type">The type of the adjustment to unregister</param>
 	public void UnregisterInstanceOfAdjustment<T> () where T : BaseEffect
 	{
-		Type adjustmentType = typeof (T);
-
-		if (!adjustments.TryGetValue (adjustmentType, out var action))
-			return;
-
-		adjustments.Remove (adjustmentType);
-		action_manager.Adjustments.Actions.Remove (action);
-		chrome_manager.AdjustmentsMenu.Remove (action);
+		foreach (EffectKey key in adjustments.Keys.Where (k => k.Type == typeof (T)).ToArray ()) {
+			Command action = adjustments[key];
+			adjustments.Remove (key);
+			action_manager.Adjustments.Actions.Remove (action);
+			chrome_manager.AdjustmentsMenu.Remove (action);
+		}
 	}
 }

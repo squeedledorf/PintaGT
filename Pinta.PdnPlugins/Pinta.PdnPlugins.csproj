@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Loads Paint.NET effect plugins (DLLs) and runs them as Pinta effects, through Pinta.PdnShim. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Pinta.Core\Pinta.Core.csproj" />
+    <ProjectReference Include="..\Pinta.Gui.Widgets\Pinta.Gui.Widgets.csproj" />
+    <ProjectReference Include="..\Pinta.PdnShim\Pinta.PdnShim.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Mono.Addins" />
+    <!-- Not used by Pinta; many plugins load .resx data or settings through these. -->
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
+    <PackageReference Include="System.Resources.Extensions" />
+  </ItemGroup>
+</Project>
