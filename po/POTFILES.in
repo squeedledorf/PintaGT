@@ -236,6 +236,7 @@ Pinta.Effects/Effects/AlignObjectEffect.cs
 Pinta.Effects/Effects/BulgeEffect.cs
 Pinta.Effects/Effects/CellsEffect.cs
 Pinta.Effects/Effects/CloudsEffect.cs
+Pinta.Effects/Effects/CrystalizeEffect.cs
 Pinta.Effects/Effects/DentsEffect.cs
 Pinta.Effects/Effects/DitheringEffect.cs
 Pinta.Effects/Effects/EdgeDetectEffect.cs
@@ -249,6 +250,7 @@ Pinta.Effects/Effects/InkSketchEffect.cs
 Pinta.Effects/Effects/JuliaFractalEffect.cs
 Pinta.Effects/Effects/MandelbrotFractalEffect.cs
 Pinta.Effects/Effects/MedianEffect.cs
+Pinta.Effects/Effects/MorphologyEffect.cs
 Pinta.Effects/Effects/MotionBlurEffect.cs
 Pinta.Effects/Effects/OilPaintingEffect.cs
 Pinta.Effects/Effects/OutlineEdgeEffect.cs
