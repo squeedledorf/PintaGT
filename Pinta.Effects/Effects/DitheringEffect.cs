@@ -11,7 +11,7 @@ namespace Pinta.Effects;
 public sealed class DitheringEffect : BaseEffect
 {
 	public override string Name
-		=> Translations.GetString ("Dithering");
+		=> Translations.GetString ("Quantize");
 
 	public override bool IsConfigurable
 		=> true;

@@ -21,7 +21,7 @@ public sealed class AutoLevelEffect : BaseEffect
 
 	public override string Icon => Pinta.Resources.Icons.AdjustmentsAutoLevel;
 
-	public override string Name => Translations.GetString ("Auto Level");
+	public override string Name => Translations.GetString ("Auto-Level");
 
 	public override string AdjustmentMenuKey => "L";
 

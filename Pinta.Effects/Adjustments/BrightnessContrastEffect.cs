@@ -43,7 +43,7 @@ public sealed class BrightnessContrastEffect : BaseEffect
 		=> true;
 
 	public override string AdjustmentMenuKey
-		=> "B";
+		=> "T";
 
 	public BrightnessContrastData Data
 		=> (BrightnessContrastData) EffectData!;  // NRT - Set in constructor
