@@ -263,6 +263,11 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 			CurrentTool?.DoMouseUp (document, args);
 	}
 
+	/// <summary>
+	/// Whether Space is held down to pan the canvas.
+	/// </summary>
+	public bool IsSpaceHeld => space_held;
+
 	public bool DoKeyDown (Document document, ToolKeyEventArgs args)
 	{
 		bool is_space = args.Key.Value == Gdk.Constants.KEY_space;

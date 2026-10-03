@@ -42,6 +42,7 @@ public sealed partial class CanvasWindow
 	private PintaCanvas canvas;
 	private Ruler horizontal_ruler;
 	private Ruler vertical_ruler;
+	private Gtk.Label ruler_units;
 	private Gtk.ScrolledWindow scrolled_window;
 	private Gtk.Widget? horizontal_scrollbar;
 	private Gtk.Widget? vertical_scrollbar;
@@ -59,7 +60,7 @@ public sealed partial class CanvasWindow
 	public Gtk.Widget Canvas { get { return canvas; } }
 
 	[MemberNotNull (nameof (canvas))]
-	[MemberNotNull (nameof (horizontal_ruler), nameof (vertical_ruler))]
+	[MemberNotNull (nameof (horizontal_ruler), nameof (vertical_ruler), nameof (ruler_units))]
 	[MemberNotNull (nameof (scrolled_window), nameof (horizontal_scrollbar), nameof (vertical_scrollbar))]
 	[MemberNotNull (nameof (motion_controller), nameof (drag_controller), nameof (gesture_zoom))]
 	partial void Initialize ()
@@ -107,6 +108,14 @@ public sealed partial class CanvasWindow
 		verticalRuler.Metric = MetricType.Pixels;
 		verticalRuler.Visible = false;
 
+		// Paint.NET names the units in the corner where the rulers meet.
+		Gtk.Label rulerUnits = Gtk.Label.New (null);
+		rulerUnits.SetMarkup (UnitsMarkup (MetricType.Pixels));
+		rulerUnits.AddCssClass ("ruler-units");
+		rulerUnits.Valign = Gtk.Align.Center;
+		rulerUnits.Halign = Gtk.Align.Center;
+		rulerUnits.Visible = false;
+
 		Gtk.EventControllerMotion motionController = Gtk.EventControllerMotion.New ();
 		motionController.OnMotion += HandleMotion;
 
@@ -125,6 +134,7 @@ public sealed partial class CanvasWindow
 		ColumnHomogeneous = false;
 		RowHomogeneous = false;
 
+		Attach (rulerUnits, 0, 0, 1, 1);
 		Attach (horizontalRuler, 1, 0, 1, 1);
 		Attach (verticalRuler, 0, 1, 1, 1);
 		Attach (scrolledWindow, 1, 1, 1, 1);
@@ -137,6 +147,7 @@ public sealed partial class CanvasWindow
 		gesture_zoom = gestureZoom;
 		horizontal_ruler = horizontalRuler;
 		vertical_ruler = verticalRuler;
+		ruler_units = rulerUnits;
 		motion_controller = motionController;
 		drag_controller = dragController;
 		horizontal_scrollbar = scrolledWindow.GetHscrollbar ();
@@ -220,8 +231,8 @@ public sealed partial class CanvasWindow
 		if (drag_controller.GetStartPoint (out _, out _))
 			return;
 
-		if (document.Workspace.PointInCanvas (current_canvas_pos))
-			chrome.LastCanvasCursorPoint = current_canvas_pos.ToInt ();
+		// As in Paint.NET, the position also shows outside the image, negative above and left of it.
+		chrome.LastCanvasCursorPoint = new ((int) Math.Floor (current_canvas_pos.X), (int) Math.Floor (current_canvas_pos.Y));
 
 		ToolMouseEventArgs tool_args = new () {
 			State = controller.GetCurrentEventState (),
@@ -269,6 +280,7 @@ public sealed partial class CanvasWindow
 			if (horizontal_ruler.Visible == value) return;
 			horizontal_ruler.Visible = value;
 			vertical_ruler.Visible = value;
+			ruler_units.Visible = value;
 		}
 	}
 
@@ -278,7 +290,18 @@ public sealed partial class CanvasWindow
 			if (horizontal_ruler.Metric == value) return;
 			horizontal_ruler.Metric = value;
 			vertical_ruler.Metric = value;
+			ruler_units.SetMarkup (UnitsMarkup (value));
 		}
+	}
+
+	private static string UnitsMarkup (MetricType metric)
+	{
+		string units = metric switch {
+			MetricType.Inches => Translations.GetString ("in"),
+			MetricType.Centimeters => Translations.GetString ("cm"),
+			_ => Translations.GetString ("px"),
+		};
+		return $"<small>{GLib.Functions.MarkupEscapeText (units, -1)}</small>";
 	}
 
 	public void UpdateRulerRange (object? sender, EventArgs e)
@@ -403,8 +426,8 @@ public sealed partial class CanvasWindow
 		this.TranslateCoordinates (Canvas, rootPoint, out PointD viewPoint);
 
 		current_canvas_pos = document.Workspace.ViewPointToCanvas (viewPoint);
-		if (document.Workspace.PointInCanvas (current_canvas_pos))
-			chrome.LastCanvasCursorPoint = current_canvas_pos.ToInt ();
+		// As in Paint.NET, the position also shows outside the image, negative above and left of it.
+		chrome.LastCanvasCursorPoint = new ((int) Math.Floor (current_canvas_pos.X), (int) Math.Floor (current_canvas_pos.Y));
 
 		// Send the mouse move event to the current tool.
 		ToolMouseEventArgs tool_args = new () {
@@ -443,6 +466,10 @@ public sealed partial class CanvasWindow
 		Gtk.EventControllerKey controller,
 		Gtk.EventControllerKey.KeyPressedSignalArgs args)
 	{
+		// Space + arrows pans, ahead of the tools' own arrow-key nudging.
+		if (tools.IsSpaceHeld && HandlePanKey (args.Keyval, args.State))
+			return true;
+
 		// Give the current tool a chance to handle the key press
 		ToolKeyEventArgs tool_args = new () {
 			Event = controller.GetCurrentEvent (),
@@ -450,7 +477,80 @@ public sealed partial class CanvasWindow
 			State = args.State,
 		};
 
-		return tools.DoKeyDown (document, tool_args);
+		return tools.DoKeyDown (document, tool_args) || HandleScrollKey (args.Keyval, args.State);
+	}
+
+	private uint last_home_end_key;
+	private long last_home_end_time;
+
+	// Paint.NET's keyboard scrolling: PgUp/PgDn scroll up/down a page, Shift+PgUp/PgDn left/right.
+	// Home/End scroll left/right; pressed twice (or with Shift) they go to the top-left/bottom-right;
+	// Ctrl+Home/End bring the top-left/bottom-right corner to the middle of the window.
+	private bool HandleScrollKey (uint key, Gdk.ModifierType state)
+	{
+		if (state.IsAltPressed ())
+			return false;
+
+		bool shift = state.IsShiftPressed ();
+		bool ctrl = state.IsControlPressed ();
+		Gtk.Adjustment h = scrolled_window.Hadjustment!;
+		Gtk.Adjustment v = scrolled_window.Vadjustment!;
+
+		switch (key) {
+			case Gdk.Constants.KEY_Page_Up:
+			case Gdk.Constants.KEY_Page_Down:
+				// Ctrl+PgUp/PgDn switch images.
+				if (ctrl)
+					return false;
+				Gtk.Adjustment adjustment = shift ? h : v;
+				double sign = key == Gdk.Constants.KEY_Page_Up ? -1 : 1;
+				adjustment.Value += sign * adjustment.PageIncrement;
+				return true;
+
+			case Gdk.Constants.KEY_Home:
+			case Gdk.Constants.KEY_End:
+				bool home = key == Gdk.Constants.KEY_Home;
+				if (ctrl) {
+					// Pinta can't scroll past the image's edge, so this goes as far as the scrollbars allow.
+					document.Workspace.RecenterView (home ? PointD.Zero : new PointD (document.ImageSize.Width, document.ImageSize.Height));
+					return true;
+				}
+
+				long now = GLib.Functions.GetMonotonicTime ();
+				bool twice = key == last_home_end_key && now - last_home_end_time < 1_000_000;
+				last_home_end_key = twice ? 0 : key;
+				last_home_end_time = now;
+
+				if (shift || twice) {
+					h.Value = home ? h.Lower : h.Upper - h.PageSize;
+					v.Value = home ? v.Lower : v.Upper - v.PageSize;
+				} else
+					h.Value += (home ? -1 : 1) * h.PageIncrement;
+				return true;
+		}
+
+		return false;
+	}
+
+	// Space + arrow keys pans the canvas a step, and ten steps with Ctrl.
+	private bool HandlePanKey (uint key, Gdk.ModifierType state)
+	{
+		(int dx, int dy) = key switch {
+			Gdk.Constants.KEY_Left => (-1, 0),
+			Gdk.Constants.KEY_Right => (1, 0),
+			Gdk.Constants.KEY_Up => (0, -1),
+			Gdk.Constants.KEY_Down => (0, 1),
+			_ => (0, 0),
+		};
+		if (dx == 0 && dy == 0)
+			return false;
+
+		int steps = state.IsControlPressed () ? 10 : 1;
+		Gtk.Adjustment h = scrolled_window.Hadjustment!;
+		Gtk.Adjustment v = scrolled_window.Vadjustment!;
+		h.Value += dx * steps * h.StepIncrement;
+		v.Value += dy * steps * v.StepIncrement;
+		return true;
 	}
 
 	public bool DoKeyReleaseEvent (

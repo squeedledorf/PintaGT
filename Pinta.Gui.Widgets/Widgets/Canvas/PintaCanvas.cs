@@ -158,10 +158,11 @@ internal sealed partial class PintaCanvas
 
 		DrawTransparentBackground (snapshot, canvasViewBounds);
 		DrawCanvasTexture (snapshot, modified_area, canvasViewBounds);
-		DrawSelection (snapshot, canvasViewBounds);
-		DrawHandles (snapshot, canvasViewBounds);
+		// The grids go under the selection outline and handles.
 		DrawCanvasGrid (snapshot, canvasViewBounds);
 		DrawCanvasAxonometricGrid (snapshot, canvasViewBounds);
+		DrawSelection (snapshot, canvasViewBounds);
+		DrawHandles (snapshot, canvasViewBounds);
 
 		// In the future, this would be cleaner to implement as a custom widget once gir.core supports virtual methods
 		// (in particular, zooming might be easier when we have control over the size allocation)
@@ -295,15 +296,18 @@ internal sealed partial class PintaCanvas
 		snapshot.PushClip (canvasViewBounds);
 		snapshot.Save ();
 
+		// Move half a screen pixel so each line covers one whole pixel column or row instead of blurring over two.
+		snapshot.Translate (new Graphene.Point { X = 0.5f, Y = 0.5f });
+
 		// Scale the selection path up to the view size.
 		float scale = (float) document.Workspace.Scale;
 		snapshot.Scale (scale, scale);
 
-		// Draw as a dotted line (every other pixel) to have a more subtle appearance.
+		// Paint.NET's grid: a solid, translucent dark line that darkens what is under it, light grey on
+		// white, so it never looks like the dashed marching ants drawn over it.
 		Gsk.Stroke stroke = Gsk.Stroke.New (lineWidth: 1.0f / scale);
-		stroke.SetDash ([1.0f / scale, 1.0f / scale]);
 
-		Gdk.RGBA color = new () { Red = 0, Green = 0, Blue = 0, Alpha = 1 };
+		Gdk.RGBA color = new () { Red = 0, Green = 0, Blue = 0, Alpha = 0.35f };
 		snapshot.AppendStroke (gridPath, stroke, color);
 
 		snapshot.Restore ();
@@ -341,13 +345,14 @@ internal sealed partial class PintaCanvas
 		if (!canvas_grid.ShowGrid)
 			return false;
 
-		const int MIN_GRID_LINE_DISTANCE = 5;
+		// Paint.NET shows the pixel grid from 200%.
+		const int MIN_GRID_LINE_DISTANCE = 2;
 
 		int cellHeight = canvas_grid.CellHeight;
 		int cellWidth = canvas_grid.CellWidth;
 
 		int minCanvasDistance = Math.Min (cellHeight, cellWidth);
-		int minViewDistance = (int) Math.Ceiling (minCanvasDistance * document.Workspace.Scale);
+		double minViewDistance = minCanvasDistance * document.Workspace.Scale;
 
 		return minViewDistance >= MIN_GRID_LINE_DISTANCE;
 	}

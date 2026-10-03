@@ -63,6 +63,9 @@ public sealed partial class DockNotebook
 		Adw.TabView tabView = Adw.TabView.New ();
 		tabView.Vexpand = true;
 		tabView.Valign = Gtk.Align.Fill;
+		// In Paint.NET, Ctrl(+Shift)+Home/End scroll the canvas rather than switching or moving images.
+		tabView.Shortcuts &= ~(Adw.TabViewShortcuts.ControlHome | Adw.TabViewShortcuts.ControlEnd
+			| Adw.TabViewShortcuts.ControlShiftHome | Adw.TabViewShortcuts.ControlShiftEnd);
 		tabView.OnClosePage += TabView_OnClosePage;
 		tabView.OnPageReordered += (_, args) => TabReordered?.Invoke (this, new TabReorderedEventArgs (FindItemForPage (args.Page)!, args.Position));
 

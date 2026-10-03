@@ -216,12 +216,8 @@ public sealed partial class Ruler
 			_ => throw new UnreachableException (),
 		};
 
-		double pixels_per_unit = Metric switch {
-			MetricType.Pixels => 1.0,
-			MetricType.Inches => 72,
-			MetricType.Centimeters => 28.35,
-			_ => throw new UnreachableException (),
-		};
+		// The same conversion as the status bar's readouts.
+		double pixels_per_unit = ViewActions.PixelsPerUnit ((int) Metric);
 
 		// Find our scaled range.
 
