@@ -6,6 +6,10 @@ PintaGT is a fork of [Pinta](https://github.com/PintaProject/Pinta) reworked to 
 
 PintaGT is an independent project. It is not affiliated with, endorsed by, or connected to Paint.NET or its developer. "Paint.NET" is used here only to describe the style of interface the fork imitates.
 
+PintaGT is a personal project, maintained when I have time. It is not a supported product. Issues and pull requests are welcome, but there is no promise they will be answered.
+
+Much of PintaGT's code was written with the help of AI coding tools, then reviewed, built and tested before it was committed.
+
 ## What's different from Pinta
 
 **Window layout**
@@ -62,6 +66,7 @@ PintaGT can load many Paint.NET effect plugins (DLLs) and show them in its Effec
   Help > Paint.NET Plugins... lists every plugin it found, with the reason for any that can't run.
 - **Track record:** in testing, 78 of 150 sampled plugin effects ran.
 - **Installing:** put plugin DLLs in `~/.config/PintaGT/PdnPlugins/Effects/`. A subfolder per plugin is fine if it ships extra DLLs.
+- **Reporting problems:** if a plugin misbehaves in PintaGT, report it in this repository's issues, not to the plugin's author. Plugin authors write for Paint.NET and have no reason to support PintaGT.
 
 The compatibility layer (`Pinta.PdnShim`, `Pinta.PdnPlugins`) was written from Paint.NET's public plugin API documentation and from the metadata of third-party plugins. No Paint.NET binaries are included or were decompiled. No plugins are bundled.
 
