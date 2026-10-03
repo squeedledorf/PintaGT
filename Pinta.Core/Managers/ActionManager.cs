@@ -212,7 +212,11 @@ public sealed class ActionManager
 			UpdateCursor ();
 			UpdateSelectionSize ();
 		}
-		View.RulerMetric.OnActivate += (_, args) => UpdateUnits (args.Parameter);
+		View.RulerMetric.OnActivate += (_, args) => {
+			// Change the state here too, so the units also switch while no image is open.
+			View.RulerMetric.ChangeState (args.Parameter!);
+			UpdateUnits (args.Parameter);
+		};
 		UpdateUnits (View.RulerMetric.GetState ());
 
 		// Document zoom widgets

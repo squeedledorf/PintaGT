@@ -922,11 +922,14 @@ internal sealed class MainWindow
 			view.SuspendZoomUpdate ();
 			view.ZoomComboBox.ComboBox.GetEntry ().SetText (ViewActions.ToPercent (scale));
 			view.ResumeZoomUpdate ();
-			// Scroll once the scrollbars have caught up with the new size.
+			// Scroll once the scrollbars have caught up with the new size, which can take a few
+			// layout passes at high zoom; until then the values get clamped to the old range.
+			int tries = 0;
 			GLib.Functions.IdleAdd (GLib.Constants.PRIORITY_DEFAULT_IDLE, () => {
-				viewport.Hadjustment!.Value = x;
-				viewport.Vadjustment!.Value = y;
-				return false;
+				Gtk.Adjustment h = viewport.Hadjustment!, v = viewport.Vadjustment!;
+				h.Value = x;
+				v.Value = y;
+				return (h.Value != x || v.Value != y) && ++tries < 20;
 			});
 			return;
 		}
