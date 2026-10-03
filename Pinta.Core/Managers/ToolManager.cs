@@ -281,7 +281,7 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 
 		// Hold Space to pan with the left mouse button, as in Paint.NET.
 		space_held = true;
-		WatchFocusLoss ();
+		WatchSpaceRelease ();
 
 		document.Workspace.Canvas.Cursor = pan.DefaultCursor;
 
@@ -307,19 +307,31 @@ public sealed class ToolManager : IEnumerable<BaseTool>, IToolService
 			document.Workspace.Canvas.Cursor = CurrentTool?.CurrentCursor;
 	}
 
-	private bool watching_focus;
+	private bool watching_space;
 
-	// A Space release that happens while another window has focus never reaches us.
-	private void WatchFocusLoss ()
+	// The canvas only gets key releases while the pointer is over it (and not when a toolbar
+	// widget has focus), and none at all while another window has focus. Watch the main
+	// window directly so the Space-pan state can't get stuck.
+	private void WatchSpaceRelease ()
 	{
-		if (watching_focus)
+		if (watching_space)
 			return;
 
-		watching_focus = true;
-		chrome_manager.MainWindow.OnNotify += (_, e) => {
-			if (e.Pspec.GetName () == "is-active" && !chrome_manager.MainWindow.IsActive && space_held)
+		watching_space = true;
+		Gtk.Window window = chrome_manager.MainWindow;
+
+		window.OnNotify += (_, e) => {
+			if (e.Pspec.GetName () == "is-active" && !window.IsActive && space_held)
 				ReleaseSpace (workspace_manager.ActiveDocumentOrDefault);
 		};
+
+		Gtk.EventControllerKey key_controller = Gtk.EventControllerKey.New ();
+		key_controller.SetPropagationPhase (Gtk.PropagationPhase.Capture);
+		key_controller.OnKeyReleased += (_, e) => {
+			if (e.Keyval == Gdk.Constants.KEY_space && space_held)
+				ReleaseSpace (workspace_manager.ActiveDocumentOrDefault);
+		};
+		window.AddController (key_controller);
 	}
 
 	public void DoAfterSave (Document document)

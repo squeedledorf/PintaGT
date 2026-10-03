@@ -168,6 +168,7 @@ public sealed class LassoSelectTool : BaseTool
 		if (mid_polygon) {
 			switch (e.Key.Value) {
 				case Gdk.Constants.KEY_Return:
+				case Gdk.Constants.KEY_KP_Enter:
 					FinalizeShape (document);
 					return true;
 				case Gdk.Constants.KEY_BackSpace:
