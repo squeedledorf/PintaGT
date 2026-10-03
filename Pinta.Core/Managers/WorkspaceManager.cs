@@ -257,6 +257,11 @@ public sealed class WorkspaceManager : IWorkspaceService
 	/// </summary>
 	public void MoveDocument (int from, int to)
 	{
+		ArgumentOutOfRangeException.ThrowIfNegative (from);
+		ArgumentOutOfRangeException.ThrowIfNegative (to);
+		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual (from, open_documents.Count);
+		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual (to, open_documents.Count);
+
 		if (from == to)
 			return;
 
