@@ -34,6 +34,9 @@ public sealed partial class ToolBarDropDownButton
 
 		Items = new (items);
 
+		// Like Paint.NET, toolbar dropdowns never keep keyboard focus, so the next keystrokes go to the canvas / active tool.
+		CanFocus = false;
+
 		SetModel (string_list);
 
 		Gtk.SignalListItemFactory selectedFactory = Gtk.SignalListItemFactory.New ();
@@ -133,6 +136,14 @@ public sealed partial class ToolBarDropDownButton
 	private void OnSelectedItemChanged ()
 	{
 		SelectedItemChanged?.Invoke (this, EventArgs.Empty);
+
+		// Hand focus back to the canvas once the popup has closed.
+		GLib.Functions.IdleAdd (0, () => {
+			if (PintaCore.Workspace.HasOpenDocuments)
+				PintaCore.Workspace.ActiveWorkspace.GrabFocusToCanvas ();
+
+			return false;
+		});
 	}
 
 	public event EventHandler? SelectedItemChanged;
