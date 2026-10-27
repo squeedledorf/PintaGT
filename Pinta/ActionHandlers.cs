@@ -76,7 +76,7 @@ public sealed class ActionHandlers
 
 			// Layers
 			new LayerPropertiesAction (chrome, actions.Layers, workspace),
-			new RotateZoomLayerAction (chrome, actions.Layers, workspace, tools),
+			new RotateZoomLayerAction (actions.Layers, PintaCore.LivePreview, PintaCore.Services),
 
 			// View
 			new ToolBarToggledAction (actions.View, chrome),

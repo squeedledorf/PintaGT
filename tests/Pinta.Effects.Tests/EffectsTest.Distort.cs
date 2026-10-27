@@ -262,4 +262,50 @@ partial class EffectsTest
 		effect.Data.EdgeBehavior = EdgeBehavior.Primary;
 		Utilities.TestEffect (effect, "twist5.png");
 	}
+
+	[Test]
+	public void RotateZoomDefaultLeavesLayer ()
+	{
+		RotateZoomEffect effect = new (Utilities.CreateMockServices ());
+		Utilities.TestEffect (effect, "input.png");
+	}
+
+	[Test]
+	public void RotateZoomHalfTurn ()
+	{
+		RotateZoomEffect effect = new (Utilities.CreateMockServices ());
+		effect.Data.Angle = 180;
+		effect.Data.Quality = 1;
+
+		using Cairo.ImageSurface source = Utilities.LoadImage ("input.png");
+		using Cairo.ImageSurface result = CairoExtensions.CreateImageSurface (Cairo.Format.Argb32, source.Width, source.Height);
+		using Cairo.ImageSurface expected = CairoExtensions.CreateImageSurface (Cairo.Format.Argb32, source.Width, source.Height);
+		effect.Render (source, result, [source.GetBounds ()]);
+
+		var src = source.GetReadOnlyPixelData ();
+		var exp = expected.GetPixelData ();
+		for (int i = 0; i < src.Length; ++i)
+			exp[src.Length - 1 - i] = src[i];
+		expected.MarkDirty ();
+
+		Utilities.CompareImages (result, expected);
+	}
+
+	[Test]
+	public void RotateZoomRollShrinksAcross ()
+	{
+		// Rolled 60 towards East the layer is foreshortened left to right: the right edge column is empty.
+		RotateZoomEffect effect = new (Utilities.CreateMockServices ());
+		effect.Data.RollAmount = 60;
+		effect.Data.Quality = 1;
+
+		using Cairo.ImageSurface source = Utilities.LoadImage ("input.png");
+		using Cairo.ImageSurface result = CairoExtensions.CreateImageSurface (Cairo.Format.Argb32, source.Width, source.Height);
+		effect.Render (source, result, [source.GetBounds ()]);
+
+		var px = result.GetReadOnlyPixelData ();
+		int w = source.Width, h = source.Height;
+		Assert.That (px[(h / 2) * w + w - 1].A, Is.EqualTo (0));
+		Assert.That (px[(h / 2) * w + w / 2].A, Is.EqualTo (source.GetReadOnlyPixelData ()[(h / 2) * w + w / 2].A));
+	}
 }

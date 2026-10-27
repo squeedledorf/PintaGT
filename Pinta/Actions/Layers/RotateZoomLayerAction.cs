@@ -25,28 +25,25 @@
 // THE SOFTWARE.
 
 using System;
-using Cairo;
 using Pinta.Core;
-using Pinta.Gui.Widgets;
+using Pinta.Effects;
 
 namespace Pinta.Actions;
 
+/// <summary>
+/// Layers > Rotate / Zoom: Paint.NET's roll, rotate, pan and zoom, previewed live like an effect.
+/// </summary>
 public sealed class RotateZoomLayerAction : IActionHandler
 {
-	private readonly ChromeManager chrome;
 	private readonly LayerActions layers;
-	private readonly WorkspaceManager workspace;
-	private readonly ToolManager tools;
-	internal RotateZoomLayerAction (
-		ChromeManager chrome,
-		LayerActions layers,
-		WorkspaceManager workspace,
-		ToolManager tools)
+	private readonly LivePreviewManager live_preview;
+	private readonly IServiceProvider services;
+
+	internal RotateZoomLayerAction (LayerActions layers, LivePreviewManager livePreview, IServiceProvider services)
 	{
-		this.chrome = chrome;
 		this.layers = layers;
-		this.workspace = workspace;
-		this.tools = tools;
+		live_preview = livePreview;
+		this.services = services;
 	}
 
 	void IActionHandler.Initialize ()
@@ -61,97 +58,9 @@ public sealed class RotateZoomLayerAction : IActionHandler
 
 	private async void Activated (object sender, EventArgs e)
 	{
-		// TODO - allow the layer to be zoomed in or out
+		if (live_preview.IsEnabled)
+			return;
 
-		RotateZoomData data = new ();
-
-		using SimpleEffectDialog dialog = SimpleEffectDialog.New (
-			chrome.MainWindow,
-			Translations.GetString ("Rotate / Zoom Layer"),
-			Resources.Icons.LayerRotateZoom,
-			data,
-			new PintaLocalizer (),
-			workspace);
-
-		// When parameters are modified, update the display transform of the layer.
-		dialog.EffectDataChanged += (o, args) => {
-			var xform = ComputeMatrix (data);
-			var doc = workspace.ActiveDocument;
-			doc.Layers.CurrentUserLayer.Transform = xform.Clone ();
-			workspace.Invalidate ();
-		};
-
-		Gtk.ResponseType response = await dialog.RunAsync ();
-
-		dialog.Destroy ();
-
-		ClearLivePreview ();
-
-		if (response != Gtk.ResponseType.Ok || data.IsDefault) return;
-
-		ApplyTransform (data);
-	}
-
-	private void ClearLivePreview ()
-	{
-		workspace.ActiveDocument.Layers.CurrentUserLayer.Transform.InitIdentity ();
-		workspace.Invalidate ();
-	}
-
-	private Matrix ComputeMatrix (RotateZoomData data)
-	{
-		var xform = CairoExtensions.CreateIdentityMatrix ();
-		var image_size = workspace.ImageSize;
-		var center_x = image_size.Width / 2.0;
-		var center_y = image_size.Height / 2.0;
-
-		xform.Translate ((1 + data.Pan.Horizontal) * center_x, (1 + data.Pan.Vertical) * center_y);
-		xform.Rotate (-data.Angle.ToRadians ().Radians);
-		xform.Scale (data.Zoom, data.Zoom);
-		xform.Translate (-center_x, -center_y);
-
-		return xform;
-	}
-
-	private void ApplyTransform (RotateZoomData data)
-	{
-		var doc = workspace.ActiveDocument;
-
-		tools.Commit ();
-
-		var old_surf = doc.Layers.CurrentUserLayer.Surface.Clone ();
-
-		var xform = ComputeMatrix (data);
-
-		doc.Layers.CurrentUserLayer.ApplyTransform (
-			xform,
-			workspace.ImageSize,
-			workspace.ImageSize);
-
-		doc.Workspace.Invalidate ();
-
-		doc.History.PushNewItem (
-			new SimpleHistoryItem (
-				Resources.Icons.LayerRotateZoom,
-				Translations.GetString ("Rotate / Zoom Layer"),
-				old_surf,
-				doc.Layers.CurrentUserLayerIndex
-			)
-		);
-	}
-
-	private sealed class RotateZoomData : EffectData
-	{
-		[Caption ("Angle")]
-		public DegreesAngle Angle { get; set; } = new (0);
-
-		[Caption ("Pan")]
-		public CenterOffset<double> Pan { get; set; } = new (0, 0);
-
-		[Caption ("Zoom"), MinimumValue (0), MaximumValue (16)]
-		public double Zoom { get; set; } = 1.0;
-
-		public override bool IsDefault => Angle.Degrees == 0 && Pan.Horizontal == 0.0 && Pan.Vertical == 0.0 && Zoom == 1.0;
+		await live_preview.Start (new RotateZoomEffect (services));
 	}
 }
-
